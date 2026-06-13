@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATLAS Utility — Web</title>
+
+<!-- Fonts (graceful fallback to Arial Narrow / system fonts when offline) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/app.css?v=50">
+
+<!-- SheetJS (reads the UDQ .xlsx entirely in your browser — no upload, no server) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- JSZip (used by the PL tool to repack the output xlsx) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">ATLAS Utility</span>
+  <span class="ver">WEB 2.1
+  <span class="tagline">All processing happens in your browser — UDQ data never leaves this computer.</span>
+</div>
+
+<div class="layout">
+  <nav class="rail" id="rail" aria-label="Tools"></nav>
+
+  <main class="main">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button"
+         aria-label="Load a UDQ Excel file">
+      <div>
+        <div class="dz-title" id="dzTitle">Drop a UDQ here</div>
+        <div class="dz-sub" id="dzSub">or click to browse for the ATLAS Excel export (.xlsx)</div>
+      </div>
+      <span class="dz-file hidden" id="dzFile"></span>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm" class="hidden">
+    <div class="statusline" id="loadStatus"></div>
+
+    <div id="dashboard" class="hidden"></div>
+
+    <div id="workspace" class="workspace"></div>
+  </main>
+</div>
+
+<script src="js/constants.js?v=50"></script>
+<script src="js/util.js?v=50"></script>
+<script src="js/udq.js?v=50"></script>
+<script src="js/assets.js?v=50"></script>
+<script src="js/tools/ci.js?v=50"></script>
+<script src="js/tools/pl_templates.js?v=50"></script>
+<script src="js/tools/pl.js?v=50"></script>
+<script src="js/tools/placards.js?v=50"></script>
+<script src="js/tools/sli_template.js?v=50"></script>
+<script src="js/tools/sli.js?v=50"></script>
+<script src="js/tools/rfq_template.js?v=50"></script>
+<script src="js/tools/rfq.js?v=50"></script>
+<script src="js/tools/ipc_template.js?v=50"></script>
+<script src="js/tools/ipc.js?v=50"></script>
+<script src="js/tools/po.js?v=50"></script>
+<script src="js/tools/mct_template.js?v=50"></script>
+<script src="js/tools/mct.js?v=50"></script>
+<script src="js/tools/topdocs_template.js?v=50"></script>
+<script src="js/tools/topdocs.js?v=50"></script>
+<script src="js/tools/dd1149_template.js?v=50"></script>
+<script src="js/tools/dd1149.js?v=50"></script>
+<script src="js/tools/coreims_template.js?v=50"></script>
+<script src="js/tools/coreims.js?v=50"></script>
+<script src="js/tools/pmr_template.js?v=50"></script>
+<script src="js/tools/pmr.js?v=50"></script>
+<script src="js/tools/reqatt.js?v=50"></script>
+<script src="js/tools/ecm_template.js?v=50"></script>
+<script src="js/tools/ecm.js?v=50"></script>
+<script src="js/app.js?v=50"></script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATLAS Utility — Web</title>
+
+<!-- PWA: installable, offline-capable -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#16283C">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+
+<!-- Fonts (graceful fallback to Arial Narrow / system fonts when offline) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/app.css?v=86">
+
+<!-- Excel + Zip engines.
+     Load BUNDLED local copies first (js/vendor/) so the app is fully offline-
+     capable without any CDN; if those files aren't present, fall back to the CDN.
+     The inline checks use document.write during parse to keep load order intact
+     so app scripts always see XLSX / JSZip defined. To bundle the libraries,
+     run download-offline-libs.ps1 (or see js/vendor/README.txt). -->
+<script src="js/vendor/xlsx.full.min.js"></script>
+<script>window.XLSX||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/scr'+'ipt>');</script>
+<script src="js/vendor/jszip.min.js"></script>
+<script>window.JSZip||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"><\/scr'+'ipt>');</script>
+<script src="js/vendor/pdf-lib.min.js"></script>
+<script>window.PDFLib||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div class="topbar">
+  <button class="rail-toggle" id="railToggle" type="button" title="Collapse / expand the tool menu" aria-label="Collapse tool menu" aria-expanded="true">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
+  </button>
+  <img class="brandlogo" src="icons/atlas-logo.png?v=62" alt="" aria-hidden="true">
+  <span class="brand">ATLAS Utility</span>
+  <button class="ver" id="aboutBtn" type="button" title="About ATLAS Utility — version & changelog">WEB 2.5.59</button>
+  <span class="tagline"></span>
+  <span class="topbar-right">
+    <button class="hist-btn" id="compareBtn" type="button" title="Compare UDQs" aria-label="Compare UDQs">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M3 13v4a2 2 0 0 0 2 2h4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M21 13v4a2 2 0 0 1-2 2h-4"/><path d="M12 7v10"/></svg>
+    </button>
+    <button class="hist-btn" id="historyBtn" type="button" title="Run history" aria-label="Run history">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
+    </button>
+    <span class="fetch-wrap">
+      <button class="fetchbtn" id="atlasFetchBtn" type="button" title="Fetch a UDQ from ATLAS, or load a UDQ file" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 3v6h-6"/></svg>
+        <span>ATLAS / UDQ</span>
+      </button>
+      <div id="atlasFetchPop" class="atlas-pop hidden" role="dialog" aria-label="Fetch from ATLAS"></div>
+    </span>
+    <button class="hist-btn" id="consolBtn" type="button" title="Consolidate multiple WMTRs into one shipment" aria-label="Consolidate WMTRs">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+    </button>
+    <button class="gear" id="settingsBtn" type="button" title="Settings" aria-label="Settings">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M19.43,12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49,1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65c-.03-.24-.24-.42-.49-.42h-4c-.25,0-.46.18-.49.42l-.38,2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49,0-.61.22l-2,3.46c-.13.22-.07.49.12.64l2.11,1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11,1.65c-.19.15-.24.42-.12.64l2,3.46c.12.22.39.3.61.22l2.49-1c.52.4,1.08.73,1.69.98l.38,2.65c.03.24.24.42.49.42h4c.25,0,.46-.18.49-.42l.38-2.65c.61-.25,1.17-.59,1.69-.98l2.49,1c.23.09.49,0,.61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65ZM12,15.5c-1.93,0-3.5-1.57-3.5-3.5s1.57-3.5,3.5-3.5,3.5,1.57,3.5,3.5-1.57,3.5-3.5,3.5Z"/></svg>
+  </button>
+  </span>
+</div>
+
+<div class="layout">
+  <nav class="rail" id="rail" aria-label="Tools"></nav>
+
+  <main class="main">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button"
+         aria-label="Load a UDQ Excel file">
+      <div>
+        <div class="dz-title" id="dzTitle">Drop a UDQ here</div>
+        <div class="dz-sub" id="dzSub">or click to browse for the ATLAS Excel export (.xlsx)</div>
+      </div>
+      <span class="dz-file hidden" id="dzFile"></span>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm" class="hidden">
+    <div class="statusline" id="loadStatus"></div>
+    <div id="recentUdqs"></div>
+
+    <div id="dashboard" class="hidden"></div>
+
+    <div id="workspace" class="workspace"></div>
+  </main>
+</div>
+
+<script src="js/constants.js?v=96"></script>
+<script src="js/util.js?v=61"></script>
+<script src="js/a11y.js?v=61"></script>
+<script src="js/settings.js?v=67"></script>
+<script src="js/backup.js?v=63"></script>
+<script src="js/about.js?v=100"></script>
+<script src="js/audit.js?v=62"></script>
+<script src="js/recents.js?v=62"></script>
+<script src="js/formcache.js?v=62"></script>
+<script src="js/udq.js?v=66"></script>
+<script src="js/udq_tools.js?v=63"></script>
+<script src="js/assets.js?v=64"></script>
+<script src="js/tools/ci.js?v=62"></script>
+<script src="js/tools/pl_templates.js?v=61"></script>
+<script src="js/tools/pl.js?v=64"></script>
+<script src="js/tools/manual_parents.js?v=4"></script>
+<script src="js/tools/manual_details.js?v=2"></script>
+<script src="js/tools/placards.js?v=61"></script>
+<script src="js/tools/sli_template.js?v=61"></script>
+<script src="js/tools/sli.js?v=62"></script>
+<script src="js/tools/rfq_template.js?v=61"></script>
+<script src="js/tools/rfq.js?v=62"></script>
+<script src="js/tools/ipc_template.js?v=61"></script>
+<script src="js/tools/ipc.js?v=61"></script>
+<script src="js/tools/po.js?v=65"></script>
+<script src="js/tools/propo.js?v=63"></script>
+<script src="js/tools/po_pdf.js?v=63"></script>
+<script src="js/tools/mct_template.js?v=61"></script>
+<script src="js/tools/mct.js?v=61"></script>
+<script src="js/tools/topdocs_template.js?v=61"></script>
+<script src="js/tools/topdocs.js?v=61"></script>
+<script src="js/tools/dd1149_template.js?v=61"></script>
+<script src="js/tools/dd1149.js?v=61"></script>
+<script src="js/tools/coreims_template.js?v=61"></script>
+<script src="js/tools/coreims.js?v=61"></script>
+<script src="js/tools/pmr_template.js?v=61"></script>
+<script src="js/tools/pmr.js?v=81"></script>
+<script src="js/tools/reqatt.js?v=63"></script>
+<script src="js/tools/ecm_template.js?v=61"></script>
+<script src="js/tools/ecm.js?v=62"></script>
+<script src="js/tools/validate.js?v=64"></script>
+<script src="js/data/history_index.js?v=64"></script>
+<script src="js/tools/search.js?v=64"></script>
+<script src="js/dangerous_goods.js?v=61"></script>
+<script src="js/tools/packet.js?v=62"></script>
+<script src="js/metrics_dashboard.js?v=85"></script>
+<script src="js/json_udq.js?v=14"></script>
+<script src="js/tools/xmastree.js?v=38"></script>
+<script src="js/consol.js?v=6"></script>
+<script src="js/item_split.js?v=6"></script>
+<script src="js/app.js?v=81"></script>
+<script src="js/compare.js?v=65"></script>
+<script src="js/pwa.js?v=62"></script>
+</body>
+</html>

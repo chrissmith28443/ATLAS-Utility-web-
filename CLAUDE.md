@@ -76,6 +76,27 @@ Always confirm all three match after a version change.
 
 ---
 
+## Deployment (current — supersedes the drag-and-drop in CLOUDFLARE_SETUP.md)
+
+This repo is **Git-connected to Cloudflare Pages** — deploys are automatic:
+
+- Push to `main` on GitHub (`chrissmith28443/ATLAS-Utility-web-`) → Cloudflare
+  Pages rebuilds and publishes within ~1 minute. **No manual upload.**
+- **Build config in Cloudflare:** Framework preset = None, Build command =
+  empty, Build output directory = `/`. It's plain static files (no build step),
+  so the repo root IS the site root.
+- **Employee URL:** https://atlas-utility.net (custom domain).
+- **Raw Pages URL:** https://atlas-utility.pages.dev (same site).
+- **Access control:** BOTH URLs sit behind Cloudflare Access (email one-time-PIN
+  login) via the `atomic-possum` Zero Trust team — only allow-listed emails get
+  in. This protects the full-data build (vendors, signers, contract numbers).
+  ⚠️ Any NEW hostname or preview URL (`*.atlas-utility.pages.dev`) must be added
+  to the Access application, or it's a public backdoor to that data.
+- `CLOUDFLARE_SETUP.md` documents the OLD drag-and-drop method — keep it for the
+  Access-policy reference, but deploys no longer work that way.
+
+---
+
 ## Project structure
 
 - `index.html` — app shell / entry point

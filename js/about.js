@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.61",
+    title: "Landing page — file hint now mentions .xlsm",
+    notes: [
+      "The drop-zone hint said the browse button only took .xlsx, but the picker has always accepted .xlsm too. Updated the text to read “.xlsx or .xlsm” so nobody assumes a macro-enabled ATLAS export is unsupported.",
+    ],
+  },
+  {
     version: "2.5.60",
     title: "Metrics \u2014 every card drills down, docs folded in, tables reordered",
     notes: [

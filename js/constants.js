@@ -4,7 +4,7 @@
    ========================================================================= */
 
 const APP_NAME = "ATLAS Utility";
-const APP_VERSION = "Web 2.5.61";
+const APP_VERSION = "Web 2.5.62";
 
 /* Signers (Printed Name dropdown) */
 const SIGNERS = [
@@ -16,6 +16,25 @@ const SIGNERS = [
 
 const PURPOSE_CHOICES = ["Donation", "Return After Repair", "Return For Repair", "Other"];
 const MODE_CHOICES = ["Air", "Ocean", "Ground"];
+
+/* Currency choices for the Commercial Invoice (was USD-only). Codes are ISO
+   4217; the first entry is the default. Values on the CI are plain numbers, so
+   the selected code is what labels the "Total Value" line and the continuation
+   subtotal. */
+const CI_CURRENCIES = [
+  { code: "USD", name: "US Dollar" },
+  { code: "EUR", name: "Euro" },
+  { code: "GBP", name: "British Pound" },
+  { code: "CAD", name: "Canadian Dollar" },
+  { code: "AUD", name: "Australian Dollar" },
+  { code: "JPY", name: "Japanese Yen" },
+  { code: "CHF", name: "Swiss Franc" },
+  { code: "CNY", name: "Chinese Yuan" },
+  { code: "SEK", name: "Swedish Krona" },
+  { code: "NOK", name: "Norwegian Krone" },
+  { code: "DKK", name: "Danish Krone" },
+  { code: "SGD", name: "Singapore Dollar" },
+];
 
 /* Default contract number used on the CI (was hardcoded in the desktop template;
    now editable in the CI form, prefilled from the UDQ "Contract #" when present). */
@@ -86,7 +105,7 @@ const CI_USPPI_DTRA = {
 /* Node test support (ignored by the browser) */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    SIGNERS, PURPOSE_CHOICES, MODE_CHOICES, SLI_LOCATIONS, US_STATE_FULL,
+    SIGNERS, PURPOSE_CHOICES, MODE_CHOICES, CI_CURRENCIES, SLI_LOCATIONS, US_STATE_FULL,
     US_COO, DEFAULT_CONTRACT_NO, CI_PREPARED_BY, CI_DECLARATION, CI_REMARKS_BOILERPLATE,
     CI_USPPI_DTRA,
   };

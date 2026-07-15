@@ -735,6 +735,8 @@ function renderCiWorkspace(container) {
   const curPurpose = m.purpose || "Donation";
   const purposeOpts = PURPOSE_CHOICES
     .map((p) => `<option${p === curPurpose ? " selected" : ""}>${esc(p)}</option>`).join("");
+  const currencyOpts = CI_CURRENCIES
+    .map((c, i) => `<option value="${esc(c.code)}"${i === 0 ? " selected" : ""}>${esc(c.code)} — ${esc(c.name)}</option>`).join("");
 
   const panel = el(`
     <div class="panel">
@@ -805,6 +807,11 @@ function renderCiWorkspace(container) {
             <label for="ciIncoterm">IncoTerms</label>
             <input type="text" id="ciIncoterm" value="${esc(ciDefaultIncoterm(AppState.data))}">
           </div>
+          <div class="field">
+            <label for="ciCurrency">Currency</label>
+            <select id="ciCurrency">${currencyOpts}</select>
+            <div class="hint">Labels the Total Value line on the invoice. Values themselves aren't converted.</div>
+          </div>
           <div class="field span2">
             <label for="ciComments">Shipment comments</label>
             <textarea id="ciComments" rows="2">${esc(ciDefaultComments(m))}</textarea>
@@ -862,7 +869,7 @@ function renderCiWorkspace(container) {
   modeChk.addEventListener("change", () => { syncModeLabels(); refresh(); });
   panel.querySelector("#ciIntConsignee").addEventListener("change", refresh);
 
-  for (const id of ["ciInvDate","ciShipDate","ciShipRef","ciContract","ciIncoterm","ciComments","ciSigner","ciRemarks","ciPurposeOther"]) {
+  for (const id of ["ciInvDate","ciShipDate","ciShipRef","ciContract","ciIncoterm","ciCurrency","ciComments","ciSigner","ciRemarks","ciPurposeOther"]) {
     panel.querySelector("#" + id).addEventListener("change", refresh);
   }
   panel.querySelector("#ciRefresh").addEventListener("click", refresh);
@@ -891,6 +898,7 @@ function ciOptionsFromForm() {
     shipmentRef: g("ciShipRef").value.trim(),
     contractNo: g("ciContract").value.trim(),
     incoterm: g("ciIncoterm") ? g("ciIncoterm").value.trim() : undefined,
+    currency: g("ciCurrency") ? g("ciCurrency").value : "USD",
     shipmentComments: g("ciComments").value.replace(/\s+/g, " ").trim(),
     printedName, title,
     userRemarks: g("ciRemarks").value.trim(),

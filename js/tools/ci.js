@@ -15,7 +15,7 @@ function ciBuildPages(data, opts) {
     invoiceDate = "", shipmentDate = "", shipmentComments = "",
     purpose = "", shipmentRef = "", contractNo = "",
     mode = "import", intConsignee = false,
-    incoterm,
+    incoterm, currency = "USD",
   } = opts || {};
 
   const meta = data.meta;
@@ -66,6 +66,7 @@ function ciBuildPages(data, opts) {
   pages.push({
     is_first: true,
     mode,
+    currency,
     int_consignee: showInt,
     invoice_no: meta.invoice_no,
     invoice_date: invoiceDate,
@@ -104,6 +105,7 @@ function ciBuildPages(data, opts) {
       pages.push({
         is_first: false,
         mode,
+        currency,
         int_consignee: showInt,
         invoice_no: meta.invoice_no,
         invoice_date: invoiceDate,
@@ -287,7 +289,7 @@ function ciRenderPage(p, pageIdx, totalPages) {
         <div class="tcell"><span class="tlabel">Tot no of Packages:</span> <span class="tval">${esc(p.total_pkgs)}</span></div>
         <div class="tcell"><span class="tlabel">Tot Weight:</span> <span class="tval">${esc(p.total_weight)}</span></div>
         <div class="tcell"><span class="tlabel">Tot Volume:</span> <span class="tval">${esc(p.total_volume)}</span></div>
-        <div class="tcell"><span class="tlabel">Total Value (USD):</span> <span class="tval">${esc(p.total_value)}</span></div>
+        <div class="tcell"><span class="tlabel">Total Value (${esc(p.currency)}):</span> <span class="tval">${esc(p.total_value)}</span></div>
       </div>
 
       <div class="footer-bottom">
@@ -349,7 +351,7 @@ function ciRenderPage(p, pageIdx, totalPages) {
 
     <div class="footer footer--cont">
       <div class="footer-subtotal">
-        <span>Subtotal:</span>
+        <span>Subtotal (${esc(p.currency)}):</span>
         <span class="value">${esc(p.page_subtotal)}</span>
       </div>
     </div>

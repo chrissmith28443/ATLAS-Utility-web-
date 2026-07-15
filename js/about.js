@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.62",
+    title: "Commercial Invoice — pick a currency (no longer USD-only)",
+    notes: [
+      "The CI now has a Currency dropdown (defaults to USD). Whatever you pick labels the “Total Value” line on page 1 and the “Subtotal” strip on continuation pages — e.g. “Total Value (EUR)”. The amounts themselves aren’t converted; the invoice just states which currency they’re in.",
+    ],
+  },
+  {
     version: "2.5.61",
     title: "Landing page — file hint now mentions .xlsm",
     notes: [

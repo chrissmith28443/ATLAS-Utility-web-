@@ -27,6 +27,10 @@ language, not just in code.
 ## Working style (important)
 
 - Be **direct and concise**. No filler, no restating my request back to me.
+- **Show me a live preview, never code diffs.** I don't read code and won't ask
+  to. For any change with a visible result, give me a working preview I can
+  actually test (a rendered page/PDF, or the change on the site) before it goes
+  live — not a diff. Summarize what changed in plain English; skip the code.
 - When you change something, give a **short plain-English summary** of what
   changed and why, then the code — no lecture on how it works unless I ask.
 - **Reuse the existing conventions and patterns** already in the codebase.

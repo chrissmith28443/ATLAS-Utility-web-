@@ -58,6 +58,24 @@ function _sliPartyBlockWithPoc(party) {
   return base || poc || "";
 }
 
+/**
+ * Split a request party (origin / pickup) into the Freight Location shape:
+ * name (E3) = organization = first address line; addr (E5) = the remaining
+ * address lines plus country. Mirrors how SLI_LOCATIONS keeps name/address
+ * separate. No POC line here — the freight block is an address, not a contact.
+ */
+function _sliPartyFreight(party) {
+  if (!party) return { name: "", addr: "" };
+  const lines = (party.addr_lines || []).map((a) => norm(a)).filter(Boolean);
+  const name = lines[0] || "";
+  const rest = lines.slice(1);
+  const country = norm(party.country);
+  if (country && !rest.some((ln) => ln.toLowerCase() === country.toLowerCase())) {
+    rest.push(country);
+  }
+  return { name, addr: rest.join("\n").trim() };
+}
+
 /** Port of party_utils.extract_state_from_address. */
 function _sliExtractState(block) {
   if (!block) return "";
@@ -119,9 +137,17 @@ function sliBuildModel(data, opts) {
 
   // Freight Location (E3 name, E5 address)
   let freightName, freightAddr;
+  let freightFromParty = false;
   if (freightSel === "Other (manual)" || !freightSel) {
     freightName = ""; freightAddr = "";
     highlightCells.push("E3", "E5");
+  } else if (freightSel === "Origin Address" || freightSel === "Pickup Location") {
+    // Pull straight from the request's Shipment Origin / Pickup Location party.
+    const party = freightSel === "Origin Address" ? parties.origin : parties.pickup;
+    const f = _sliPartyFreight(party);
+    freightName = f.name; freightAddr = f.addr;
+    freightFromParty = true;
+    if (!freightName && !freightAddr) highlightCells.push("E3", "E5");
   } else {
     freightName = freightSel;
     freightAddr = (SLI_LOCATIONS[freightName] || freightName).trim();
@@ -166,6 +192,8 @@ function sliBuildModel(data, opts) {
   } else {
     const abbr = _sliExtractState(freightAddr);
     freightState = US_STATE_FULL[abbr.toUpperCase()] || abbr;
+    // Request-sourced address may lack a detectable state — flag it for review.
+    if (freightFromParty && !freightState) highlightCells.push("C15");
   }
 
   // A19 WMTR reference statement.

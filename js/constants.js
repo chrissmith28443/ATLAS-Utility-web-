@@ -4,13 +4,14 @@
    ========================================================================= */
 
 const APP_NAME = "ATLAS Utility";
-const APP_VERSION = "Web 2.5.62";
+const APP_VERSION = "Web 2.5.65";
 
 /* Signers (Printed Name dropdown) */
 const SIGNERS = [
   { name: "Chris M. Smith", title: "Transportation Coordinator" },
   { name: "Steffanie Cruz", title: "Transportation Coordinator" },
   { name: "Toby Hurdle", title: "Transportation Coordinator" },
+  { name: "Shawn Ryan", title: "Transportation Coordinator" },
   { name: "Lee Tilman", title: "Global Materials Transportation Manager" },
 ];
 

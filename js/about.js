@@ -13,6 +13,28 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.65",
+    title: "New signatory + PO approval prompts over $50k / $100k",
+    notes: [
+      "Shawn Ryan (Transportation Coordinator) was added to the Printed Name / signatory dropdown, so she's selectable on every document that has one (DD1149, SLI, packing lists, POs, etc.).",
+      "Issuing a Purchase Order now runs a spend check first. Over $50,000, a prompt asks you to confirm the TRLS II PM or DPM has approved the PO; over $100,000, it instead asks you to confirm the TTI CFO approved it. Cancel stops the PO from being generated; $50,000 and under is unaffected. The check runs on both the shipping and property POs and on all three outputs (PDF, Word, Print).",
+    ],
+  },
+  {
+    version: "2.5.64",
+    title: "RFQ — auto-fill EAR/ITAR, dangerous goods & temperature control from the UDQ",
+    notes: [
+      "The RFQ used to make you hand-select dangerous goods and temperature control and type the comments. Now the utility reads them straight from the request: EAR/ITAR ticks the boxes and lists the ECCN/USML codes it found; Dangerous goods flips to Yes and lists the UN numbers and hazard classes (e.g. “UN1263 (Class 3)”); Temperature control flips to Yes and pulls the requirement text (ambient/room-temp counts as No). A short “Auto-detected …” note under each shows exactly what was pulled, and every value is still yours to override before drafting.",
+    ],
+  },
+  {
+    version: "2.5.63",
+    title: "SLI — pull the Freight Location straight from the request",
+    notes: [
+      "The SLI's Freight location dropdown now offers “Origin Address” and “Pickup Location” alongside the saved locations and “Other (manual)”. Pick one and the Freight Location name/address (and the State of Origin) fill in automatically from the request's Shipment Origin or Pickup Location party — no retyping. The two options only appear when the request actually has that address; anything the request can't supply (e.g. a missing state) is highlighted yellow for you to check.",
+    ],
+  },
+  {
     version: "2.5.62",
     title: "Commercial Invoice — pick a currency (no longer USD-only)",
     notes: [

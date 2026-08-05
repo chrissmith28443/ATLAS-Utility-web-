@@ -278,14 +278,116 @@ function rfqClassifyExportControl(items) {
   // and/or suffixed with a "(a)"-style subparagraph.
   const usmlRe = /^(?:USML\s*)?(?:CAT(?:EGORY)?\.?\s*)?[IVX]{1,5}(?:\s*\([A-Z0-9.]+\))?$/i;
   let ear = false, itar = false;
+  const earCodes = [], itarCodes = [];
+  const seenE = new Set(), seenI = new Set();
   for (const it of (items || [])) {
-    const v = norm(it && it.eccn).toUpperCase();
+    const raw = norm(it && it.eccn);       // keep original casing for display
+    const v = raw.toUpperCase();           // match case-insensitively
     if (!v) continue;
-    if (v === "EAR99" || eccnRe.test(v)) { ear = true; continue; }
-    if (/\bITAR\b/.test(v) || /\bUSML\b/.test(v) || usmlRe.test(v)) { itar = true; continue; }
+    // EAR99 is the catch-all for items subject to the EAR but not on the CCL —
+    // treated as NOT export-controlled here, so it never flags EAR or is listed.
+    if (v === "EAR99" || v === "NLR") continue;
+    if (eccnRe.test(v)) {
+      ear = true;
+      if (!seenE.has(v)) { seenE.add(v); earCodes.push(raw); }
+      continue;
+    }
+    if (/\bITAR\b/.test(v) || /\bUSML\b/.test(v) || usmlRe.test(v)) {
+      itar = true;
+      if (!seenI.has(v)) { seenI.add(v); itarCodes.push(raw); }
+      continue;
+    }
     // Unrecognized token: leave it for manual review rather than guessing.
   }
-  return { ear, itar };
+  // Detail comment listing the distinct classifications actually found.
+  const parts = [];
+  if (earCodes.length) parts.push(`EAR: ${earCodes.join(", ")}`);
+  if (itarCodes.length) parts.push(`ITAR: ${itarCodes.join(", ")}`);
+  return { ear, itar, ear_codes: earCodes, itar_codes: itarCodes, comment: parts.join("; ") };
+}
+
+/** A UDQ cell that means "nothing / not applicable" (blank, None, N/A, No, …). */
+function rfqIsBlankish(raw) {
+  const s = norm(raw).toLowerCase().replace(/[.\s]+$/, "").trim();
+  if (!s) return true;
+  return ["none", "n/a", "na", "no", "n/r", "nr", "null", "tbd",
+          "not applicable", "not required", "not requested"].includes(s);
+}
+
+/** Normalize a UN code to "UN1263" form when it carries a 3–4 digit id. */
+function rfqFmtUnCode(un) {
+  const digits = (String(un).match(/[0-9]{3,4}/) || [])[0];
+  return digits ? "UN" + digits : norm(un).toUpperCase();
+}
+
+/** Prefix a bare numeric hazard class with "Class " (e.g. "3" -> "Class 3"). */
+function rfqFmtHazClass(cls) {
+  const s = norm(cls);
+  if (/^class\b/i.test(s) || /^div/i.test(s)) return s;
+  return /^[0-9]/.test(s) ? "Class " + s : s;
+}
+
+/**
+ * Pre-fill dangerous-goods Yes/No + a detail comment from the inventory's
+ * "UN Code" and "HAZMAT/Dangerous Goods Classification" columns.
+ * DG = Yes if any item carries a real UN number or a hazard class. The comment
+ * lists the distinct "UN1263 (Class 3)" pairs found. User can override.
+ */
+function rfqClassifyDangerousGoods(items) {
+  let dg = false;
+  const seen = new Set();
+  const details = [];
+  for (const it of (items || [])) {
+    const un = norm(it && it.un_code);
+    const cls = norm(it && it.hazmat_class);
+    const hasUn = !rfqIsBlankish(un) && (/[0-9]/.test(un) || /UN/i.test(un));
+    const hasCls = !rfqIsBlankish(cls);
+    if (!hasUn && !hasCls) continue;
+    dg = true;
+    const unFmt = hasUn ? rfqFmtUnCode(un) : "";
+    const clsFmt = hasCls ? rfqFmtHazClass(cls) : "";
+    let label;
+    if (unFmt && clsFmt) label = `${unFmt} (${clsFmt})`;
+    else label = unFmt || clsFmt;
+    const key = label.toLowerCase();
+    if (label && !seen.has(key)) { seen.add(key); details.push(label); }
+  }
+  return { dg: dg ? "Yes" : "No", comment: details.join(", ") };
+}
+
+/** Temperature values that mean "no active control" (blank/None plus ambient). */
+function rfqIsNoTemp(raw) {
+  if (rfqIsBlankish(raw)) return true;
+  const s = norm(raw).toLowerCase();
+  return ["ambient", "room temp", "room temperature", "standard", "normal"].includes(s);
+}
+
+/**
+ * Pre-fill temperature-control Yes/No + comment from the shipment-level
+ * "Temperature-Control Requirements" field, falling back to the per-item
+ * "Specific Temperature Control Requirements" column. Ambient/room-temp values
+ * count as "No". User can override.
+ */
+function rfqClassifyTempControl(data) {
+  const meta = (data && data.meta) || {};
+  const items = (data && data.items) || [];
+  const shipReq = norm(meta.temp_requirements);
+  const shipHas = !rfqIsNoTemp(shipReq);
+
+  const seen = new Set();
+  const details = [];
+  for (const it of items) {
+    const t = norm(it && it.temp_control);
+    if (rfqIsNoTemp(t)) continue;
+    const key = t.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); details.push(t); }
+  }
+
+  const tc = (shipHas || details.length) ? "Yes" : "No";
+  let comment = "";
+  if (shipHas) comment = shipReq;
+  else if (details.length) comment = details.join("; ");
+  return { tc, comment };
 }
 
 /** Subject line: "RFQ-#####-001 / USA to Jordan" (port of the subject logic). */
@@ -427,7 +529,7 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     rfqUsdOrNa, rfqNum, rfqLbsAndKgOrNa, rfqDimsToInches, rfqStripParens,
     rfqLinesToDivs, rfqRenderItemRows, rfqBuildModel, rfqSubject,
-    rfqClassifyExportControl,
+    rfqClassifyExportControl, rfqClassifyDangerousGoods, rfqClassifyTempControl,
     rfqFillPlaceholders, rfqRenderHtml, rfqHtmlToPlain,
     rfqB64Utf8, rfqBuildEml,
   };

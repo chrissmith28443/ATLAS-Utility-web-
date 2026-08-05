@@ -998,10 +998,22 @@ function printCi() {
 function renderSliWorkspace(container) {
   const m = AppState.data.meta;
 
-  const locOpts = (sel) => ['<option value="Other (manual)">Other (manual)</option>']
-    .concat(Object.keys(SLI_LOCATIONS).map((name) =>
-      `<option value="${esc(name)}" ${sel === name ? "selected" : ""}>${esc(name)}</option>`))
-    .join("");
+  // Freight location can also be pulled straight from the request — offer the
+  // Shipment Origin / Pickup Location parties as options, but only when that
+  // party actually has an address (skip empty blocks).
+  const parties = AppState.data.parties || {};
+  const hasParty = (p) => !!(p && (p.addr_lines || []).some((l) => norm(l)));
+  const reqFreightOpts = [];
+  if (hasParty(parties.origin)) reqFreightOpts.push("Origin Address");
+  if (hasParty(parties.pickup)) reqFreightOpts.push("Pickup Location");
+
+  const optTag = (name, sel) =>
+    `<option value="${esc(name)}" ${sel === name ? "selected" : ""}>${esc(name)}</option>`;
+  const locOpts = (sel, includeReq) =>
+    ['<option value="Other (manual)">Other (manual)</option>']
+      .concat((includeReq ? reqFreightOpts : []).map((name) => optTag(name, sel)))
+      .concat(Object.keys(SLI_LOCATIONS).map((name) => optTag(name, sel)))
+      .join("");
 
   const panel = el(`
     <div class="panel">
@@ -1010,12 +1022,12 @@ function renderSliWorkspace(container) {
         <div class="formgrid">
           <div class="field">
             <label for="sliFreight">Freight location</label>
-            <select id="sliFreight">${locOpts("Sovana Global Logistics")}</select>
-            <div class="hint">"Other (manual)" leaves the block blank and highlights it for hand entry.</div>
+            <select id="sliFreight">${locOpts("Sovana Global Logistics", true)}</select>
+            <div class="hint">"Origin Address" / "Pickup Location" pull from the request. "Other (manual)" leaves the block blank and highlights it for hand entry.</div>
           </div>
           <div class="field">
             <label for="sliForward">Forwarding agent</label>
-            <select id="sliForward">${locOpts("")}</select>
+            <select id="sliForward">${locOpts("", false)}</select>
           </div>
           <div class="field">
             <label for="sliDate">Signature date</label>
@@ -1324,6 +1336,37 @@ function updatePoPreview() {
   }
 }
 
+/**
+ * Approval gate for issuing a PO (shipping or property). TRLS II financial
+ * control on the cost amount:
+ *   • over $100,000 — must be approved by the TTI CFO.
+ *   • over  $50,000 — must be approved by the TRLS II PM or DPM.
+ * Shows a blocking confirmation the user must acknowledge before the PO is
+ * generated. Returns true to proceed, false if the user cancels. Amounts at or
+ * below $50,000 pass straight through.
+ */
+function poApprovalGate(opts) {
+  const cost = parseFloat(String((opts && opts.cost) || "").replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(cost)) return true; // poValidate handles bad/missing input
+  const usd = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if (cost > 100000) {
+    return window.confirm(
+      `⚠️ This PO is for ${usd(cost)}, which exceeds $100,000.\n\n` +
+      `Confirm this PO has been approved by the TTI CFO.\n\n` +
+      `OK = approval confirmed, continue.   Cancel = stop, do not issue.`
+    );
+  }
+  if (cost > 50000) {
+    return window.confirm(
+      `⚠️ This PO is for ${usd(cost)}, which exceeds $50,000.\n\n` +
+      `Confirm the TRLS II PM or DPM has approved this PO.\n\n` +
+      `OK = approval confirmed, continue.   Cancel = stop, do not issue.`
+    );
+  }
+  return true;
+}
+
 /** Shared validation for the shipping PO (mirrors the desktop PODialog).
  *  Returns an error message, or "" if the options are valid. */
 function poValidate(opts) {
@@ -1353,6 +1396,11 @@ function printPo() {
   if (err) {
     status.textContent = err;
     status.classList.add("err");
+    return;
+  }
+
+  if (!poApprovalGate(opts)) {
+    status.textContent = "PO not issued — approval not confirmed.";
     return;
   }
 
@@ -1388,6 +1436,11 @@ function saveWordPo() {
     return;
   }
 
+  if (!poApprovalGate(opts)) {
+    status.textContent = "PO not issued — approval not confirmed.";
+    return;
+  }
+
   const model = poBuildModel(opts);
   const docTitle = poDocTitle(model);
   poDownloadWord(model, poWordParts(model), docTitle);
@@ -1407,6 +1460,11 @@ function savePdfPo() {
   if (err) {
     status.textContent = err;
     status.classList.add("err");
+    return;
+  }
+
+  if (!poApprovalGate(opts)) {
+    status.textContent = "PO not issued — approval not confirmed.";
     return;
   }
 
@@ -1619,6 +1677,11 @@ function printProPo() {
     return;
   }
 
+  if (!poApprovalGate(opts)) {
+    status.textContent = "PO not issued — approval not confirmed.";
+    return;
+  }
+
   const model = propoBuildModel(opts);
   const docTitle = proPoDocTitle(model);
   const html = propoRenderHtml(model, docTitle);
@@ -1651,6 +1714,11 @@ function saveWordProPo() {
     return;
   }
 
+  if (!poApprovalGate(opts)) {
+    status.textContent = "PO not issued — approval not confirmed.";
+    return;
+  }
+
   const model = propoBuildModel(opts);
   const docTitle = proPoDocTitle(model);
   poDownloadWord(model, proPoWordParts(model), docTitle);
@@ -1669,6 +1737,11 @@ function savePdfProPo() {
   if (err) {
     status.textContent = err;
     status.classList.add("err");
+    return;
+  }
+
+  if (!poApprovalGate(opts)) {
+    status.textContent = "PO not issued — approval not confirmed.";
     return;
   }
 
@@ -1915,6 +1988,7 @@ function renderRfqWorkspace(container) {
               <label class="inline"><input type="radio" name="rfqDg" value="Yes"> Yes</label>
               <input type="text" id="rfqDgComment" placeholder="optional comment">
             </div>
+            <div class="hint" id="rfqDgAuto"></div>
           </div>
 
           <div class="field span3">
@@ -1924,6 +1998,7 @@ function renderRfqWorkspace(container) {
               <label class="inline"><input type="radio" name="rfqTc" value="Yes"> Yes</label>
               <input type="text" id="rfqTcComment" placeholder="optional comment">
             </div>
+            <div class="hint" id="rfqTcAuto"></div>
           </div>
         </div>
 
@@ -1953,19 +2028,46 @@ function renderRfqWorkspace(container) {
     </div>`);
   container.appendChild(panel);
 
-  // Pre-fill EAR / ITAR from the inventory's ECCN/USML classifications so the
-  // user starts from what the data says (they can still override before drafting).
+  // Pre-fill EAR/ITAR, dangerous goods, and temperature control straight from
+  // the UDQ so the user starts from what the data says (all still overridable).
   try {
+    // EAR / ITAR — from the inventory ECCN/USML column, with the codes listed.
     const ec = (typeof rfqClassifyExportControl === "function")
-      ? rfqClassifyExportControl(AppState.data.items) : { ear: false, itar: false };
+      ? rfqClassifyExportControl(AppState.data.items) : { ear: false, itar: false, comment: "" };
     if (ec.ear) { const e = panel.querySelector("#rfqEar"); if (e) e.checked = true; }
     if (ec.itar) { const i = panel.querySelector("#rfqItar"); if (i) i.checked = true; }
+    if (ec.comment) { const c = panel.querySelector("#rfqEarItarComment"); if (c && !c.value) c.value = ec.comment; }
     const auto = panel.querySelector("#rfqEarItarAuto");
     if (auto) {
       const on = [ec.ear ? "EAR" : null, ec.itar ? "ITAR" : null].filter(Boolean);
       auto.textContent = on.length
         ? `Auto-detected from the inventory ECCN/USML column: ${on.join(" & ")}. Adjust if needed.`
         : "No EAR/ITAR classifications detected in the inventory ECCN/USML column.";
+    }
+
+    // Dangerous goods — from the UN Code / HAZMAT columns.
+    const dgc = (typeof rfqClassifyDangerousGoods === "function")
+      ? rfqClassifyDangerousGoods(AppState.data.items) : { dg: "No", comment: "" };
+    if (dgc.dg === "Yes") { const y = panel.querySelector('input[name="rfqDg"][value="Yes"]'); if (y) y.checked = true; }
+    if (dgc.comment) { const c = panel.querySelector("#rfqDgComment"); if (c && !c.value) c.value = dgc.comment; }
+    const dgAuto = panel.querySelector("#rfqDgAuto");
+    if (dgAuto) {
+      dgAuto.textContent = dgc.dg === "Yes"
+        ? `Auto-detected from the UN Code / HAZMAT columns: ${dgc.comment || "dangerous goods present"}. Adjust if needed.`
+        : "No dangerous-goods (UN Code / HAZMAT) values detected in the inventory.";
+    }
+
+    // Temperature control — from the shipment Temperature-Control field (or the
+    // per-item column as a fallback); ambient/room-temp counts as "No".
+    const tcc = (typeof rfqClassifyTempControl === "function")
+      ? rfqClassifyTempControl(AppState.data) : { tc: "No", comment: "" };
+    if (tcc.tc === "Yes") { const y = panel.querySelector('input[name="rfqTc"][value="Yes"]'); if (y) y.checked = true; }
+    if (tcc.comment) { const c = panel.querySelector("#rfqTcComment"); if (c && !c.value) c.value = tcc.comment; }
+    const tcAuto = panel.querySelector("#rfqTcAuto");
+    if (tcAuto) {
+      tcAuto.textContent = tcc.tc === "Yes"
+        ? `Auto-detected from the Temperature-Control field: ${tcc.comment || "temperature control required"}. Adjust if needed.`
+        : "No temperature-control requirements detected in the UDQ.";
     }
   } catch (e) { /* prefill is best-effort */ }
 

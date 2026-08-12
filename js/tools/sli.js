@@ -99,6 +99,19 @@ function _sliClassifyCtrl(raw) {
   return [up, true];
 }
 
+/** True if a destination country string is in Country Group E:1
+    (15 CFR 740 Supp. 1): Cuba, Iran, North Korea, Syria. Matches full names or
+    the trailing ISO-2 code (e.g. "CUBA - CU"). Errs toward listing lines. */
+function _sliIsE1(country) {
+  const s = (country || "").toUpperCase();
+  if (!s) return false;
+  if (/\bCUBA\b/.test(s) || /\bIRAN\b/.test(s) || /\bSYRIA(N)?\b/.test(s) ||
+      /NORTH\s+KOREA/.test(s) || /KOREA[, ]+NORTH/.test(s) || /\bDPRK\b/.test(s)) {
+    return true;
+  }
+  return /\b(CU|IR|KP|SY)\b/.test(s);
+}
+
 /** Port of the SLI _num() money/number parser. */
 function _sliNum(x) {
   if (x === null || x === undefined) return 0.0;
@@ -184,6 +197,12 @@ function sliBuildModel(data, opts) {
 
   const deliverCountry = deliver ? norm(deliver.country) : "";
 
+  // Country Group E:1 destination check (Cuba, Iran, North Korea, Syria).
+  // Per 15 CFR 30.2(a)(1)(iv), the 30.37(a) $2,500 exemption does NOT apply to
+  // E:1 destinations — every commodity line must be listed regardless of value.
+  const destE1 = _sliIsE1(deliverCountry) ||
+    _sliIsE1(consignee ? norm(consignee.country) : "");
+
   // State of origin (C15): full state name from freight address; blank if Other
   let freightState = "";
   if (freightSel === "Other (manual)" || !freightSel) {
@@ -258,8 +277,9 @@ function sliBuildModel(data, opts) {
     const hasRealAuth = !!(authUp && authUp !== "NLR" && authUp !== "NO LICENSE REQUIRED");
 
     // Listing rule: drop EAR99/NLR-with-no-auth lines whose ORIGIN+HTS group
-    // totals <= $2,500 (per-origin threshold, per 15 CFR 30.37(a)).
-    if (isNonLic(eccnNorm, isUsml, hasRealAuth)) {
+    // totals <= $2,500 (per-origin threshold, per 15 CFR 30.37(a)). Skipped for
+    // E:1 destinations, where the exemption never applies and all lines list.
+    if (!destE1 && isNonLic(eccnNorm, isUsml, hasRealAuth)) {
       if ((nonlic[df + "|" + hts] || 0) <= 2500.0) continue;
     }
 
@@ -290,7 +310,9 @@ function sliBuildModel(data, opts) {
     }
   }
 
-  const remaining2500 = Object.values(nonlic).some((t) => t > 0 && t <= 2500.0);
+  // Box 26 flags non-licensable lines omitted for being <= $2,500. Never set
+  // for E:1 destinations, where nothing is omitted (all lines are listed).
+  const remaining2500 = !destE1 && Object.values(nonlic).some((t) => t > 0 && t <= 2500.0);
 
   // Sort by (hts, df, eccn, license) — matches desktop tuple sort
   const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);

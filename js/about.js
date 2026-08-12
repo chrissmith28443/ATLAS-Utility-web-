@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.66",
+    title: "SLI $2,500 rule fixed — domestic/foreign split now handled correctly",
+    notes: [
+      "The SLI generator was over-listing commodity lines. When a single Schedule B number was split into a domestic and a foreign line, it added the two together before applying the $2,500 test, so a small line (e.g. a $322 domestic portion) got listed just because the foreign portion under the same number was large. Under 15 CFR 30.37(a) the $2,500 threshold applies to each origin separately, so those small lines are now correctly dropped and the \"remaining Schedule B/HTS $2,500 or less, not listed\" box (26) ticks itself when that happens.",
+      "Added a safeguard for embargoed destinations: shipments to Country Group E:1 (Cuba, Iran, North Korea, Syria) now list every commodity line regardless of value, since the $2,500 exemption doesn't apply to those countries.",
+    ],
+  },
+  {
     version: "2.5.65",
     title: "New signatory + PO approval prompts over $50k / $100k",
     notes: [

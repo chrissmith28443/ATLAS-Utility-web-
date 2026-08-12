@@ -215,7 +215,19 @@ function sliBuildModel(data, opts) {
   const isNonLic = (eccnNorm, isUsml, hasRealAuth) =>
     (!isUsml) && ["EAR99", "NLR", "N/A", "N_A"].includes(eccnNorm) && (!hasRealAuth);
 
-  // Pass 1: per-HTS totals for non-licensable items
+  // Origin (Domestic/Foreign) of an item, per FTR reporting: US country of
+  // origin -> "D", anything else -> "F". Same rule Pass 2 uses for the df cell.
+  const _sliDf = (it) => {
+    const coo = norm(it.coo).toUpperCase();
+    return (coo && !US_COO.includes(coo)) ? "F" : "D";
+  };
+
+  // Pass 1: totals for non-licensable items, keyed by ORIGIN + Schedule B/HTS.
+  // 15 CFR 30.37(a): the $2,500 exemption is applied to each individual
+  // Schedule B/HTS number, and goods of domestic vs foreign origin under the
+  // same number are reported separately with the threshold applied to each
+  // origin independently -- so a Domestic and a Foreign line under one HTS must
+  // NOT be summed together against the $2,500 threshold.
   const nonlic = {};
   for (const it of items) {
     const hts = norm(it.hts);
@@ -225,7 +237,8 @@ function sliBuildModel(data, opts) {
     const hasRealAuth = !!(authUp && authUp !== "NLR" && authUp !== "NO LICENSE REQUIRED");
     if (isNonLic(eccnNorm, isUsml, hasRealAuth)) {
       const val = _sliNum(it.total_value) || (_sliNum(it.unit_value) * _sliNum(it.units));
-      nonlic[hts] = (nonlic[hts] || 0) + val;
+      const nlKey = _sliDf(it) + "|" + hts;
+      nonlic[nlKey] = (nonlic[nlKey] || 0) + val;
     }
   }
 
@@ -239,15 +252,15 @@ function sliBuildModel(data, opts) {
     if (!hts) continue;
 
     const auth = norm(it.auth);
-    const coo = norm(it.coo).toUpperCase();
-    const df = (coo && !US_COO.includes(coo)) ? "F" : "D";
+    const df = _sliDf(it);
     const [eccnNorm, isUsml] = _sliClassifyCtrl(norm(it.eccn));
     const authUp = auth.toUpperCase();
     const hasRealAuth = !!(authUp && authUp !== "NLR" && authUp !== "NO LICENSE REQUIRED");
 
-    // Listing rule: drop EAR99/NLR-with-no-auth lines whose HTS group totals <= $2,500
+    // Listing rule: drop EAR99/NLR-with-no-auth lines whose ORIGIN+HTS group
+    // totals <= $2,500 (per-origin threshold, per 15 CFR 30.37(a)).
     if (isNonLic(eccnNorm, isUsml, hasRealAuth)) {
-      if ((nonlic[hts] || 0) <= 2500.0) continue;
+      if ((nonlic[df + "|" + hts] || 0) <= 2500.0) continue;
     }
 
     const licNorm = (auth || "NLR").trim();

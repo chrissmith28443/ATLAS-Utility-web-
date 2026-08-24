@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.67",
+    title: "Compliance Search paused — bundled TRLS history removed",
+    notes: [
+      "The TRLS I and TRLS II history that shipped with the app has been removed. It was stored in the app's own JavaScript, which meant the request titles, ITAR/USML categories, serial numbers and vendor detail it contained could turn up in a plain search of the site's files. None of that data is in the app any more.",
+      "Compliance Search is hidden from the tool menu while there's no bundled dataset behind it. Nothing else changed — every other tool works exactly as before. The tool can be switched back on if a sanitized dataset is built later.",
+    ],
+  },
+  {
     version: "2.5.66",
     title: "SLI $2,500 rule fixed — domestic/foreign split now handled correctly",
     notes: [

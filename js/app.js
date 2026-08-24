@@ -43,7 +43,11 @@ const TOOLS = [
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },
   { id: "propo",    group: "Property management",label: "Purchase Order",       needs: "none",     ready: true  },
-  { id: "search",   group: "Tools",              label: "Compliance Search",   needs: "history",  ready: true  },
+  // Compliance Search is hidden while the bundled history index is empty (the
+  // TRLS I / TRLS II data was pulled out of js/data/history_index.js — shipping
+  // it in the JS made it searchable). Restore this line to bring the tool back
+  // once a sanitized index exists; search.js itself is untouched.
+  // { id: "search",   group: "Tools",              label: "Compliance Search",   needs: "history",  ready: true  },
 ];
 
 /* ---------------- SheetJS adapter ---------------- */
@@ -105,7 +109,7 @@ async function loadFile(file) {
       status.textContent =
         `Loaded ${file.name} — Compliance dataset · ${idx.total.toLocaleString()} item` +
         `${idx.total === 1 ? "" : "s"} across ${recs.toLocaleString()} record${recs === 1 ? "" : "s"} · ` +
-        `open Compliance Search from the Tools group`;
+        `Compliance Search is unavailable in this release`;
     } else {
       const udqType = detectUdqType(grid);
       AppState.udqType = udqType;

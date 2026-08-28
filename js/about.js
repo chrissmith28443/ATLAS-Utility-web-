@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.68",
+    title: "RFQ cargo-insurance line is now conditional",
+    notes: [
+      "The RFQ email's quote checklist used to ask every vendor for cargo insurance outright. It now reads \"When requested, cargo insurance in accordance with FAR 52.247-22 and DFARS 252.247-7007\" — the same FAR/DFARS citations, but it no longer implies insurance is required on every shipment.",
+    ],
+  },
+  {
     version: "2.5.67",
     title: "Compliance Search paused — bundled TRLS history removed",
     notes: [

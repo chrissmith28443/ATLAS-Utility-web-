@@ -1956,7 +1956,11 @@ function renderRfqWorkspace(container) {
         <div class="formgrid">
           <div class="field">
             <label for="rfqRespDate">Requested response date</label>
-            <input type="date" id="rfqRespDate" value="${tomorrowISO()}">
+            <!-- data-fc-skip: never remembered as "last used". A response date
+                 cached from an earlier session is stale (often already past) by
+                 the time the RFQ is re-opened, so this always starts at the
+                 tomorrow default, same reasoning as the signer dropdown. -->
+            <input type="date" id="rfqRespDate" value="${tomorrowISO()}" data-fc-skip>
           </div>
           <div class="field">
             <label for="rfqInsured">Insured value (USD)</label>

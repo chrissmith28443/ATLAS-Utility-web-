@@ -25,6 +25,21 @@ function normKey(v) {
   return normWs(v).toLowerCase();
 }
 
+/* Values ATLAS users type to mean "nothing here". Same set the compliance
+   search treats as empty. */
+const PLACEHOLDER_VALUES = new Set(["-", "--", "N/A", "NA", "N\\A", "NONE", "NIL", "NULL", "TBD"]);
+
+/** True when a cell holds real data — blank AND placeholder text ("N/A",
+    "None", "-", …) both count as empty. Use wherever a populated cell would
+    otherwise be read as a positive assertion (e.g. the hazmat fields, where an
+    explicit "N/A" means "not hazardous"). */
+function hasRealValue(v) {
+  const s = norm(v).toUpperCase();
+  if (!s) return false;
+  if (PLACEHOLDER_VALUES.has(s)) return false;
+  return !/^N\s*[/_\-\\ ]?\s*A$/.test(s);        // N/A, N A, N-A, N\A …
+}
+
 /** Port of _to_float: strip everything but digits . - then parse. */
 function toFloat(v) {
   const s = norm(v);
@@ -141,7 +156,7 @@ function escBr(v) {
 /* Node test support */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    norm, normWs, normKey, toFloat, roundHalfUp, fmtMoney, fmtWeight, fmtVolume,
+    norm, normWs, normKey, hasRealValue, toFloat, roundHalfUp, fmtMoney, fmtWeight, fmtVolume,
     cityStateZip, safeLines, parseDimsIn, wmtrLast5, todayISO, fileStamp, esc, escBr,
   };
 }

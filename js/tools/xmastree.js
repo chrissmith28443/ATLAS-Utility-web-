@@ -163,7 +163,24 @@ const XT_METRIC_LABELS = {
   variance_rev: "Revised-estimate variance",
   rejected: "Rejected",
   docs: "Shipping Documents Attached to WMTR",
+  tracking: "Shipment Tracking (AWB/BoL)",
   manual: "Manually-entered Metrics",
+};
+
+/* Rollup metric key -> the ignore-list key(s) that relieve it. The two
+   vocabularies grew separately: the tracker names a flag after the column it
+   sits on (activity, rejected, variance_est), the rollup after the PMR metric
+   it scores (daily, qc, cost_srf). "*" relieves everything. */
+const XT_ROLLUP_IGNORE_KEYS = {
+  delivery:    ["delivery"],
+  daily:       ["activity"],
+  qc:          ["rejected"],
+  docs:        ["docs"],
+  tracking:    ["tracking"],
+  cost_srf:    ["variance_est", "variance_rev"],
+  manual:      ["manual"],
+  pr_estimate: ["estimate_pr"],
+  cost_pr:     ["variance_est", "variance_rev"],
 };
 function xtGetIgnores() {
   try { const o = JSON.parse(localStorage.getItem(XT_IGNORES_KEY) || "{}"); return (o && typeof o === "object") ? o : {}; }
@@ -307,6 +324,26 @@ function xtHolidaysStorageLoad() {
   } catch (e) { return null; }
 }
 function xtGetHolidays() { return xtHolidaysStorageLoad() || XT_DEFAULT_HOLIDAYS.slice(); }
+
+/** Compact, month-grouped rendering of a sorted ISO date list, so a run of
+    missed days names every date without running off the line:
+    ["2026-08-04","2026-08-05","2026-09-01"] -> "Aug 4, 5; Sep 1". */
+const XT_MON_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function xtFmtDayList(isos) {
+  const groups = [];
+  for (const iso of (isos || [])) {
+    const p = String(iso).split("-");
+    if (p.length !== 3) continue;
+    const key = p[0] + "-" + p[1];
+    let g = groups.length ? groups[groups.length - 1] : null;
+    if (!g || g.key !== key) {
+      g = { key, label: XT_MON_ABBR[Number(p[1]) - 1] || p[1], days: [] };
+      groups.push(g);
+    }
+    g.days.push(String(Number(p[2])));
+  }
+  return groups.map((g) => `${g.label} ${g.days.join(", ")}`).join("; ");
+}
 
 /** Daily-update gap check over a list of activity-entry dates. Every working day
     (Mon–Fri, excluding holidays) from the first entry through today must have an entry.
@@ -1085,6 +1122,20 @@ function xtBuildRollup() {
   for (const q of quarters) for (const x of metrics) x.cells[q.key] = { pass: 0, total: 0, fails: [] };
   const shortId = (w) => (typeof xtStripSuffix === "function" ? xtStripSuffix(w) : String(w || ""));
 
+  // Manual ignore list. A record the user has ignored for a metric stays in that
+  // metric's denominator and scores as a PASS — ignoring means "we're relieved of
+  // this specific requirement for this record" (e.g. no POD because the package
+  // was lost in transit and it wasn't our fault), not "drop it from the totals".
+  // ignoredApplied is reported so a relieved score is never silently 100%.
+  const ig = xtGetIgnores();
+  let ignoredApplied = 0;
+  const ignoredFor = (reqNo, rollupKey) => {
+    const supp = ig[reqNo];
+    if (!supp || !supp.length) return false;
+    if (supp.includes("*")) return true;
+    return (XT_ROLLUP_IGNORE_KEYS[rollupKey] || [rollupKey]).some((k) => supp.includes(k));
+  };
+
   // --- pmr-sourced: delivery + daily, one pmrRun per quarter on the SRF grid ---
   if (srfGrid && typeof pmrRun === "function") {
     for (const q of quarters) {
@@ -1092,13 +1143,36 @@ function xtBuildRollup() {
       try { pr = pmrRun(srfGrid, q.start, q.end); } catch (e) { pr = null; }
       if (!pr) continue;
       const dFails = [];
-      for (const lr of (pr.late_rows || [])) dFails.push({ req: shortId(lr[0]), svc: "SRF", reason: `Delivered ${lr[2]} vs RDD ${lr[1]} (${lr[3]}d late)` });
-      for (const nr of (pr.no_nlt_rows || [])) dFails.push({ req: shortId(nr[0]), svc: "SRF", reason: `Delivered ${nr[1]} — no NLT date in ATLAS (unscored)` });
-      byKey.delivery.cells[q.key] = { pass: pr.on_time_count || 0, total: pr.nlt_scoped || 0, fails: dFails };
+      let dPass = pr.on_time_count || 0;
+      for (const lr of (pr.late_rows || [])) {
+        const req = shortId(lr[0]);
+        if (ignoredFor(req, "delivery")) { dPass += 1; ignoredApplied += 1; continue; }
+        dFails.push({ req, svc: "SRF", reason: `Delivered ${lr[2]} vs RDD ${lr[1]} (${lr[3]}d late)` });
+      }
+      for (const nr of (pr.no_nlt_rows || [])) {
+        const req = shortId(nr[0]);
+        // Unscored (no NLT date), so it isn't in the denominator — ignoring it
+        // only takes it off the list; there's no pass to credit.
+        if (ignoredFor(req, "delivery")) { ignoredApplied += 1; continue; }
+        dFails.push({ req, svc: "SRF", reason: `Delivered ${nr[1]} — no NLT date in ATLAS (unscored)` });
+      }
+      byKey.delivery.cells[q.key] = { pass: dPass, total: pr.nlt_scoped || 0, fails: dFails };
       const du = pr.daily_update || {};
-      const daFails = (du.rows || []).filter((r) => r.status !== "OK")
-        .map((r) => ({ req: shortId(r.wmtr), svc: "SRF", reason: `${r.missing_count} missing business day${r.missing_count === 1 ? "" : "s"}` }));
-      byKey.daily.cells[q.key] = { pass: du.compliant || 0, total: du.with_daily || 0, fails: daFails };
+      const daFails = [];
+      let daPass = du.compliant || 0;
+      for (const r of (du.rows || [])) {
+        if (r.status === "OK") continue;
+        const req = shortId(r.wmtr);
+        if (ignoredFor(req, "daily")) { daPass += 1; ignoredApplied += 1; continue; }
+        daFails.push({
+          req, svc: "SRF",
+          // Name the actual days, not just the count — pmrRun already returns
+          // them, and hunting for them by hand is the whole complaint.
+          reason: `${r.missing_count} missing business day${r.missing_count === 1 ? "" : "s"}`
+            + (r.missing && r.missing.length ? `: ${xtFmtDayList(r.missing)}` : ""),
+        });
+      }
+      byKey.daily.cells[q.key] = { pass: daPass, total: du.with_daily || 0, fails: daFails };
     }
   }
 
@@ -1122,6 +1196,7 @@ function xtBuildRollup() {
       const ev = _raEvaluate(cat, blk.attachment_types || [], origin, _raIsCourier(f["Identify Shipment As"]));
       cell.total += 1;
       if (!ev.missing.length) cell.pass += 1;
+      else if (ignoredFor(shortId(wmtr), "docs")) { cell.pass += 1; ignoredApplied += 1; }
       else cell.fails.push({ req: shortId(wmtr), svc: "SRF", reason: `Missing: ${ev.missing.join(", ")}` });
     }
   }
@@ -1141,6 +1216,7 @@ function xtBuildRollup() {
       if (!cell || !m.elig(r)) continue;
       cell.total += 1;
       if (m.pass(r)) cell.pass += 1;
+      else if (ignoredFor(r.request_no, m.key)) { cell.pass += 1; ignoredApplied += 1; }
       else cell.fails.push({ req: r.request_no, svc: r.service, reason: m.failReason ? m.failReason(r) : "" });
     }
   }
@@ -1150,7 +1226,8 @@ function xtBuildRollup() {
     x.tot.pass += c.pass; x.tot.total += c.total;
     for (const fl of c.fails) x.tot.fails.push({ ...fl, quarter: q.key });
   }
-  return { quarters, metrics, pending: XT_ROLLUP_PENDING, untracked: XT_ROLLUP_UNTRACKED, srfGrid: !!srfGrid, generatedAt: new Date() };
+  return { quarters, metrics, pending: XT_ROLLUP_PENDING, untracked: XT_ROLLUP_UNTRACKED,
+    srfGrid: !!srfGrid, ignoredApplied, generatedAt: new Date() };
 }
 
 /** RYG bucket for a ratio 0..1 against a metric's thresholds. */
@@ -1279,7 +1356,7 @@ function xtRollupPanelHtml() {
       .xtr-reason{font-size:12px;color:var(--ink)}
     </style>
     <div class="panel xt-rollup" style="margin-top:12px">
-      <div class="header"><h2>PMR Metrics \u2014 Fiscal Quarter Rollup</h2><span class="count">${R.metrics.length} scored \u00b7 ${R.pending.length + R.untracked.length} not tracked \u00b7 SRF relief applied</span><span style="margin-left:auto;display:inline-flex;gap:6px"><button class="btn ghost" id="xtRollupXlsx" type="button" style="padding:5px 12px;font-size:12.5px">Summary (.xlsx)</button><button class="btn ghost" id="xtRollupPdf" type="button" style="padding:5px 12px;font-size:12.5px">Summary (.pdf)</button></span></div>
+      <div class="header"><h2>PMR Metrics \u2014 Fiscal Quarter Rollup</h2><span class="count">${R.metrics.length} scored \u00b7 ${R.pending.length + R.untracked.length} not tracked \u00b7 SRF relief applied${R.ignoredApplied ? ` \u00b7 ${R.ignoredApplied} scored as relieved (Ignored)` : ""}</span><span style="margin-left:auto;display:inline-flex;gap:6px"><button class="btn ghost" id="xtRollupXlsx" type="button" style="padding:5px 12px;font-size:12.5px">Summary (.xlsx)</button><button class="btn ghost" id="xtRollupPdf" type="button" style="padding:5px 12px;font-size:12.5px">Summary (.pdf)</button></span></div>
       <div class="body">
         ${R.srfGrid ? "" : `<div class="statusline warn">Load the SRF UDQ to score the shipping metrics (delivery, daily, docs, SRF cost).</div>`}
         <div class="xtr-qhint"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>Click a <strong>quarter heading</strong> (or a green cell) to scope the reporting window to that quarter. Click a <strong>flagged (red/yellow) cell</strong> to also switch to <strong>Issues only</strong> and land on the requests that caused it. Click the active quarter heading again to clear.</div>
@@ -1288,7 +1365,7 @@ function xtRollupPanelHtml() {
           <tbody>${body}${toggleRow}${extraRows}</tbody>
         </table></div>
         ${drillHtml}
-        <div class="xt-rollnote">Green / Yellow / Red per the PMR deck thresholds. Cells with flags (\u26a0) are clickable. SRF lines honor the Oct-1 relief (WMTR 10095 scored normally). Bucketed by fiscal quarter of Delivery Date (SRF) / Date Completed (others). Cost accuracy uses current total cost as the actual-cost proxy until invoiced amounts are in the UDQ. The AWB/BoL (tracking) metric exempts deliveries before Mar 2026 (that field was added to ATLAS in Feb 2026). The two sections below the scored metrics cover every other WMTR metric on the PMR deck \u2014 the ATLAS UDQ doesn\u2019t currently carry the data to compute them.</div>
+        <div class="xt-rollnote">${R.ignoredApplied ? `<strong>${R.ignoredApplied} record-metric result${R.ignoredApplied === 1 ? " is" : "s are"} scored as a pass because ${R.ignoredApplied === 1 ? "it was" : "they were"} put on the Ignored list</strong> — the request still counts in the totals, it just isn’t held to that requirement. Clear an entry under “Ignored…” to score it normally again. ` : ""}Green / Yellow / Red per the PMR deck thresholds. Cells with flags (\u26a0) are clickable. SRF lines honor the Oct-1 relief (WMTR 10095 scored normally). Bucketed by fiscal quarter of Delivery Date (SRF) / Date Completed (others). Cost accuracy uses current total cost as the actual-cost proxy until invoiced amounts are in the UDQ. The AWB/BoL (tracking) metric exempts deliveries before Mar 2026 (that field was added to ATLAS in Feb 2026). The two sections below the scored metrics cover every other WMTR metric on the PMR deck \u2014 the ATLAS UDQ doesn\u2019t currently carry the data to compute them.</div>
       </div>
     </div>`;
 }

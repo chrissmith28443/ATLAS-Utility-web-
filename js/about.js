@@ -13,6 +13,24 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.70",
+    title: "Christmas Tree: missed days are named, and the Ignored list now counts",
+    notes: [
+      "A WMTR flagged for missing daily updates used to say only how many business days were missed. It now lists the actual dates — e.g. \"3 missing business days: Aug 4, 5; Sep 1\" — so there's no need to go hunting for them. The dates carry through to the drill-down list and to both Summary exports (.xlsx and .pdf).",
+      "Putting a record on the Ignored list now also clears it from the metrics rollup. It used to only hide the flag in the tracker, so the record kept counting against the red/yellow percentages. An ignored record now scores as a pass for that metric and still counts in the totals — the request is included, it just isn't held to the requirement you've relieved it of. The panel header and the note underneath say how many results were scored this way, so a relieved 100% is never silent.",
+      "Shipment Tracking (AWB/BoL) was added to the Ignore dropdown. It's a scored metric but previously couldn't be ignored on its own — only via \"All metrics\".",
+    ],
+  },
+  {
+    version: "2.5.69",
+    title: "\"N/A\" no longer counts as hazmat data; RFQ date stops going stale",
+    notes: [
+      "A UN Code or hazard class of \"N/A\", \"None\", \"-\", \"NIL\" or \"TBD\" is now read as blank instead of as a real classification. Those lines no longer raise \"UN code with no hazard class\" errors, no longer appear in the Dangerous Goods panel, and no longer inflate the \"items flagged with hazmat data\" count. A genuine UN code paired with an \"N/A\" hazard class still shows as an incomplete classification, which is the case worth catching.",
+      "The RFQ's Requested Response Date now always opens on tomorrow's date. It used to be remembered per WMTR, so re-opening an RFQ started days earlier brought back that old date — already in the past.",
+      "Checked the SLI's $2,500 listing rule against the Foreign Trade Regulations again. No change was needed: the domestic/foreign split under a single Schedule B number is handled correctly, and the Country Group E:1 rule is right. Comments in the code now cite the exact provisions.",
+    ],
+  },
+  {
     version: "2.5.68",
     title: "RFQ cargo-insurance line is now conditional",
     notes: [

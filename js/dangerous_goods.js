@@ -18,7 +18,9 @@
    ========================================================================= */
 
 function dgIsDangerous(it) {
-  return !!(normWs(it.un_code) || normWs(it.hazmat_class));
+  // hasRealValue() so an explicit "N/A" / "None" / "-" is not mistaken for a
+  // classification — those mean "not hazardous" and must not raise a DGD flag.
+  return !!(hasRealValue(it.un_code) || hasRealValue(it.hazmat_class));
 }
 
 /** Assess the shipment's inventory for dangerous goods. */
@@ -27,8 +29,10 @@ function dgAssess(data) {
   const dg = [];
   for (const it of items) {
     if (!dgIsDangerous(it)) continue;
-    const un = norm(it.un_code);
-    const cls = norm(it.hazmat_class);
+    // Placeholders are shown as blank so "UN1203 / N/A" reads as an incomplete
+    // classification rather than a complete one.
+    const un = hasRealValue(it.un_code) ? norm(it.un_code) : "";
+    const cls = hasRealValue(it.hazmat_class) ? norm(it.hazmat_class) : "";
     let status, kind;
     if (un && cls) { status = "Classified"; kind = "ok"; }
     else if (un && !cls) { status = "Missing hazard class"; kind = "bad"; }

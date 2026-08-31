@@ -213,9 +213,11 @@ function _validateSrf(data) {
       }
     }
 
-    // Hazmat (also feeds the future DGD flag, feature #8)
-    const unHas = _valHas(it.un_code);
-    const clHas = _valHas(it.hazmat_class);
+    // Hazmat (also feeds the DGD flag, feature #8). hasRealValue() so an
+    // explicit "N/A" / "None" / "-" reads as blank — those mean "not hazardous"
+    // in ATLAS and must not raise a missing-classification finding.
+    const unHas = hasRealValue(it.un_code);
+    const clHas = hasRealValue(it.hazmat_class);
     if (unHas || clHas) hazmatCount++;
     if (unHas && !clHas) {
       findings.push(_vFind(VSEV.ERROR, "Hazmat",

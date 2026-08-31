@@ -198,8 +198,13 @@ function sliBuildModel(data, opts) {
   const deliverCountry = deliver ? norm(deliver.country) : "";
 
   // Country Group E:1 destination check (Cuba, Iran, North Korea, Syria).
-  // Per 15 CFR 30.2(a)(1)(iv), the 30.37(a) $2,500 exemption does NOT apply to
-  // E:1 destinations — every commodity line must be listed regardless of value.
+  // Per 15 CFR 30.16(d) — referenced by the note to 30.2(a)(1)(iv) — a shipment
+  // to Country Group E:1 or E:2 requires EEI filing regardless of value, so the
+  // 30.37(a) $2,500 exemption does not apply and every commodity line lists.
+  // (E:2 is currently Cuba only, already matched below.) The narrow 30.37(y)
+  // carve-outs — e.g. License Exception GOV cargo $2,500 or less per Schedule B
+  // — are deliberately NOT applied here: we can't confirm eligibility from the
+  // UDQ, and over-listing on an SLI is safe where under-listing is not.
   const destE1 = _sliIsE1(deliverCountry) ||
     _sliIsE1(consignee ? norm(consignee.country) : "");
 
@@ -246,7 +251,11 @@ function sliBuildModel(data, opts) {
   // Schedule B/HTS number, and goods of domestic vs foreign origin under the
   // same number are reported separately with the threshold applied to each
   // origin independently -- so a Domestic and a Foreign line under one HTS must
-  // NOT be summed together against the $2,500 threshold.
+  // NOT be summed together against the $2,500 threshold. Verbatim: "Items of
+  // domestic and foreign origin under the same commodity classification number
+  // must be reported separately and EEI filing is required when either is over
+  // $2,500." Read with the preceding sentence ("only those ... valued over
+  // $2,500 are required to be reported"), the under-threshold origin drops.
   const nonlic = {};
   for (const it of items) {
     const hts = norm(it.hts);

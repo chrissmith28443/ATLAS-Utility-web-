@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.5.68-rfq-insurance-wording";
+const CACHE = "atlas-cache-v2.5.70-xmastree-fixes";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -12,13 +12,13 @@ const APP_SHELL = [
   "css/app.css?v=86",
   "icons/apple-touch-icon.png",
   "icons/favicon-32.png",
-  "js/app.js?v=82",
+  "js/app.js?v=83",
   "js/assets.js?v=64",
-  "js/about.js?v=103",
+  "js/about.js?v=105",
   "js/a11y.js?v=61",
   "js/backup.js?v=63",
-  "js/constants.js?v=99",
-  "js/dangerous_goods.js?v=61",
+  "js/constants.js?v=101",
+  "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=85",
   "js/pwa.js?v=62",
   "js/audit.js?v=62",
@@ -56,15 +56,15 @@ const APP_SHELL = [
   "js/tools/rfq_template.js?v=68",
   "js/data/history_index.js?v=67",
   "js/tools/search.js?v=64",
-  "js/tools/sli.js?v=64",
+  "js/tools/sli.js?v=69",
   "js/tools/sli_template.js?v=61",
   "js/tools/topdocs.js?v=61",
   "js/tools/topdocs_template.js?v=61",
-  "js/tools/validate.js?v=64",
-  "js/tools/xmastree.js?v=38",
+  "js/tools/validate.js?v=69",
+  "js/tools/xmastree.js?v=39",
   "js/udq.js?v=66",
   "js/udq_tools.js?v=63",
-  "js/util.js?v=61",
+  "js/util.js?v=69",
 ];
 
 self.addEventListener("install", (e) => {

@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.71",
+    title: "RFQ email: signature should land at the bottom, not mid-message",
+    notes: [
+      "Outlook was dropping the signature between the intro text and the RFQ details table. The email ended with the table and had no paragraph after it, so Outlook attached the signature to the last paragraph it could find — the intro. Two blank paragraphs now sit below the table to give it somewhere to go at the bottom.",
+    ],
+  },
+  {
     version: "2.5.70",
     title: "Christmas Tree: missed days are named, and the Ignored list now counts",
     notes: [

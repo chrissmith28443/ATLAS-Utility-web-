@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.5.73-inventory-no-gate";
+const CACHE = "atlas-cache-v2.5.73-inventory-no-gate-r2";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -17,7 +17,7 @@ const APP_SHELL = [
   "js/about.js?v=110",
   "js/a11y.js?v=61",
   "js/backup.js?v=63",
-  "js/constants.js?v=105",
+  "js/constants.js?v=106",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=85",
   "js/pwa.js?v=62",

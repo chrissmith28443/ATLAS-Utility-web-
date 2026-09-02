@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.72",
+    title: "New: Inventory Sheet for the warehouse",
+    notes: [
+      "The Packing List window (now \"Packing List/Inventory\" on the menu) has a new dark \"Inventory Sheet (.xlsx)\" button alongside the existing exports. It builds a receiving sheet the warehouse can work from — same look as the Packing List, but a pre-packing document: no ship-from/ship-to block, no HS codes, no package rows and no signature block. Just a flat, numbered list of every line item with Description, Model #, Qty and U/I.",
+      "Each line ends in two blank write-in columns — RC/RCR # (the warehouse receipt number) and Date Arrived — so the sheet doubles as the tracker for what has actually shown up. Excel only; the PDF and Excel buttons next to it still produce the Packing List as before.",
+    ],
+  },
+  {
     version: "2.5.71",
     title: "RFQ email: signature should land at the bottom, not mid-message",
     notes: [

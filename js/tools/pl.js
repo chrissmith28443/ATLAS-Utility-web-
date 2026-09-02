@@ -78,6 +78,7 @@ function renderPlWorkspace(container) {
         <div class="btnrow">
           <button class="btn primary" id="plPrint">Save as PDF</button>
           <button class="btn primary" id="plExcel">Download Excel (.xlsx)</button>
+          <button class="btn navy" id="plInvExcel">Inventory Sheet (.xlsx)</button>
           <button class="btn ghost" id="plGenerate">Legacy spreadsheet (.xlsx)</button>
           <button class="btn ghost" id="plRefresh">Refresh preview</button>
           <span class="statusline" id="plStatus"></span>
@@ -92,6 +93,11 @@ function renderPlWorkspace(container) {
           <strong>Save as PDF</strong> and <strong>Download Excel</strong> both
           use this new format; <strong>Legacy spreadsheet</strong> still exports
           the older flat template.
+          <strong>Inventory Sheet</strong> is a different document for the
+          warehouse — a flat list of every item with blank
+          <strong>RC/RCR #</strong> and <strong>Date Arrived</strong> columns to
+          fill in as material arrives. Excel only; no packages or addresses,
+          since nothing has been packed yet.
         </div>
 
         <div class="previewwrap"><iframe id="plPreview" title="Packing List preview"></iframe></div>
@@ -102,6 +108,8 @@ function renderPlWorkspace(container) {
   panel.querySelector("#plGenerate").addEventListener("click", generatePl);
   panel.querySelector("#plExcel").addEventListener("click", generatePlNewXlsx);
   panel.querySelector("#plPrint").addEventListener("click", printPl);
+  // Warehouse Inventory Sheet — a separate Excel-only export (js/tools/inventory.js).
+  panel.querySelector("#plInvExcel").addEventListener("click", generateInvXlsx);
 
   const refresh = () => updatePlPreview();
   panel.querySelector("#plFrom").addEventListener("change", refresh);
@@ -773,8 +781,8 @@ _PlSheetWriter.prototype.merge = function (r1, c1, r2, c2) {
   this.merges.push(`${_plColLetter(c1)}${r1}:${_plColLetter(c2)}${r2}`);
 };
 _PlSheetWriter.prototype.lastRow = function () { return this._r; };
-_PlSheetWriter.prototype.xml = function (cols) {
-  const dim = `A1:${_plColLetter(6)}${this._r || 1}`;
+_PlSheetWriter.prototype.xml = function (cols, lastCol) {
+  const dim = `A1:${_plColLetter(lastCol || 6)}${this._r || 1}`;
   let sd = "";
   for (const row of this.rows) {
     let cellsXml = "";

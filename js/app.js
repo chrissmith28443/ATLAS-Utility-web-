@@ -23,7 +23,7 @@ const AppState = {
 const TOOLS = [
   { id: "packet",   group: "Shipping documents", label: "Generate packet",     needs: "srf",      ready: true  },
   { id: "ci",       group: "Shipping documents", label: "Commercial Invoice",  needs: "srf",      ready: true  },
-  { id: "pl",       group: "Shipping documents", label: "Packing List",        needs: "srf",      ready: true  },
+  { id: "pl",       group: "Shipping documents", label: "Packing List/Inventory", needs: "srf",   ready: true  },
   { id: "placards", group: "Shipping documents", label: "Placards",            needs: "srf",      ready: true  },
   { id: "sli",      group: "Shipping documents", label: "SLI",                 needs: "srf",      ready: true  },
   { id: "rfq",      group: "Shipping documents", label: "RFQ Email",           needs: "srf",      ready: true  },

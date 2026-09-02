@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.5.71-rfq-signature-anchor";
+const CACHE = "atlas-cache-v2.5.72-inventory-sheet";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -12,12 +12,12 @@ const APP_SHELL = [
   "css/app.css?v=86",
   "icons/apple-touch-icon.png",
   "icons/favicon-32.png",
-  "js/app.js?v=83",
+  "js/app.js?v=89",
   "js/assets.js?v=64",
-  "js/about.js?v=106",
+  "js/about.js?v=109",
   "js/a11y.js?v=61",
   "js/backup.js?v=63",
-  "js/constants.js?v=102",
+  "js/constants.js?v=105",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=85",
   "js/pwa.js?v=62",
@@ -39,7 +39,8 @@ const APP_SHELL = [
   "js/tools/mct.js?v=61",
   "js/tools/mct_template.js?v=61",
   "js/tools/packet.js?v=62",
-  "js/tools/pl.js?v=64",
+  "js/tools/pl.js?v=66",
+  "js/tools/inventory.js?v=2",
   "js/tools/pl_templates.js?v=61",
   "js/tools/manual_parents.js?v=4",
   "js/consol.js?v=6",

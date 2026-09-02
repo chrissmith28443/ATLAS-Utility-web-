@@ -13,6 +13,25 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.75",
+    title: "Inventory Sheet now works from Property Management UDQs too",
+    notes: [
+      "Property (PR) UDQs get their own \"Inventory Sheet\" window under Property management, producing the same document the Packing List window produces for shipping requests — identical layout, identical green/red rules. A PR UDQ already carries Quantity Requested and Quantity Received as separate columns, so both feed the sheet directly.",
+      "Those two quantities are now read separately for PR UDQs. DD1149 and TOP Documents still collapse them into the single quantity they've always used, so nothing about those documents changed — the Inventory Sheet just reads the columns on its own terms.",
+      "A PR UDQ carrying only one quantity column still works: that value becomes Qty Requested and the received column stays blank.",
+    ],
+  },
+  {
+    version: "2.5.74",
+    title: "Inventory Sheet now shows what has actually arrived",
+    notes: [
+      "The sheet reads the UDQ's \"Qty Received\" column. Columns are now #, Description, Model #, U/I, Qty Requested, Qty Received, RC/RCR # and Date Arrived — U/I moved ahead of the quantities, and the old \"Qty\" is now \"Qty Requested\".",
+      "Qty Received is color-coded: dark green when the full requested quantity has arrived, red when the counts don't match (short or over). A blank or zero received quantity leaves the cell empty rather than printing a 0, so a sheet handed to the warehouse before anything ships still reads as a clean checklist. The summary strip gained a Total Qty Received figure next to Total Qty Requested.",
+      "That makes one sheet serve three jobs: a heads-up of what's inbound, a worksheet for the warehouse's own inventory count, and a status page you can send a customer asking what has arrived so far.",
+      "Older UDQs without a \"Qty Received\" column still load — those lines simply show blank.",
+    ],
+  },
+  {
     version: "2.5.73",
     title: "Inventory Sheet no longer stops for missing compliance data",
     notes: [

@@ -102,12 +102,19 @@ function siBuildOverride(base, itemSplits) {
         out.push(only);
         continue;
       }
+      // Received quantity can't be prorated — a receipt is whole units. Fill the
+      // parts in order until it runs out, so the parts still sum to the line's
+      // received total instead of every part repeating the full number.
+      let recvLeft = _siNum(it.units_received);
       for (const p of usable) {
         const q = _siNum(p.qty);
         lineNo++;
         const clone = Object.assign({}, it);
         clone.line = String(lineNo);
         clone.units = _siFmtQty(q);
+        const recvHere = Math.min(recvLeft, q);
+        recvLeft -= recvHere;
+        clone.units_received = recvHere ? _siFmtQty(recvHere) : "";
         const grp = (p.ship_group != null && String(p.ship_group).trim() !== "")
           ? String(p.ship_group).trim() : (it.ship_group || "");
         clone.ship_group = grp;

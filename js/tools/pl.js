@@ -93,11 +93,12 @@ function renderPlWorkspace(container) {
           <strong>Save as PDF</strong> and <strong>Download Excel</strong> both
           use this new format; <strong>Legacy spreadsheet</strong> still exports
           the older flat template.
-          <strong>Inventory Sheet</strong> is a different document for the
-          warehouse — a flat list of every item with blank
-          <strong>RC/RCR #</strong> and <strong>Date Arrived</strong> columns to
-          fill in as material arrives. Excel only; no packages or addresses,
-          since nothing has been packed yet.
+          <strong>Inventory Sheet</strong> is a different document — a flat list
+          of every item showing <strong>Qty Requested</strong> against the UDQ's
+          <strong>Qty Received</strong> (green when they match, red when they
+          don't), plus blank <strong>RC/RCR #</strong> and
+          <strong>Date Arrived</strong> columns to fill in. Excel only; no
+          packages or addresses, since nothing has been packed yet.
         </div>
 
         <div class="previewwrap"><iframe id="plPreview" title="Packing List preview"></iframe></div>

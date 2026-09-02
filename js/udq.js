@@ -262,6 +262,8 @@ function makeLineItem(o = {}) {
   return {
     line: o.line || "",
     units: o.units || "",
+    // Quantity the warehouse has received so far ("" when none / not tracked).
+    units_received: o.units_received || "",
     uom: o.uom || "",
     desc: o.desc || "",
     model: o.model || "",
@@ -345,6 +347,9 @@ function readUdq(grid) {
 
   const cSerial = invCol("Serial #");
   const cQty = invCol("Quantity");
+  // How many of the requested quantity the warehouse has actually received.
+  // Optional — older UDQ layouts don't carry it. Used by the Inventory Sheet.
+  const cQtyRecv = invColOpt("Qty Received");
   const cUoi = invColOpt("Unit Of Issue");   // preferred for PL
   const cUom = invColOpt("Unit Of Measure"); // fallback
   const cDesc = invCol("Description");
@@ -438,9 +443,13 @@ function readUdq(grid) {
     const unitN = toFloat(unitValRaw);
     const totalN = qtyN && unitN ? qtyN * unitN : 0.0;
 
+    // Blank and zero both mean "nothing received yet" — normalize both to "".
+    const qtyRecvN = cQtyRecv ? toFloat(gridCell(grid, r, cQtyRecv)) : 0;
+
     items.push(makeLineItem({
       line: String(lineCounter),
       units: qty,
+      units_received: qtyRecvN ? String(Math.trunc(qtyRecvN)) : "",
       uom, desc, model, hts, eccn, auth, coo,
       unit_value: unitN ? fmtMoney(unitN) : norm(unitValRaw),
       total_value: fmtMoney(totalN),
@@ -640,6 +649,15 @@ function readPropertyUdq(grid) {
     "Unit Of Measure", "U/M");
   const cValue = _propInvColFirst(invMap, "Value(USD)", "Value (USD)");
 
+  // Requested and received quantities kept SEPARATELY, for the Inventory Sheet.
+  // cQty above collapses them into one number (whichever header has values, the
+  // desktop's fallback order) because DD1149/TOP want a single quantity — but a
+  // receiving sheet has to show both side by side. Name-presence lookups, so the
+  // two never resolve to the same column the way a value-aware pick could.
+  const cQtyReq = _propInvColFirst(invMap,
+    "Quantity Requested", "Quantity Ordered", "Quantity");
+  const cQtyRecv = _propInvColFirst(invMap, "Quantity Received", "Qty Received");
+
   const missing = [];
   if (!cDesc) missing.push("Description");
   if (!cQty) missing.push("Quantity");
@@ -673,6 +691,12 @@ function readPropertyUdq(grid) {
     const qtyN = toFloat(qtyRaw);
     const unitN = toFloat(valRaw);
 
+    // Requested falls back to the single quantity when the UDQ carries no
+    // separate "Requested"/"Ordered" header; received is blank-when-zero, the
+    // same convention the SRF reader uses.
+    const qtyReqN = cQtyReq ? toFloat(gridCell(grid, r, cQtyReq)) : 0;
+    const qtyRecvN = cQtyRecv ? toFloat(gridCell(grid, r, cQtyRecv)) : 0;
+
     items.push({
       item_no: items.length + 1,
       desc, model, mfr, serial, uom,
@@ -680,6 +704,8 @@ function readPropertyUdq(grid) {
       unit_value: unitN,                           // numeric
       qty_raw: norm(qtyRaw),
       value_raw: norm(valRaw),
+      qty_requested: qtyReqN || qtyN,              // numeric
+      qty_received: qtyRecvN,                      // numeric; 0 == none yet
     });
   }
 
@@ -1120,7 +1146,7 @@ const SRF_OPTIONAL_INV_COLS = [
   "HAZMAT/Dangerous Goods Classification",
   "Specific Temperature Control Requirements",
   "Shelf Life/Expiration Date For Perishable Items",
-  "Purchase Order", "Vendor", "Manufacturer", "Ship Group #",
+  "Purchase Order", "Vendor", "Manufacturer", "Ship Group #", "Qty Received",
 ];
 /* Property inventory columns — each entry is an alias group (first present wins,
    matching _propInvColFirst). required flags those readPropertyUdq throws on. */
@@ -1132,6 +1158,8 @@ const PROP_INV_COL_GROUPS = [
   { label: "Manufacturer", required: false, aliases: ["Actual Manufacturer", "Recommended Manufacturer", "Manufacturer", "Original Equipment Manufacturer"] },
   { label: "Serial #", required: false, aliases: ["Serial #"] },
   { label: "Unit of measure", required: false, aliases: ["Unit Of Measure Ordered", "Unit Of Measure Requested", "Unit Of Issue", "Unit Of Measure", "U/M"] },
+  { label: "Qty requested", required: false, aliases: ["Quantity Requested", "Quantity Ordered", "Quantity"] },
+  { label: "Qty received", required: false, aliases: ["Quantity Received", "Qty Received"] },
 ];
 
 /** Build a diagnostics report for a grid. Never throws. */

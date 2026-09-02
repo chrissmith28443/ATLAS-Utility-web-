@@ -42,6 +42,7 @@ const TOOLS = [
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },
+  { id: "invpr",    group: "Property management",label: "Inventory Sheet",     needs: "property", ready: true  },
   { id: "propo",    group: "Property management",label: "Purchase Order",       needs: "none",     ready: true  },
   // Compliance Search is hidden while the bundled history index is empty (the
   // TRLS I / TRLS II data was pulled out of js/data/history_index.js — shipping
@@ -706,6 +707,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "topdocs") renderTopWorkspace(ws);
   else if (AppState.activeTool === "dd1149") renderDd1149Workspace(ws);
   else if (AppState.activeTool === "coreims") renderCoreimsWorkspace(ws);
+  else if (AppState.activeTool === "invpr") renderInvPrWorkspace(ws);
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
   else if (AppState.activeTool === "pmr") renderPmrWorkspace(ws);
   else if (AppState.activeTool === "reqatt") renderReqattWorkspace(ws);

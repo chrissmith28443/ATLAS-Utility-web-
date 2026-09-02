@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.5.73-inventory-no-gate-r2";
+const CACHE = "atlas-cache-v2.5.75-pr-inventory-sheet";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -12,12 +12,12 @@ const APP_SHELL = [
   "css/app.css?v=86",
   "icons/apple-touch-icon.png",
   "icons/favicon-32.png",
-  "js/app.js?v=89",
+  "js/app.js?v=90",
   "js/assets.js?v=64",
-  "js/about.js?v=110",
+  "js/about.js?v=112",
   "js/a11y.js?v=61",
   "js/backup.js?v=63",
-  "js/constants.js?v=106",
+  "js/constants.js?v=108",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=85",
   "js/pwa.js?v=62",
@@ -39,12 +39,12 @@ const APP_SHELL = [
   "js/tools/mct.js?v=61",
   "js/tools/mct_template.js?v=61",
   "js/tools/packet.js?v=62",
-  "js/tools/pl.js?v=66",
-  "js/tools/inventory.js?v=3",
+  "js/tools/pl.js?v=67",
+  "js/tools/inventory.js?v=5",
   "js/tools/pl_templates.js?v=61",
   "js/tools/manual_parents.js?v=4",
   "js/consol.js?v=6",
-  "js/item_split.js?v=6",
+  "js/item_split.js?v=7",
   "js/tools/manual_details.js?v=2",
   "js/tools/placards.js?v=61",
   "js/tools/pmr.js?v=81",
@@ -63,7 +63,7 @@ const APP_SHELL = [
   "js/tools/topdocs_template.js?v=61",
   "js/tools/validate.js?v=69",
   "js/tools/xmastree.js?v=39",
-  "js/udq.js?v=66",
+  "js/udq.js?v=68",
   "js/udq_tools.js?v=63",
   "js/util.js?v=69",
 ];

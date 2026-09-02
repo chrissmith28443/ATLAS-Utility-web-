@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.73",
+    title: "Inventory Sheet no longer stops for missing compliance data",
+    notes: [
+      "The Inventory Sheet was running the same hard-block validation as the shipping documents, so a request with ECCNs but no license or exception data refused to export. That check exists to keep incomplete export paperwork from going out — but the Inventory Sheet is an internal receiving list with no ECCN, license, HTS or hazmat fields on it, so none of it applies. The sheet now exports regardless. The Packing List, Commercial Invoice and the rest are unchanged and still validate as before.",
+    ],
+  },
+  {
     version: "2.5.72",
     title: "New: Inventory Sheet for the warehouse",
     notes: [

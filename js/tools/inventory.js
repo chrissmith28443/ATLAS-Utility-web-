@@ -127,9 +127,13 @@ function _invXlsxParts(data, opts) {
 }
 
 /* Browser entry point — wired to the Inventory Sheet button on the PL panel.
-   Reports into the PL panel's own status line. */
+   Reports into the PL panel's own status line.
+
+   No atlasGenerateGate() call here on purpose: the hard-block validation guards
+   export/shipping paperwork (ECCN vs. license, HTS, hazmat and the like). This
+   sheet carries none of those fields — it's an internal receiving list of what
+   the warehouse should expect — so missing compliance data must not stop it. */
 async function generateInvXlsx() {
-  if (typeof atlasGenerateGate === "function" && !atlasGenerateGate("inv", generateInvXlsx)) return;
   const status = document.getElementById("plStatus");
   if (status) { status.classList.remove("err"); status.textContent = "Building Inventory Sheet…"; }
   try {

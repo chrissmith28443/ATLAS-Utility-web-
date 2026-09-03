@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.76",
+    title: "Inventory Sheet previews before it downloads",
+    notes: [
+      "Both versions now show the sheet on screen first instead of dropping a file straight into Downloads. On a shipping request the Inventory Sheet button opens a preview panel below the Packing List; on a property request the preview is the window itself. Download Excel is a separate button underneath.",
+      "The warehouse write-in columns are now optional on the shipping version — a dropdown switches between \"Include RC/RCR # and Date Arrived\" (the default, for a sheet the warehouse fills in) and \"Leave them off\", which gives a narrower status-only sheet to send a customer. The preview updates as you switch.",
+      "The property version drops those two columns entirely. A PR sheet reports what has arrived; it isn't a form to write on.",
+    ],
+  },
+  {
     version: "2.5.75",
     title: "Inventory Sheet now works from Property Management UDQs too",
     notes: [

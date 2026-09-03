@@ -78,7 +78,7 @@ function renderPlWorkspace(container) {
         <div class="btnrow">
           <button class="btn primary" id="plPrint">Save as PDF</button>
           <button class="btn primary" id="plExcel">Download Excel (.xlsx)</button>
-          <button class="btn navy" id="plInvExcel">Inventory Sheet (.xlsx)</button>
+          <button class="btn navy" id="plInvExcel">Inventory Sheet</button>
           <button class="btn ghost" id="plGenerate">Legacy spreadsheet (.xlsx)</button>
           <button class="btn ghost" id="plRefresh">Refresh preview</button>
           <span class="statusline" id="plStatus"></span>
@@ -93,12 +93,13 @@ function renderPlWorkspace(container) {
           <strong>Save as PDF</strong> and <strong>Download Excel</strong> both
           use this new format; <strong>Legacy spreadsheet</strong> still exports
           the older flat template.
-          <strong>Inventory Sheet</strong> is a different document — a flat list
-          of every item showing <strong>Qty Requested</strong> against the UDQ's
+          <strong>Inventory Sheet</strong> opens a separate receiving document
+          below this one — a flat list of every item showing
+          <strong>Qty Requested</strong> against the UDQ's
           <strong>Qty Received</strong> (green when they match, red when they
-          don't), plus blank <strong>RC/RCR #</strong> and
-          <strong>Date Arrived</strong> columns to fill in. Excel only; no
-          packages or addresses, since nothing has been packed yet.
+          don't), with optional blank <strong>RC/RCR #</strong> and
+          <strong>Date Arrived</strong> columns. Preview it there, then export
+          to Excel.
         </div>
 
         <div class="previewwrap"><iframe id="plPreview" title="Packing List preview"></iframe></div>
@@ -109,8 +110,9 @@ function renderPlWorkspace(container) {
   panel.querySelector("#plGenerate").addEventListener("click", generatePl);
   panel.querySelector("#plExcel").addEventListener("click", generatePlNewXlsx);
   panel.querySelector("#plPrint").addEventListener("click", printPl);
-  // Warehouse Inventory Sheet — a separate Excel-only export (js/tools/inventory.js).
-  panel.querySelector("#plInvExcel").addEventListener("click", generateInvXlsx);
+  // Warehouse Inventory Sheet — opens its own preview panel below this one,
+  // with its own Excel export (js/tools/inventory.js).
+  panel.querySelector("#plInvExcel").addEventListener("click", invShowPanel);
 
   const refresh = () => updatePlPreview();
   panel.querySelector("#plFrom").addEventListener("change", refresh);

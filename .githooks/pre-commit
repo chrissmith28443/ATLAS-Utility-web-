@@ -1,0 +1,97 @@
+#!/bin/sh
+#
+# ATLAS Utility — pre-commit guard for the two release invariants in CLAUDE.md.
+#
+# 1. Cache-busting. A changed js/*.js or css/*.css file must have its ?v=
+#    number bumped everywhere it's referenced (index.html and sw.js). Same URL
+#    for changed content means browsers and the CDN keep serving the old copy —
+#    the change ships but never reaches anyone. This has bitten us twice.
+#
+# 2. Version agreement. If sw.js's CACHE name names a version, the same version
+#    must appear in js/constants.js (APP_VERSION) and js/about.js (the newest
+#    changelog entry). A mismatch ships an app that misreports itself.
+#
+# Bypass deliberately with:  git commit --no-verify
+#
+# Installed via core.hooksPath, so this file is versioned with the repo:
+#   git config core.hooksPath .githooks
+
+fail=0
+err() { printf '  \033[31m✗\033[0m %s\n' "$1"; fail=1; }
+
+# Nothing to check on the very first commit.
+git rev-parse --verify HEAD >/dev/null 2>&1 || exit 0
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+# Escape a path for use inside a grep basic-regex.
+esc() { printf '%s' "$1" | sed 's/[.[\*^$]/\\&/g'; }
+
+# The ?v= number for $1 as referenced in file $2, read from the given tree
+# ("" = the staged index). Empty when $2 doesn't reference $1 at all.
+vnum() {
+  _p=$(esc "$1")
+  if [ -z "$3" ]; then _src=$(git show ":$2" 2>/dev/null)
+  else _src=$(git show "$3:$2" 2>/dev/null); fi
+  printf '%s' "$_src" | grep -o "\"$_p?v=[0-9][0-9]*\"" | head -1 |
+    sed 's/.*?v=//; s/"//'
+}
+
+# ── 1. cache-busting ──────────────────────────────────────────────────────────
+shell_changed=0
+for f in $staged; do
+  case "$f" in
+    js/vendor/*) continue ;;                 # third-party, not ours to version
+    js/*.js|css/*.css) ;;
+    *) continue ;;
+  esac
+
+  # A file whose content didn't actually change (mode-only edit) needs nothing.
+  git diff --cached --quiet -- "$f" && continue
+  shell_changed=1
+
+  for host in index.html sw.js; do
+    now=$(vnum "$f" "$host" "")
+    [ -z "$now" ] && continue               # this host doesn't reference it
+    was=$(vnum "$f" "$host" HEAD)
+    [ -z "$was" ] && continue               # newly referenced — nothing to bump
+    if [ "$now" = "$was" ]; then
+      err "$f changed but its ?v=$now in $host did not — bump it, or the old copy keeps being served."
+    fi
+  done
+done
+
+# ── 2. version agreement across the three places ──────────────────────────────
+cache_ver=$(git show :sw.js 2>/dev/null |
+  grep -o 'atlas-cache-v[0-9][0-9.]*' | head -1 | sed 's/atlas-cache-v//; s/\.$//')
+if [ -n "$cache_ver" ]; then
+  app_ver=$(git show :js/constants.js 2>/dev/null |
+    grep -o 'APP_VERSION = "Web [0-9][0-9.]*"' | head -1 |
+    sed 's/.*Web //; s/"//')
+  about_ver=$(git show :js/about.js 2>/dev/null |
+    grep -o 'version: "[0-9][0-9.]*"' | head -1 | sed 's/.*version: "//; s/"//')
+
+  [ "$app_ver" = "$cache_ver" ] ||
+    err "sw.js CACHE says $cache_ver but js/constants.js APP_VERSION says ${app_ver:-<none>}."
+  [ "$about_ver" = "$cache_ver" ] ||
+    err "sw.js CACHE says $cache_ver but js/about.js's newest entry says ${about_ver:-<none>}."
+
+  # A shipped asset change with an unchanged CACHE name leaves the service
+  # worker precaching the old shell.
+  if [ "$shell_changed" = "1" ]; then
+    old_cache=$(git show HEAD:sw.js 2>/dev/null |
+      grep -o 'const CACHE = "[^"]*"' | head -1)
+    new_cache=$(git show :sw.js 2>/dev/null |
+      grep -o 'const CACHE = "[^"]*"' | head -1)
+    [ "$old_cache" = "$new_cache" ] &&
+      err "app shell files changed but sw.js CACHE is unchanged — rename it so the cache refreshes."
+  fi
+fi
+
+if [ "$fail" = "1" ]; then
+  printf '\n\033[31mpre-commit: release checks failed\033[0m (see CLAUDE.md).\n'
+  printf 'Fix the above, or bypass with: git commit --no-verify\n\n'
+  exit 1
+fi
+exit 0

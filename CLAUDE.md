@@ -77,6 +77,23 @@ Always confirm all three match after a version change.
 - Individual shell files use a `?v=NN` cache-busting query (e.g.
   `js/formcache.js?v=62`). If you change such a file, bump its `?v=` number in
   the app shell list so the new version is fetched.
+  ⚠️ Bump it in **both** `index.html` and `sw.js`. Leaving the same URL on
+  changed content means browsers and the CDN keep serving the old file — the
+  change ships but never reaches anyone. This is how 2.5.73 shipped while the
+  app still reported 2.5.72 (only `constants.js` was missed).
+
+### The pre-commit hook enforces this
+
+`.githooks/pre-commit` blocks a commit that changes a `js/*.js` or `css/*.css`
+file without bumping its `?v=` in every file referencing it, and one where the
+`sw.js` CACHE version, `APP_VERSION` and the newest `about.js` entry disagree.
+It's versioned with the repo but needs enabling once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+Bypass a specific commit with `git commit --no-verify`.
 
 ---
 

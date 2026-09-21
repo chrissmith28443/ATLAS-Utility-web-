@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.78",
+    title: "Packing List can print a third address block",
+    notes: [
+      "New \"Consignee details\" dropdown on the Packing List, next to Ship From and Ship To. Leave it on \"Don't include\" (the default) and nothing changes. Pick Ultimate Consignee, Intermediate Consignee or End User and that party prints as a third address block, so a request where the delivery destination isn't the party that ultimately takes the goods can show both instead of making you choose one.",
+      "The PDF and the preview put the three side by side across the route strip — Ship From → Ship To → the consignee. The Excel export keeps Ship From / Ship To where they are and adds the consignee as a full-width band underneath, because the right-hand columns are too narrow to hold an address.",
+      "If the party you pick is blank in the UDQ, the block is left off rather than printing an empty box; the dropdown marks which parties are blank. The legacy spreadsheet export is unchanged — its template has no room for a third block.",
+    ],
+  },
+  {
     version: "2.5.77",
     title: "Audit — a close-out checklist for the request you have open",
     notes: [

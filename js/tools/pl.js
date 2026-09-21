@@ -41,11 +41,21 @@ function renderPlWorkspace(container) {
     { k: "consignee", label: "Ultimate Consignee" },
     { k: "intermediate", label: "Intermediate Consignee" },
   ];
+  // Optional THIRD address block. Ship To is often the physical delivery point
+  // while the consignee who takes title is someone else; this prints both
+  // instead of making the user choose. Off by default — nothing changes on an
+  // existing Packing List unless it's turned on.
+  const thirdOpts = [
+    { k: "consignee", label: "Ultimate Consignee" },
+    { k: "intermediate", label: "Intermediate Consignee" },
+    { k: "end_user", label: "End User" },
+  ];
   const optHtml = (arr, dflt) => arr.map((o, i) => {
     const empty = !hasParty(P[o.k]);
     return `<option value="${o.k}" ${o.k === dflt ? "selected" : ""}>` +
       `${esc(o.label)}${empty ? " (blank in UDQ)" : ""}</option>`;
   }).join("");
+  const thirdHtml = `<option value="" selected>Don't include</option>` + optHtml(thirdOpts, null);
 
   const panel = el(`
     <div class="panel">
@@ -62,6 +72,10 @@ function renderPlWorkspace(container) {
           <div class="field">
             <label for="plTo">Ship To</label>
             <select id="plTo">${optHtml(toOpts, "deliver")}</select>
+          </div>
+          <div class="field">
+            <label for="plThird">Consignee details</label>
+            <select id="plThird">${thirdHtml}</select>
           </div>
           <div class="field">
             <label for="plUnit">Unit system</label>
@@ -93,6 +107,10 @@ function renderPlWorkspace(container) {
           <strong>Save as PDF</strong> and <strong>Download Excel</strong> both
           use this new format; <strong>Legacy spreadsheet</strong> still exports
           the older flat template.
+          <strong>Consignee details</strong> adds an optional third address
+          block alongside Ship From and Ship To — use it when the delivery
+          destination isn't the party that ultimately takes the goods. It's off
+          by default, and the legacy spreadsheet doesn't carry it.
           <strong>Inventory Sheet</strong> opens a separate receiving document
           below this one — a flat list of every item showing
           <strong>Qty Requested</strong> against the UDQ's
@@ -117,6 +135,7 @@ function renderPlWorkspace(container) {
   const refresh = () => updatePlPreview();
   panel.querySelector("#plFrom").addEventListener("change", refresh);
   panel.querySelector("#plTo").addEventListener("change", refresh);
+  panel.querySelector("#plThird").addEventListener("change", refresh);
   panel.querySelector("#plUnit").addEventListener("change", refresh);
   panel.querySelector("#plSigner").addEventListener("change", refresh);
   panel.querySelector("#plRefresh").addEventListener("click", refresh);
@@ -138,13 +157,15 @@ function plOptionsFromForm() {
   const unitSystem = (document.getElementById("plUnit") || {}).value || "imperial";
   const shipFrom = (document.getElementById("plFrom") || {}).value || "pickup";
   const shipTo = (document.getElementById("plTo") || {}).value || "deliver";
+  // "" = don't print the third address block (the default).
+  const thirdParty = (document.getElementById("plThird") || {}).value || "";
   const signerIdx = (document.getElementById("plSigner") || {}).value;
   let printedName = "";
   if (signerIdx !== "" && signerIdx != null) {
     const sg = SIGNERS[Number(signerIdx)];
     if (sg) printedName = `${sg.name}, ${sg.title}`;
   }
-  return { unitSystem, shipFrom, shipTo, printedName };
+  return { unitSystem, shipFrom, shipTo, thirdParty, printedName };
 }
 
 /**
@@ -286,6 +307,12 @@ function plRenderHtml(data, opts) {
   const deliver = _plPartyAddr(data.parties[toKey]);
   const fromLabel = "Ship From — " + (PARTY_LABELS[fromKey] || "Pickup Location");
   const toLabel = "Ship To — " + (PARTY_LABELS[toKey] || "Delivery Destination");
+  // Optional third block. Printed only when a party is chosen AND it carries an
+  // address — an empty block would just be a column of dashes.
+  const thirdKey = opts.thirdParty || "";
+  const thirdAddr = thirdKey ? _plPartyAddr(data.parties[thirdKey]) : "";
+  const showThird = !!thirdAddr;
+  const thirdLabel = PARTY_LABELS[thirdKey] || "Ultimate Consignee";
 
   const { grouped, crates, loose } = _plBuildGroups(data);
 
@@ -372,10 +399,12 @@ function plRenderHtml(data, opts) {
       <div class="sub"><b>${esc(m.wmtr)}</b> · ${esc(dateStr)}</div></div>
   </div>
 
-  <div class="pl-route">
+  <div class="pl-route${showThird ? " three" : ""}">
     <div class="end"><div class="lab">${esc(fromLabel)}</div><div class="val">${escBr(pickup) || "&mdash;"}</div></div>
     <div class="arrow">&rarr;</div>
     <div class="end"><div class="lab">${esc(toLabel)}</div><div class="val">${escBr(deliver) || "&mdash;"}</div></div>
+    ${showThird ? `<div class="arrow">&rarr;</div>
+    <div class="end"><div class="lab">${esc(thirdLabel)}</div><div class="val">${escBr(thirdAddr)}</div></div>` : ""}
   </div>
 
   <div class="pl-chips">
@@ -518,6 +547,9 @@ body{ font-family:var(--body); color:var(--ink); padding:18px 14px 40px; }
 /* Route strip */
 .pl-route{ display:grid; grid-template-columns:1fr 42px 1fr; border-bottom:1px solid var(--line); }
 .pl-route .end{ padding:13px 24px; }
+/* Third address block (optional Ultimate Consignee) — same strip, three columns. */
+.pl-route.three{ grid-template-columns:1fr 34px 1fr 34px 1fr; }
+.pl-route.three .end{ padding:13px 16px; }
 .pl-route .lab{ font-family:var(--disp); text-transform:uppercase; letter-spacing:2px; font-size:11.5px;
   color:var(--accent); font-weight:600; margin-bottom:4px; }
 .pl-route .val{ font-size:12.5px; line-height:1.4; white-space:pre-line; color:var(--ink-2); }
@@ -618,6 +650,7 @@ table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
   .pl-ttl .sub{ font-size:9px; margin-top:3px; color:#D6DEE6; }
   .pl-route{ border-bottom:1px solid #CBD3DB; }
   .pl-route .end{ padding:7px 16px; }
+  .pl-route.three .end{ padding:7px 11px; }
   .pl-route .lab{ color:#CC7A36; font-size:9.5px; letter-spacing:1.5px; margin-bottom:2px; }
   .pl-route .val{ font-size:10px; line-height:1.3; }
   .pl-route .arrow{ color:#9AA6B2; background:#FAFBFC; }
@@ -652,7 +685,7 @@ table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
 }
 @media (max-width:600px){
   .pl-chips{ grid-template-columns:repeat(2,1fr); }
-  .pl-route{ grid-template-columns:1fr; }
+  .pl-route, .pl-route.three{ grid-template-columns:1fr; }
   .pl-route .arrow{ display:none; }
   .pl-foot-grid{ grid-template-columns:1fr; }
 }
@@ -829,6 +862,11 @@ function _plXlsxParts(data, opts) {
   const wUnit = unitSystem === "imperial" ? "lbs" : "kg";
   const fromAddr = _plPartyAddr(data.parties[fromKey]);
   const toAddr = _plPartyAddr(data.parties[toKey]);
+  // Optional third address block, same rule as the preview: only when a party
+  // is chosen and it actually has an address. Full width rather than a third
+  // column — columns E/F are 8 units wide, too narrow to hold an address.
+  const thirdKey = opts.thirdParty || "";
+  const thirdAddr = thirdKey ? _plPartyAddr(data.parties[thirdKey]) : "";
   const raw = m.totals_raw || {};
 
   const { grouped, crates, loose } = _plBuildGroups(data);
@@ -853,6 +891,13 @@ function _plXlsxParts(data, opts) {
   const rFrom = S.lastRow(); S.merge(rFrom, 1, rFrom, 3); S.merge(rFrom, 4, rFrom, 6);
   S.addRow([C(fromAddr || "—", PLS.addr), null, null, C(toAddr || "—", PLS.addr)], 58);
   const rAddr = S.lastRow(); S.merge(rAddr, 1, rAddr, 3); S.merge(rAddr, 4, rAddr, 6);
+
+  if (thirdAddr) {
+    S.addRow([C((PARTY_LABELS[thirdKey] || "ULTIMATE CONSIGNEE").toUpperCase(), PLS.fieldLab)]);
+    const rTL = S.lastRow(); S.merge(rTL, 1, rTL, 6);
+    S.addRow([C(thirdAddr, PLS.addr)], 58);
+    const rTA = S.lastRow(); S.merge(rTA, 1, rTA, 6);
+  }
 
   S.addRow([]); // spacer
 

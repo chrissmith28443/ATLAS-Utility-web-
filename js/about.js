@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.77",
+    title: "Audit — a close-out checklist for the request you have open",
+    notes: [
+      "New \"Audit\" button at the bottom of the Shipping documents list. Pull up a request, press it, and you get the Christmas Tree's checks run against that one WMTR — QC rejections, shipping documents attached, AWB/BoL, daily status updates, delivery vs. RDD, cost against the DTRA-approved amount, and the Ready-to-Invoice / Invoiced milestones. It's the list the TTI POC who owns the request can walk before calling it done.",
+      "Each line says where it stands, not just whether it failed: Action needed, Due soon, Not yet due, Clear, or No data. So a request still in flight reads as a to-do list rather than a wall of red.",
+      "The failures come from the Christmas Tree's own engine and the Required Attachments rules — same rules, same wording — so the single-record audit and the tracker can never disagree. Anything you've already acknowledged in the Christmas Tree shows here as acknowledged. Copy and Export (.xlsx) buttons are underneath.",
+    ],
+  },
+  {
     version: "2.5.76",
     title: "Inventory Sheet previews before it downloads",
     notes: [

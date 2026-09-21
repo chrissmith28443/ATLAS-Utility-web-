@@ -30,6 +30,10 @@ const TOOLS = [
   { id: "ipc",      group: "Shipping documents", label: "IPC",                 needs: "srf",      ready: true  },
   { id: "po",       group: "Shipping documents", label: "Purchase Order",      needs: "none",     ready: true  },
   { id: "mct",      group: "Shipping documents", label: "MCT Entry Letter",    needs: "none",     ready: true  },
+  // Close-out checklist for the loaded request: the Christmas Tree's checks run
+  // against this one WMTR. Sits last in the group — it's what you press when the
+  // documents are done, not another document.
+  { id: "audit",    group: "Shipping documents", label: "Audit",               needs: "srf",      ready: true  },
   { id: "metrics",  group: "Metrics",            label: "Metrics",             needs: "metrics",  ready: true  },
   { id: "pmr",      group: "Metrics",            label: "PMR",                 needs: "metrics",  ready: true  },
   // Required Attachments' Metrics role now lives inside the Metrics dashboard
@@ -711,6 +715,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
   else if (AppState.activeTool === "pmr") renderPmrWorkspace(ws);
   else if (AppState.activeTool === "reqatt") renderReqattWorkspace(ws);
+  else if (AppState.activeTool === "audit") renderRecordAuditWorkspace(ws);
   else if (AppState.activeTool === "ecm") renderEcmWorkspace(ws);
   else if (AppState.activeTool === "xmastree") renderXmasTreeWorkspace(ws);
   else if (AppState.activeTool === "search") renderSearchWorkspace(ws);

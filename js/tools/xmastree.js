@@ -673,6 +673,18 @@ function xtBuildRow(rec) {
   const estVsActual = ratio(approvedAmount);
   const revEstVsActual = ratio(revEstAmount);
 
+  // The amount the request is ACTUALLY held to. ATLAS re-approves at a revised
+  // cost by adding another "DTRA Estimate Review (Approved)" entry, so the most
+  // recent one carrying a cost is the governing approval — a request re-approved
+  // at a higher figure has been authorized at that figure and must not still be
+  // scored against its first estimate. (The two tracker columns above are
+  // unchanged: "Estimate vs. Actual %" keeps reporting the ORIGINAL approval and
+  // "Revised Estimate vs. Actual %" the revision, which is what the workbook
+  // asks for. This is the figure the METRIC and the row flags score against.)
+  const approvedCosts = withStatus(XT_WFL.estReviewApproved).map((e) => e.cost).filter((c) => c);
+  const governingAmount = approvedCosts.length ? approvedCosts[0] : null;   // newest-first
+  const costVariance = ratio(governingAmount);
+
   // Is Activity Tracker Update Late? SRF (daily) and PR (TTI POC Status Check) only.
   // A daily update is expected every working day (holidays/weekends exempt) from the
   // first daily-history entry onward. Any missing past working day -> "missed"; only
@@ -744,6 +756,10 @@ function xtBuildRow(rec) {
     rev_est_approved:   revEstApproved,
     rev_est_amount:     revEstAmount,
     rev_est_vs_actual:  revEstVsActual,
+    // Governing (most recent) approval — what the cost metric scores against.
+    governing_amount:   governingAmount,
+    cost_variance:      costVariance,
+    cost_revised:       approvedCosts.length >= 2,
     last_activity:      rec.lastActivity,
     activity_late:      activityLate,
     activity_gap:       activityGap,
@@ -882,15 +898,24 @@ function xtRowIssues(row) {
   //    with no approved amount yet (still in TTI/DTRA review) have a cost but nothing to
   //    compare against, so they don't flag.
   //  - Delivered/completed: the estimate-vs-actual accuracy check (>=10% either way).
+  // Both branches compare against the GOVERNING (most recent) approval, not the
+  // first one. A request whose cost was raised and re-approved in ATLAS has been
+  // authorized at the new figure; holding it to the original estimate reported it
+  // as an overrun forever. The flag is attributed to the revised column when a
+  // revision exists, so the tracker tints the cell the figure actually came from.
+  const revised = !!row.cost_revised;
+  const vCol = revised ? "rev_est_vs_actual" : "est_vs_actual";
+  const vMetric = revised ? "variance_rev" : "variance_est";
   if (!isD(row.delivered)) {
-    if (typeof row.approved_amount === "number" && typeof row.current_total_cost === "number"
-        && row.current_total_cost > row.approved_amount)
-      add("variance_est", "current_total_cost", "variance", "Cost exceeds DTRA-approved amount \u2014 reapproval needed");
+    if (typeof row.governing_amount === "number" && typeof row.current_total_cost === "number"
+        && row.current_total_cost > row.governing_amount)
+      add(vMetric, "current_total_cost", "variance",
+          revised ? "Cost exceeds the revised DTRA-approved amount \u2014 reapproval needed"
+                  : "Cost exceeds DTRA-approved amount \u2014 reapproval needed");
   } else {
-    if (typeof row.est_vs_actual === "number" && Math.abs(row.est_vs_actual) >= 0.10)
-      add("variance_est", "est_vs_actual", "variance", "Estimate vs actual off by \u226510%");
-    if (typeof row.rev_est_vs_actual === "number" && Math.abs(row.rev_est_vs_actual) >= 0.10)
-      add("variance_rev", "rev_est_vs_actual", "variance", "Revised estimate vs actual off by \u226510%");
+    if (typeof row.cost_variance === "number" && Math.abs(row.cost_variance) >= 0.10)
+      add(vMetric, vCol, "variance",
+          revised ? "Revised estimate vs actual off by \u226510%" : "Estimate vs actual off by \u226510%");
   }
 
   // Rejected during/after review
@@ -1028,10 +1053,14 @@ const XT_ROLLUP_METRICS = [
     elig: (r) => !!r.delivered && xtIso(r.delivered) >= XT_TRACKING_CUTOFF_ISO,
     pass: (r) => !!r.tracking_awb,
     failReason: () => "No value in the AWB/BoL field" },
+  // Scored against the GOVERNING approval (the most recent "DTRA Estimate Review
+  // (Approved)" entry carrying a cost), not the first one \u2014 a request re-approved
+  // at a higher cost is authorized at that cost. See xtBuildRow/cost_variance.
   { key: "cost_srf", svc: "SRF", src: "row",
     label: "SRF Cost Estimate Accuracy (\u226410%)", green: 0.95, yellow: 0.90,
-    elig: (r) => typeof r.est_vs_actual === "number", pass: (r) => Math.abs(r.est_vs_actual) < 0.10,
-    failReason: (r) => "Estimate vs. actual off by " + Math.round(Math.abs(r.est_vs_actual) * 100) + "%" },
+    elig: (r) => typeof r.cost_variance === "number", pass: (r) => Math.abs(r.cost_variance) < 0.10,
+    failReason: (r) => (r.cost_revised ? "Revised estimate" : "Estimate") + " vs. actual off by "
+      + Math.round(Math.abs(r.cost_variance) * 100) + "%" },
   // Manually-entered metric: a reviewer flags a WMTR by putting text in the
   // (DTRA-unused) "DTRA-Only Import/Export Comments" field. Any text = a bust
   // the utility can't otherwise detect (e.g. a lost package); the text is the
@@ -1047,8 +1076,9 @@ const XT_ROLLUP_METRICS = [
     failReason: () => "Estimate submitted after 3-business-day due date" },
   { key: "cost_pr", svc: "PR", src: "row",
     label: "PR Cost Estimate Accuracy (\u226410%)", green: 0.95, yellow: 0.90,
-    elig: (r) => typeof r.est_vs_actual === "number", pass: (r) => Math.abs(r.est_vs_actual) < 0.10,
-    failReason: (r) => "Estimate vs. actual off by " + Math.round(Math.abs(r.est_vs_actual) * 100) + "%" },
+    elig: (r) => typeof r.cost_variance === "number", pass: (r) => Math.abs(r.cost_variance) < 0.10,
+    failReason: (r) => (r.cost_revised ? "Revised estimate" : "Estimate") + " vs. actual off by "
+      + Math.round(Math.abs(r.cost_variance) * 100) + "%" },
 ];
 // Date-comparison metrics we would score today if ATLAS captured one missing
 // timestamp. Rendered as their own rows so Wendy can see exactly which field is the

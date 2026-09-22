@@ -211,22 +211,29 @@ function raudBuild(grid) {
     return { state: "ok", detail: `Delivered ${raudDate(row.delivered)}, on or before the ${raudDate(row.nlt_completion)} RDD.` };
   }, () => `delivered ${raudDate(row.delivered)}, RDD was ${raudDate(row.nlt_completion)}`);
 
-  /* 7. Cost against the DTRA-approved amount / estimate accuracy. */
-  add("variance_est", row.delivered ? "Estimate vs. actual cost" : "Cost vs. DTRA-approved amount", () => {
-    if (row.approved_amount == null)
-      return { state: "unknown", detail: hasWfl ? "No DTRA-approved amount recorded on this request yet." : "This export carries no Workflow Logs, so the approved amount can't be read." };
-    const cur = raudMoney(row.current_total_cost), appr = raudMoney(row.approved_amount);
-    return { state: "ok", detail: `Current ${cur || "—"} against the approved ${appr}${typeof row.est_vs_actual === "number" ? ` (${(row.est_vs_actual * 100).toFixed(1)}%)` : ""}.` };
-  }, () => {
-    const appr = raudMoney(row.approved_amount), cur = raudMoney(row.current_total_cost);
-    return appr ? `approved ${appr}, current cost ${cur || "—"}` : "";
-  });
+  /* 7/8. Cost against the DTRA-approved amount / estimate accuracy.
+     Scored against the GOVERNING approval — the most recent "DTRA Estimate
+     Review (Approved)" entry carrying a cost. A request re-approved at a higher
+     figure is held to that figure, so the tracker raises the flag under the
+     revised metric; both checks are listed either way so the close-out list
+     always shows which basis was used. */
+  const revised = !!row.cost_revised;
+  const govMoney = raudMoney(row.governing_amount);
+  const curMoney = raudMoney(row.current_total_cost);
+  const varPct = typeof row.cost_variance === "number" ? ` (${(row.cost_variance * 100).toFixed(1)}%)` : "";
 
-  /* 8. Revised estimate — only when a second approval exists. */
+  add("variance_est", row.delivered ? "Estimate vs. actual cost" : "Cost vs. DTRA-approved amount", () => {
+    if (row.governing_amount == null)
+      return { state: "unknown", detail: hasWfl ? "No DTRA-approved amount recorded on this request yet." : "This export carries no Workflow Logs, so the approved amount can't be read." };
+    if (revised)
+      return { state: "na", detail: `Superseded — this request was re-approved at ${govMoney}; scored on the revised estimate below.` };
+    return { state: "ok", detail: `Current ${curMoney || "—"} against the approved ${govMoney}${varPct}.` };
+  }, () => govMoney ? `approved ${govMoney}, current cost ${curMoney || "—"}` : "");
+
   add("variance_rev", "Revised estimate vs. actual", () => {
-    if (row.rev_est_amount == null) return { state: "na", detail: "No revised estimate on this request." };
-    return { state: "ok", detail: `Revised ${raudMoney(row.rev_est_amount)} against ${raudMoney(row.current_total_cost) || "—"} actual.` };
-  });
+    if (!revised) return { state: "na", detail: "No revised estimate on this request." };
+    return { state: "ok", detail: `Re-approved at ${govMoney} against ${curMoney || "—"} actual${varPct}.` };
+  }, () => govMoney ? `re-approved at ${govMoney}, current cost ${curMoney || "—"}` : "");
 
   /* 9. PR estimate timeliness — shows only on a PR record. */
   if (row.service === "PR") {

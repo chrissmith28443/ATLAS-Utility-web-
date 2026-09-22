@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.80",
+    title: "Cost accuracy now scores against the latest approval, not the first one",
+    notes: [
+      "Fixed. When a request's cost went up and DTRA re-approved it at the new figure, the Utility kept comparing the actual cost to the ORIGINAL approved estimate — so a properly re-approved request reported as a >10% overrun forever. It was reading the oldest \"DTRA Estimate Review (Approved)\" entry in the workflow instead of the newest.",
+      "SRF and PR Cost Estimate Accuracy, and the tracker's own cost flags, now score against the governing approval: the most recent approval entry that carries a cost. A request re-approved at $13,000 whose actual is $13,000 now passes at 0% instead of failing at 23%. One that was re-approved at $13,000 but ran to $16,000 still flags — at 19% against the revision, not 37% against the original figure.",
+      "The same fix applies to in-flight requests. \"Cost exceeds DTRA-approved amount — reapproval needed\" no longer fires on a request that has already been re-approved at the higher cost.",
+      "Flag wording now names which figure it used, so \"Revised estimate vs. actual off by 19%\" and \"Estimate vs. actual off by 23%\" are told apart in the drill-down and both summary exports. The Audit window agrees, marking the original-estimate line as superseded and scoring on the revision.",
+      "The two tracker columns are unchanged: \"Estimate vs. Actual %\" still reports the original approval and \"Revised Estimate vs. Actual %\" the revision, exactly as the Christmas Tree workbook lays them out. Only the scoring changed. Requests that were never re-approved score exactly as before.",
+    ],
+  },
+  {
     version: "2.5.79",
     title: "Christmas Tree: the daily-update metric was being blanked, and dashed rows now explain themselves",
     notes: [

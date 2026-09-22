@@ -1136,11 +1136,18 @@ function xtBuildRollup() {
     return (XT_ROLLUP_IGNORE_KEYS[rollupKey] || [rollupKey]).some((k) => supp.includes(k));
   };
 
-  // --- pmr-sourced: delivery + daily, one pmrRun per quarter on the SRF grid ---
+  // --- pmr-sourced: delivery, one pmrRun per quarter on the SRF grid ---
+  // pmrRun throws when the UDQ is missing any of its required headers (it needs
+  // the full delivery/cost header set). That used to take the daily-update score
+  // down with it — see the separate daily block below — and the failure was
+  // swallowed, so the row just showed em-dashes with no explanation. The reason
+  // is now kept and surfaced in the panel.
+  let pmrError = "";
   if (srfGrid && typeof pmrRun === "function") {
     for (const q of quarters) {
       let pr = null;
-      try { pr = pmrRun(srfGrid, q.start, q.end); } catch (e) { pr = null; }
+      try { pr = pmrRun(srfGrid, q.start, q.end); }
+      catch (e) { pr = null; if (!pmrError) pmrError = e.message || String(e); }
       if (!pr) continue;
       const dFails = [];
       let dPass = pr.on_time_count || 0;
@@ -1157,7 +1164,21 @@ function xtBuildRollup() {
         dFails.push({ req, svc: "SRF", reason: `Delivered ${nr[1]} — no NLT date in ATLAS (unscored)` });
       }
       byKey.delivery.cells[q.key] = { pass: dPass, total: pr.nlt_scoped || 0, fails: dFails };
-      const du = pr.daily_update || {};
+    }
+  }
+
+  // --- daily status updates: scored on its OWN pass over the SRF grid ---------
+  // The daily check only reads each WMTR's "Daily Status History" sub-section
+  // (plus the optional Status / Delivery Date columns). It needs none of the
+  // headers pmrRun requires, so it must not be gated behind pmrRun succeeding —
+  // one missing header like "CTR Program" was silently blanking this row on a
+  // UDQ whose daily logs were perfectly readable.
+  let dailyLogged = 0;      // WMTRs in the file that carry a daily log at all
+  if (srfGrid && typeof pmrDailyUpdateCheck === "function") {
+    for (const q of quarters) {
+      let du = null;
+      try { du = pmrDailyUpdateCheck(srfGrid, q.start, q.end); } catch (e) { du = null; }
+      if (!du) continue;
       const daFails = [];
       let daPass = du.compliant || 0;
       for (const r of (du.rows || [])) {
@@ -1166,13 +1187,19 @@ function xtBuildRollup() {
         if (ignoredFor(req, "daily")) { daPass += 1; ignoredApplied += 1; continue; }
         daFails.push({
           req, svc: "SRF",
-          // Name the actual days, not just the count — pmrRun already returns
+          // Name the actual days, not just the count — the check already returns
           // them, and hunting for them by hand is the whole complaint.
           reason: `${r.missing_count} missing business day${r.missing_count === 1 ? "" : "s"}`
             + (r.missing && r.missing.length ? `: ${xtFmtDayList(r.missing)}` : ""),
         });
       }
       byKey.daily.cells[q.key] = { pass: daPass, total: du.with_daily || 0, fails: daFails };
+    }
+    // Window-independent: does this UDQ carry daily logs at all? Distinguishes
+    // "no gaps to report" from "this export has no Daily Status History".
+    if (typeof pmrParseDailyBlocks === "function") {
+      try { dailyLogged = pmrParseDailyBlocks(srfGrid).filter((b) => b.dates.length).length; }
+      catch (e) { dailyLogged = 0; }
     }
   }
 
@@ -1221,13 +1248,53 @@ function xtBuildRollup() {
     }
   }
 
+  // Attach the owning TTI POC and anything captured in the DTRA-Only
+  // Import/Export Comments field to every flagged record, so the drill-down (and
+  // the summary exports) can show who to chase and what was noted by hand. The
+  // fails are raised in four different places, so this is done once here rather
+  // than at each push site.
+  const infoByReq = {};
+  for (const r of rows) {
+    infoByReq[r.service + "|" + r.request_no] = { poc: norm(r.tti_poc), note: norm(r.manual_metric) };
+  }
+  for (const x of metrics) for (const q of quarters) {
+    for (const f of x.cells[q.key].fails) {
+      const i = infoByReq[f.svc + "|" + f.req];
+      if (!i) continue;
+      f.poc = i.poc;
+      // The "Manually-entered Metrics" metric already uses the note as its
+      // reason — don't print it twice.
+      f.note = (i.note && i.note !== f.reason) ? i.note : "";
+    }
+  }
+
   for (const x of metrics) for (const q of quarters) {
     const c = x.cells[q.key];
     x.tot.pass += c.pass; x.tot.total += c.total;
     for (const fl of c.fails) x.tot.fails.push({ ...fl, quarter: q.key });
   }
+  // --- why might a row be dashed? -------------------------------------------
+  // A dashed cell means "nothing eligible to score", which on its own is
+  // indistinguishable from "the scorer couldn't run". Collect the answerable
+  // reasons per loaded service so the panel can say which it is. The cost
+  // metrics and the PR estimate-timeliness metric all read their dates and the
+  // approved amount out of each WMTR's Workflow Logs, so a UDQ exported without
+  // that section blanks them — and that's worth saying out loud.
+  const slots = {};
+  for (const svc of XT_SERVICES) {
+    const s = XTree.slots[svc];
+    if (!s || !s.records) continue;
+    let withWfl = 0;
+    for (const r of s.records) if (r.wfl && r.wfl.length) withWfl += 1;
+    slots[svc] = { records: s.records.length, withWfl, withApproved: 0 };
+  }
+  for (const r of rows) {
+    const d = slots[r.service];
+    if (d && typeof r.approved_amount === "number" && r.approved_amount) d.withApproved += 1;
+  }
+
   return { quarters, metrics, pending: XT_ROLLUP_PENDING, untracked: XT_ROLLUP_UNTRACKED,
-    srfGrid: !!srfGrid, ignoredApplied, generatedAt: new Date() };
+    srfGrid: !!srfGrid, ignoredApplied, pmrError, dailyLogged, slots, generatedAt: new Date() };
 }
 
 /** RYG bucket for a ratio 0..1 against a metric's thresholds. */
@@ -1296,17 +1363,70 @@ function xtRollupPanelHtml() {
       let list, qlabel;
       if (drill.quarter === "__total__") { list = mx.tot.fails; qlabel = "all quarters"; }
       else { const c = mx.cells[drill.quarter]; list = (c && c.fails) || []; qlabel = drill.quarter; }
-      const rowsHtml = list.map((f) =>
-        `<div class="xtr-fail"><span class="xt-wmtr-chip" data-wmtr="${esc(f.req)}"><span class="lbl">${esc(f.req.replace(/^WMTR-/, ""))}</span></span><span class="xtr-reason">${esc(f.reason)}</span></div>`
-      ).join("");
+      const rowsHtml = list.map((f) => {
+        const poc = f.poc
+          ? `<span class="xtr-poc" title="TTI POC">${esc(f.poc)}</span>`
+          : `<span class="xtr-poc none" title="TTI POC">No TTI POC</span>`;
+        const note = f.note
+          ? `<div class="xtr-fnote"><span class="k">DTRA-Only Import/Export Comments</span>${esc(f.note)}</div>` : "";
+        return `<div class="xtr-fail">
+          <span class="xt-wmtr-chip" data-wmtr="${esc(f.req)}"><span class="lbl">${esc(f.req.replace(/^WMTR-/, ""))}</span></span>
+          <span class="xtr-fbody"><span class="xtr-reason">${esc(f.reason)}</span>${poc}${note}</span>
+        </div>`;
+      }).join("");
       drillHtml = `<div class="xtr-drill" id="xtRollupDrill">
         <div class="xtr-drill-h"><span><strong>${esc(mx.def.label)}</strong> \u00b7 ${esc(qlabel)} \u2014 ${list.length} flagged</span><button class="xtr-drill-x" id="xtRollupDrillClose" type="button" title="Close">\u00d7</button></div>
         ${list.length ? `<div class="xtr-drill-hint">Click a WMTR to isolate it in the tracker below.</div>${rowsHtml}` : `<div class="xtr-drill-hint">No flagged records in this cell.</div>`}
       </div>`;
     }
   }
+  // ----- why is a row dashed? -----
+  // A dashed row means "nothing eligible to score", which used to be
+  // indistinguishable from "the scorer couldn't run". Say which.
+  const diagBits = [];
+  // 1. A service UDQ that isn't loaded at all, or is loaded without the section
+  //    its metrics read from.
+  const needed = [];
+  for (const x of R.metrics) if (needed.indexOf(x.def.svc) === -1) needed.push(x.def.svc);
+  for (const svc of needed) {
+    const d = R.slots[svc];
+    const labels = R.metrics.filter((x) => x.def.svc === svc).map((x) => x.def.label);
+    if (!d || !d.records) {
+      diagBits.push(`<strong>The ${svc} UDQ isn’t loaded</strong>, so its ${labels.length} metric${labels.length === 1 ? "" : "s"}
+        can’t be scored: ${esc(labels.join("; "))}.`);
+      continue;
+    }
+    if (!d.withWfl) {
+      diagBits.push(`<strong>No WMTR in the ${svc} UDQ carries a “Workflow Logs” section.</strong> The DTRA review dates,
+        the approved estimate amount and the Ready-to-Invoice / Invoiced stamps all come from there — so
+        Cost Estimate Accuracy${svc === "PR" ? " and PR Cost Estimate Submitted ≤3 Business Days" : ""}
+        can’t be scored, and those tracker columns stay blank. Re-export the ${svc} UDQ with Workflow Logs included.`);
+      continue;
+    }
+    if (!d.withApproved) {
+      diagBits.push(`<strong>No WMTR in the ${svc} UDQ carries a cost on its “DTRA Estimate Review (Approved)”
+        workflow entry</strong>, so ${svc} Cost Estimate Accuracy has no approved amount to compare the actual cost
+        against. Workflow Logs are present — it’s the cost on that entry that’s missing.`);
+    }
+  }
+  // 2. The two SRF metrics that read their own sections rather than the row.
+  if (R.srfGrid && R.pmrError) {
+    diagBits.push(`<strong>Delivery timeliness can’t be scored from this SRF UDQ:</strong> ${esc(R.pmrError)}.
+      Re-export the SRF UDQ with that column included. Daily status updates are scored separately and are unaffected.`);
+  }
+  if (R.srfGrid && !R.dailyLogged) {
+    diagBits.push(`<strong>No WMTR in this SRF UDQ carries a “Daily Status History” section</strong>, so there are no
+      daily updates to check — that’s why the daily row is dashed. The section has to be included in the UDQ export
+      for this metric to score.`);
+  }
+  const diagHtml = diagBits.length
+    ? `<div class="xtr-diag">${diagBits.map((b) => `<div>${b}</div>`).join("")}</div>` : "";
+
   return `
     <style>
+      .xtr-diag{border:1px solid var(--warn);border-left-width:3px;border-radius:var(--radius-panel);background:#FFF7F7;padding:9px 12px;margin-bottom:10px;font-size:12px;line-height:1.5;color:var(--ink)}
+      body.theme-dark .xtr-diag{background:#241214}
+      .xtr-diag div + div{margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
       .xt-rollup .scrollwrap{overflow:auto}
       table.xtr-tbl{border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap;width:100%}
       table.xtr-tbl th{position:sticky;top:0;background:#F7F9FA;font-family:var(--disp);text-transform:uppercase;letter-spacing:.6px;font-size:11px;color:var(--steel);border-bottom:2px solid var(--line);padding:7px 9px;text-align:center}
@@ -1352,13 +1472,19 @@ function xtRollupPanelHtml() {
       .xtr-drill-x{border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer;color:var(--steel)}
       .xtr-drill-x:hover{color:var(--warn)}
       .xtr-drill-hint{font-size:11px;color:var(--steel);margin-bottom:6px}
-      .xtr-fail{display:flex;gap:10px;align-items:baseline;padding:3px 0;border-top:1px solid var(--line)}
+      .xtr-fail{display:flex;gap:10px;align-items:baseline;padding:4px 0;border-top:1px solid var(--line)}
       .xtr-reason{font-size:12px;color:var(--ink)}
+      .xtr-fbody{flex:1;min-width:0}
+      .xtr-poc{display:inline-block;margin-left:8px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.8px;font-size:10px;color:var(--steel);border:1px solid var(--line);border-radius:var(--radius-badge);padding:0 6px;white-space:nowrap;vertical-align:1px}
+      .xtr-poc.none{opacity:.55;font-style:italic}
+      .xtr-fnote{margin-top:4px;font-size:11.5px;line-height:1.45;color:var(--ink);background:#FFF8E6;border-left:2px solid #C79A1E;border-radius:3px;padding:4px 8px;white-space:normal}
+      body.theme-dark .xtr-fnote{background:#2a2612}
+      .xtr-fnote .k{display:block;font-family:var(--disp);text-transform:uppercase;letter-spacing:.8px;font-size:9.5px;color:var(--steel);margin-bottom:1px}
     </style>
     <div class="panel xt-rollup" style="margin-top:12px">
       <div class="header"><h2>PMR Metrics \u2014 Fiscal Quarter Rollup</h2><span class="count">${R.metrics.length} scored \u00b7 ${R.pending.length + R.untracked.length} not tracked \u00b7 SRF relief applied${R.ignoredApplied ? ` \u00b7 ${R.ignoredApplied} scored as relieved (Ignored)` : ""}</span><span style="margin-left:auto;display:inline-flex;gap:6px"><button class="btn ghost" id="xtRollupXlsx" type="button" style="padding:5px 12px;font-size:12.5px">Summary (.xlsx)</button><button class="btn ghost" id="xtRollupPdf" type="button" style="padding:5px 12px;font-size:12.5px">Summary (.pdf)</button></span></div>
       <div class="body">
-        ${R.srfGrid ? "" : `<div class="statusline warn">Load the SRF UDQ to score the shipping metrics (delivery, daily, docs, SRF cost).</div>`}
+        ${diagHtml}
         <div class="xtr-qhint"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>Click a <strong>quarter heading</strong> (or a green cell) to scope the reporting window to that quarter. Click a <strong>flagged (red/yellow) cell</strong> to also switch to <strong>Issues only</strong> and land on the requests that caused it. Click the active quarter heading again to clear.</div>
         <div class="scrollwrap"><table class="xtr-tbl">
           <thead><tr><th class="xtr-l">Metric</th>${qh}<th>Total</th></tr></thead>
@@ -1378,7 +1504,7 @@ function xtRollupFlatFails(R) {
   for (const x of R.metrics) {
     for (const q of R.quarters) {
       const c = x.cells[q.key];
-      for (const f of (c && c.fails || [])) out.push({ metric: x.def.key, mlabel: x.def.label, svc: f.svc, quarter: q.key, req: f.req, reason: f.reason });
+      for (const f of (c && c.fails || [])) out.push({ metric: x.def.key, mlabel: x.def.label, svc: f.svc, quarter: q.key, req: f.req, reason: f.reason, poc: f.poc || "", note: f.note || "" });
     }
   }
   return out;
@@ -1420,10 +1546,10 @@ function xtExportMetricsXlsx() {
 
     // Sheet 2 — flagged records worklist.
     const fails = xtRollupFlatFails(R);
-    const head2 = ["Metric", "Svc", "Quarter", "WMTR", "Flagged For"];
-    const aoa2 = [head2, ...fails.map((f) => [f.mlabel, f.svc, f.quarter, f.req, f.reason])];
+    const head2 = ["Metric", "Svc", "Quarter", "WMTR", "TTI POC", "Flagged For", "DTRA-Only Import/Export Comments"];
+    const aoa2 = [head2, ...fails.map((f) => [f.mlabel, f.svc, f.quarter, f.req, f.poc, f.reason, f.note])];
     const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
-    ws2["!cols"] = [{ wch: 52 }, { wch: 5 }, { wch: 10 }, { wch: 22 }, { wch: 60 }];
+    ws2["!cols"] = [{ wch: 52 }, { wch: 5 }, { wch: 10 }, { wch: 22 }, { wch: 22 }, { wch: 60 }, { wch: 60 }];
     ws2["!autofilter"] = { ref: ws2["!ref"] };
 
     const wb = XLSX.utils.book_new();
@@ -1529,18 +1655,27 @@ async function xtExportMetricsPdf() {
     // ----- flagged records worklist -----
     const fails = xtRollupFlatFails(R);
     ensure(20);
-    text(`Flagged Records (${fails.length})`, M, y, 12, bold); y -= 16;
+    text(`Flagged Records (${fails.length})`, M, y, 12, bold); y -= 14;
+    text("Quarter", M + 8, y, 7, bold, steel);
+    text("WMTR", M + 62, y, 7, bold, steel);
+    text("TTI POC", M + 190, y, 7, bold, steel);
+    text("Flagged For", M + 310, y, 7, bold, steel);
+    y -= 12;
     const byMetric = {};
     for (const f of fails) (byMetric[f.mlabel] = byMetric[f.mlabel] || []).push(f);
     for (const [mlabel, list] of Object.entries(byMetric)) {
       ensure(28);
       text(`${mlabel}  (${list.length})`, M, y, 9, bold, ink); y -= 13;
       for (const f of list) {
-        ensure(12);
+        ensure(f.note ? 23 : 12);
         text(`${f.quarter}`, M + 8, y, 7.5, font, steel);
         text(`${f.req}`, M + 62, y, 7.5, bold, ink);
-        text(trunc(f.reason, 120), M + 190, y, 7.5, font, ink);
+        text(trunc(f.poc || "—", 24), M + 190, y, 7.5, font, steel);
+        text(trunc(f.reason, 95), M + 310, y, 7.5, font, ink);
         y -= 11;
+        // Manual metric notes live in the DTRA-Only Import/Export Comments field;
+        // they get their own indented line so a long note doesn't crowd the reason.
+        if (f.note) { text(trunc("DTRA-Only comments: " + f.note, 150), M + 70, y, 7, font, steel); y -= 10; }
       }
       y -= 5;
     }

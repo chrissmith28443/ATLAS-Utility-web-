@@ -13,6 +13,18 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.79",
+    title: "Christmas Tree: the daily-update metric was being blanked, and dashed rows now explain themselves",
+    notes: [
+      "Fixed a real bug. The rollup scored delivery timeliness and daily status updates from a single run of the PMR engine. That engine refuses to run when the SRF UDQ is missing any of the eight columns it requires (Country of Destination, CTR Program, Value of Cargo, and so on) — and when it refused, it took the daily-update score down with it, even though the daily check doesn't use any of those columns. The row just showed dashes.",
+      "Daily updates are now scored on their own pass over the SRF UDQ, reading each WMTR's \"Daily Status History\" section directly. A UDQ missing a delivery-only column now scores daily updates normally, with the same business-day gap rules and the same click-through to the offending days as before.",
+      "Checked the three cost/estimate metrics too — SRF Cost Estimate Accuracy, PR Cost Estimate Submitted ≤3 Business Days, and PR Cost Estimate Accuracy. Their math is correct; they dash only when the data genuinely isn't there. All three read their dates and the DTRA-approved amount out of each WMTR's Workflow Logs, so a UDQ exported without that section blanks them, and the two PR lines need the PR UDQ loaded.",
+      "So a dashed row no longer leaves you guessing. The panel now names the reason: the service UDQ isn't loaded, its Workflow Logs section is missing, the approved-estimate cost isn't recorded on the workflow entry, no Daily Status History section is present, or the delivery metric is missing a specific column. \"Nothing to report\" and \"couldn't check\" finally look different.",
+      "The flagged-records list under the rollup table now shows the request's TTI POC next to the reason it was flagged, so you can see who to chase without cross-referencing the tracker. Records with no POC on them say so rather than showing a blank.",
+      "It also prints whatever is in the DTRA-Only Import/Export Comments field — the field currently used to capture manual metric notes — in a highlighted box under the reason, labelled with the field it came from. The note is left off the \"Manually-entered Metrics\" row, where it's already the reason, so it never prints twice. Both the TTI POC and the comments are new columns on the Excel summary and new fields on the PDF summary.",
+    ],
+  },
+  {
     version: "2.5.78",
     title: "Packing List can print a third address block",
     notes: [

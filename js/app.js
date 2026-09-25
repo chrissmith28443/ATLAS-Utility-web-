@@ -1243,9 +1243,19 @@ function renderPoWorkspace(container) {
             <div class="hint">Filled automatically from the selected vendor.</div>
           </div>
           <div class="field">
-            <label for="poCost">Cost amount (USD)</label>
+            <label for="poCurrency">Currency</label>
+            <select id="poCurrency">${poCurrencyOptionsHtml("USD")}</select>
+            <div class="hint">Type the 3-letter code to jump to it.</div>
+          </div>
+          <div class="field">
+            <label for="poCost">Cost amount</label>
             <input type="text" id="poCost" inputmode="decimal" placeholder="e.g. 4250.00">
             <div class="hint">Digits and an optional decimal point only.</div>
+          </div>
+          <div class="field" id="poUsdWrap" hidden>
+            <label for="poUsd">Approx. USD value</label>
+            <input type="text" id="poUsd" inputmode="decimal" placeholder="e.g. 4600.00">
+            <div class="hint">Used only for the $50K / $100K approval check. Not printed on the PO.</div>
           </div>
           <div class="field span2">
             <label for="poNotes">Notes / comments</label>
@@ -1276,7 +1286,7 @@ function renderPoWorkspace(container) {
         <div class="note">
           Save as PDF builds the Purchase Order as a real PDF
           (<span style="font-family:var(--mono)">Purchase_Order_${esc(new Date().getFullYear())}-&hellip;.pdf</span>)
-          and downloads it. The PO number, &ldquo;USD&rdquo; price formatting, vendor address, and the fixed subject,
+          and downloads it. The PO number, price formatting in the chosen currency, vendor address, and the fixed subject,
           justification, and FAR 47.403 note are all filled in automatically. Attach a Quote PDF above and its pages are
           inserted right after page 1 — the same optional quote step as the desktop tool. &ldquo;Print view&rdquo; opens
           the browser print dialog instead, if you prefer.
@@ -1292,6 +1302,12 @@ function renderPoWorkspace(container) {
   const vendorAddr = panel.querySelector("#poVendorAddr");
   vendorSel.addEventListener("change", () => {
     vendorAddr.value = poVendorAddress(vendorSel.value);
+    updatePoPreview();
+  });
+
+  const currencySel = panel.querySelector("#poCurrency");
+  currencySel.addEventListener("change", () => {
+    panel.querySelector("#poUsdWrap").hidden = currencySel.value === "USD";
     updatePoPreview();
   });
 
@@ -1316,6 +1332,8 @@ function poOptionsFromForm() {
     wmtr: g("poWmtr") ? g("poWmtr").value || "" : "",
     vendor: g("poVendor") ? g("poVendor").value || "" : "",
     cost: g("poCost") ? g("poCost").value || "" : "",
+    currency: g("poCurrency") ? g("poCurrency").value || "USD" : "USD",
+    usdValue: g("poUsd") ? g("poUsd").value || "" : "",
     notes: g("poNotes") ? g("poNotes").value || "" : "",
   };
 }
@@ -1354,23 +1372,26 @@ function updatePoPreview() {
  *   • over  $50,000 — must be approved by the TRLS II PM or DPM.
  * Shows a blocking confirmation the user must acknowledge before the PO is
  * generated. Returns true to proceed, false if the user cancels. Amounts at or
- * below $50,000 pass straight through.
+ * below $50,000 pass straight through. For a non-USD PO the check uses the
+ * "Approx. USD value" the user entered.
  */
 function poApprovalGate(opts) {
-  const cost = parseFloat(String((opts && opts.cost) || "").replace(/[^0-9.]/g, ""));
+  const foreign = opts && opts.currency && opts.currency !== "USD";
+  const cost = parseFloat(String((opts && (foreign ? opts.usdValue : opts.cost)) || "").replace(/[^0-9.]/g, ""));
   if (!Number.isFinite(cost)) return true; // poValidate handles bad/missing input
   const usd = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const amt = (n) => foreign ? `${poFmtMoney(opts.cost, opts.currency)} (≈ ${usd(n)})` : usd(n);
 
   if (cost > 100000) {
     return window.confirm(
-      `⚠️ This PO is for ${usd(cost)}, which exceeds $100,000.\n\n` +
+      `⚠️ This PO is for ${amt(cost)}, which exceeds $100,000.\n\n` +
       `Confirm this PO has been approved by the TTI CFO.\n\n` +
       `OK = approval confirmed, continue.   Cancel = stop, do not issue.`
     );
   }
   if (cost > 50000) {
     return window.confirm(
-      `⚠️ This PO is for ${usd(cost)}, which exceeds $50,000.\n\n` +
+      `⚠️ This PO is for ${amt(cost)}, which exceeds $50,000.\n\n` +
       `Confirm the TRLS II PM or DPM has approved this PO.\n\n` +
       `OK = approval confirmed, continue.   Cancel = stop, do not issue.`
     );
@@ -1386,6 +1407,16 @@ function poValidate(opts) {
   if (!opts.vendor) return "Select a vendor.";
   const costVal = parseFloat(String(opts.cost).replace(/[^0-9.]/g, ""));
   if (!String(opts.cost).trim() || !Number.isFinite(costVal) || costVal < 0) return "Cost amount must be a valid non-negative number.";
+  return poUsdValueError(opts);
+}
+
+/** Non-USD POs need an approximate USD value for the approval check. */
+function poUsdValueError(opts) {
+  if (!opts.currency || opts.currency === "USD") return "";
+  const usdVal = parseFloat(String(opts.usdValue || "").replace(/[^0-9.]/g, ""));
+  if (!String(opts.usdValue || "").trim() || !Number.isFinite(usdVal) || usdVal < 0) {
+    return `Enter the approximate USD value of this ${opts.currency} PO (used for the approval check).`;
+  }
   return "";
 }
 
@@ -1546,9 +1577,19 @@ function renderProPoWorkspace(container) {
             <div class="hint">Manual entry. Picking a saved vendor fills this in for you.</div>
           </div>
           <div class="field">
-            <label for="ppoCost">Awarded price (USD)</label>
+            <label for="ppoCurrency">Currency</label>
+            <select id="ppoCurrency">${poCurrencyOptionsHtml("USD")}</select>
+            <div class="hint">Type the 3-letter code to jump to it.</div>
+          </div>
+          <div class="field">
+            <label for="ppoCost">Awarded price</label>
             <input type="text" id="ppoCost" inputmode="decimal" placeholder="e.g. 4250.00">
             <div class="hint">Digits and an optional decimal point only.</div>
+          </div>
+          <div class="field" id="ppoUsdWrap" hidden>
+            <label for="ppoUsd">Approx. USD value</label>
+            <input type="text" id="ppoUsd" inputmode="decimal" placeholder="e.g. 4600.00">
+            <div class="hint">Used only for the $50K / $100K approval check. Not printed on the PO.</div>
           </div>
           <div class="field span2">
             <label for="ppoNotes">Notes / comments</label>
@@ -1577,8 +1618,8 @@ function renderProPoWorkspace(container) {
           <span class="statusline" id="ppoStatus"></span>
         </div>
         <div class="note">
-          Save as PDF builds the Purchase Order as a real PDF and downloads it. The PO number, &ldquo;USD&rdquo; price
-          formatting, and the fixed subject, justification, and FAR 47.403 note are filled in automatically. Attach a
+          Save as PDF builds the Purchase Order as a real PDF and downloads it. The PO number, price formatting in the
+          chosen currency, and the fixed subject, justification, and FAR 47.403 note are filled in automatically. Attach a
           Quote PDF above and its pages are inserted right after page 1 — the same optional quote step as the desktop
           tool. &ldquo;Print view&rdquo; opens the browser print dialog instead, if you prefer.
         </div>
@@ -1604,6 +1645,12 @@ function renderProPoWorkspace(container) {
     updateProPoPreview();
   });
 
+  const currencySel = panel.querySelector("#ppoCurrency");
+  currencySel.addEventListener("change", () => {
+    panel.querySelector("#ppoUsdWrap").hidden = currencySel.value === "USD";
+    updateProPoPreview();
+  });
+
   const refresh = () => updateProPoPreview();
   for (const id of ["ppoDate", "ppoWmtr", "ppoVendor", "ppoVendorAddr", "ppoCost", "ppoNotes"]) {
     const node = panel.querySelector("#" + id);
@@ -1626,6 +1673,8 @@ function proPoOptionsFromForm() {
     vendor: g("ppoVendor") ? g("ppoVendor").value || "" : "",
     vendorAddress: g("ppoVendorAddr") ? g("ppoVendorAddr").value || "" : "",
     cost: g("ppoCost") ? g("ppoCost").value || "" : "",
+    currency: g("ppoCurrency") ? g("ppoCurrency").value || "USD" : "USD",
+    usdValue: g("ppoUsd") ? g("ppoUsd").value || "" : "",
     notes: g("ppoNotes") ? g("ppoNotes").value || "" : "",
   };
 }
@@ -1664,7 +1713,7 @@ function proPoValidate(opts) {
   if (!opts.vendor.trim()) return "Enter a vendor name.";
   const costVal = parseFloat(String(opts.cost).replace(/[^0-9.]/g, ""));
   if (!String(opts.cost).trim() || !Number.isFinite(costVal) || costVal < 0) return "Awarded price must be a valid non-negative number.";
-  return "";
+  return poUsdValueError(opts);
 }
 
 /** Intro/label/justification for the property PO variant. */

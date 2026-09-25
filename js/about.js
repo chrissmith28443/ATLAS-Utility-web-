@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.81",
+    title: "Purchase Orders can be issued in any currency",
+    notes: [
+      "Both Purchase Order forms (Shipping and Property Management) have a new Currency dropdown. USD is still the default; the common currencies (EUR, GBP, CAD, AUD, JPY, CHF, KRW, SGD, AED) are listed first, followed by every other ISO currency.",
+      "The price prints on the PO in the chosen currency — for example \"EUR €4,250.50\", \"JPY ¥425,000\" or \"CHF 4,250.00\" — in the preview, the PDF, the Word file and the print view. Currencies that don't use cents (JPY, KRW) print without decimals.",
+      "For a non-USD PO, an \"Approx. USD value\" box appears. It's required, isn't printed, and is what the $50,000 / $100,000 approval warnings check against, so a ¥600,000 PO doesn't trigger a CFO warning meant for $600,000.",
+    ],
+  },
+  {
     version: "2.5.80",
     title: "Cost accuracy now scores against the latest approval, not the first one",
     notes: [

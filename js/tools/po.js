@@ -97,15 +97,77 @@ function poWmtrLast5(wmtr) {
   return digits.length >= 5 ? digits.slice(-5) : "";
 }
 
-/** "USD $1,234.50" (port of _fmt_usd). */
-function poFmtUsd(val) {
+/* ---- Currency ------------------------------------------------------------
+   Both PO forms offer every ISO currency the browser knows (Intl), with the
+   common ones listed first. USD stays the default. */
+const PO_COMMON_CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "KRW", "SGD", "AED"];
+
+/** All ISO currency codes (falls back to the common list on older browsers). */
+function poCurrencyCodes() {
+  try {
+    if (typeof Intl !== "undefined" && typeof Intl.supportedValuesOf === "function") {
+      const all = Intl.supportedValuesOf("currency");
+      if (all && all.length) return all.slice();
+    }
+  } catch (e) { /* fall through */ }
+  return PO_COMMON_CURRENCIES.slice();
+}
+
+/** "Euro" for "EUR" (empty string if the browser can't name it). */
+function poCurrencyName(code) {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "currency" }).of(code) || "";
+  } catch (e) { return ""; }
+}
+
+/** <option> list for a currency <select>: common currencies, then all. */
+function poCurrencyOptionsHtml(selected) {
+  const sel = String(selected || "USD").toUpperCase();
+  const opt = (c) => {
+    const name = poCurrencyName(c);
+    const label = name && name !== c ? `${c} — ${name}` : c;
+    return `<option value="${c}"${c === sel ? " selected" : ""}>${esc(label)}</option>`;
+  };
+  const common = PO_COMMON_CURRENCIES.map(opt).join("");
+  const rest = poCurrencyCodes().filter((c) => !PO_COMMON_CURRENCIES.includes(c)).map(opt).join("");
+  return `<optgroup label="Common">${common}</optgroup><optgroup label="All currencies">${rest}</optgroup>`;
+}
+
+/** Currency symbol to print after the code, or "" when the symbol is just the
+ *  code again or can't be drawn by the PDF's standard font. */
+function poCurrencySymbol(code) {
+  try {
+    const parts = new Intl.NumberFormat("en-US", { style: "currency", currency: code, currencyDisplay: "narrowSymbol" }).formatToParts(0);
+    const sym = (parts.find((p) => p.type === "currency") || {}).value || "";
+    if (!sym || sym.toUpperCase() === code || /[A-Za-z]/.test(sym)) return "";
+    return /^[ -ÿ€]+$/.test(sym) ? sym : "";
+  } catch (e) { return code === "USD" ? "$" : ""; }
+}
+
+/** Decimal places the currency uses (JPY/KRW = 0, most = 2). */
+function poCurrencyDigits(code) {
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits;
+  } catch (e) { return 2; }
+}
+
+/** "USD $1,234.50", "EUR €1,234.50", "JPY ¥1,235", "CHF 1,234.50". */
+function poFmtMoney(val, currency) {
+  const code = String(currency || "USD").trim().toUpperCase() || "USD";
   const raw = String(val || "").trim();
-  const cleaned = raw.replace(/USD/gi, "").replace(/\$/g, "").replace(/,/g, "").trim();
+  const cleaned = raw.replace(/[A-Za-z]/g, "").replace(/[^0-9.\-]/g, "").trim();
   const amt = parseFloat(cleaned);
   if (Number.isFinite(amt)) {
-    return "USD $" + amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const d = poCurrencyDigits(code);
+    return code + " " + poCurrencySymbol(code) +
+      amt.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
   }
-  return "USD " + raw;
+  return code + " " + raw;
+}
+
+/** "USD $1,234.50" (port of _fmt_usd). */
+function poFmtUsd(val) {
+  return poFmtMoney(val, "USD");
 }
 
 /** {year}-{vendorAbbrev}-{wmtrLast5} (port of build_po_context). */
@@ -131,7 +193,7 @@ function poBuildModel(opts) {
     wmtr_text: wmtr || `WMTR #${last5}`,
     vendor,
     vendor_address: poVendorAddress(vendor),
-    cost_amount: poFmtUsd(o.cost),
+    cost_amount: poFmtMoney(o.cost, o.currency),
     notes: (o.notes || "").trim(),
     logo_uri: (typeof LOGO_TTI !== "undefined" ? LOGO_TTI : LOGO_LEFT), // TechTrans International wordmark
     safe_po: number.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, ""),
@@ -420,7 +482,7 @@ function poDownloadWord(model, parts, docTitle) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     PO_VENDORS, PO_ABBREV, PO_SUBJECT,
-    poVendorAddress, poWmtrLast5, poFmtUsd, poNumber, poBuildModel, poRenderHtml,
+    poVendorAddress, poWmtrLast5, poFmtUsd, poFmtMoney, poNumber, poBuildModel, poRenderHtml,
     poBuildWordMhtml, poDataUriParts,
   };
 }

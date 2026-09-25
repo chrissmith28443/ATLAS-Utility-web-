@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.5.80-governing-approval";
+const CACHE = "atlas-cache-v2.5.81-po-currency";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -12,12 +12,12 @@ const APP_SHELL = [
   "css/app.css?v=86",
   "icons/apple-touch-icon.png",
   "icons/favicon-32.png",
-  "js/app.js?v=91",
+  "js/app.js?v=92",
   "js/assets.js?v=64",
-  "js/about.js?v=117",
+  "js/about.js?v=118",
   "js/a11y.js?v=61",
   "js/backup.js?v=63",
-  "js/constants.js?v=113",
+  "js/constants.js?v=114",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=85",
   "js/pwa.js?v=62",
@@ -49,9 +49,9 @@ const APP_SHELL = [
   "js/tools/placards.js?v=61",
   "js/tools/pmr.js?v=81",
   "js/tools/pmr_template.js?v=61",
-  "js/tools/po.js?v=65",
-  "js/tools/propo.js?v=63",
-  "js/tools/po_pdf.js?v=63",
+  "js/tools/po.js?v=66",
+  "js/tools/propo.js?v=64",
+  "js/tools/po_pdf.js?v=64",
   "js/tools/reqatt.js?v=63",
   "js/tools/rfq.js?v=62",
   "js/tools/rfq_template.js?v=71",

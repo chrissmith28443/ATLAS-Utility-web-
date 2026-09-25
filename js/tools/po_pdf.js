@@ -56,7 +56,7 @@ function poFileToBytes(file) {
 
 /** Map characters the PDF standard fonts (WinAnsi) can't encode to safe
  *  equivalents, so user notes with smart quotes/dashes never break rendering.
- *  The bullet (U+2022, used in the footer) is kept — WinAnsi supports it. */
+ *  The bullet (U+2022, footer) and euro sign (U+20AC, EUR prices) are kept — WinAnsi supports both. */
 function poAnsi(s) {
   return String(s == null ? "" : s)
     .replace(/[\u2018\u2019\u201A\u2032\u2035]/g, "'")
@@ -64,7 +64,7 @@ function poAnsi(s) {
     .replace(/[\u2013\u2014\u2212]/g, "-")
     .replace(/\u2026/g, "...")
     .replace(/\u00A0/g, " ")
-    .replace(/[^\u0000-\u00FF\u2022]/g, "?");
+    .replace(/[^\u0000-\u00FF\u2022\u20AC]/g, "?");
 }
 
 /** Greedy word-wrap to a max width (points). Returns an array of lines. */

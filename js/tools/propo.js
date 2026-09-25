@@ -102,7 +102,7 @@ function propoBuildModel(opts) {
     wmtr_text: wmtr || `WMTR #${last5}`,
     vendor,
     vendor_address: (o.vendorAddress || "").trim(),
-    cost_amount: poFmtUsd(o.cost),
+    cost_amount: poFmtMoney(o.cost, o.currency),
     notes: (o.notes || "").trim(),
     logo_uri: (typeof LOGO_TTI !== "undefined" ? LOGO_TTI : LOGO_LEFT), // TechTrans International wordmark
     safe_po: number.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, ""),

@@ -184,6 +184,13 @@ function _plPkgDisplay(pkg, pkgNo, unitSystem) {
   const wt = outWt != null
     ? (Math.round(outWt * 100) / 100).toLocaleString("en-US")
     : "";
+  // Same weight in the other unit, shown in parentheses after the primary one.
+  const altWt = outWt != null
+    ? (Math.round((unitSystem === "imperial" ? outWt * 0.45359237 : outWt / 0.45359237) * 100) / 100).toLocaleString("en-US")
+    : "";
+  const wtFull = wt
+    ? (unitSystem === "imperial" ? `${wt} lbs (${altWt} kg)` : `${wt} kg (${altWt} lbs)`)
+    : "";
 
   let L = "", W = "", H = "";
   const dims = _plParseDims(pkg.dims || "");
@@ -197,7 +204,7 @@ function _plPkgDisplay(pkg, pkgNo, unitSystem) {
     W = Math.round(oW * 100) / 100;
     H = Math.round(oH * 100) / 100;
   }
-  return { pkgNo, desc, count, uoi, wt, L, W, H };
+  return { pkgNo, desc, count, uoi, wt, wtFull, L, W, H };
 }
 
 /* ── Parent/child grouping by Ship Group # ───────────────────────────────────
@@ -342,7 +349,7 @@ function plRenderHtml(data, opts) {
         ${tag}
       </div>
       <div class="pl-crate-m">
-        <div class="cell"><div class="k">Gross weight</div><div class="v">${esc(d.wt) || "—"} ${esc(wUnit)}</div></div>
+        <div class="cell"><div class="k">Gross weight</div><div class="v">${esc(d.wtFull) || "—"}</div></div>
         <div class="cell"><div class="k">Dimensions</div><div class="v">${dims}</div></div>
         <div class="cell"><div class="k">Line items</div><div class="v">${c.kids.length}</div></div>
       </div>
@@ -383,8 +390,8 @@ function plRenderHtml(data, opts) {
     : _plFmtWtKg(raw.udq_kg || 0);
   const cube = _plFmtVol(raw.udq_ft3 || 0);
   const grossChip = unitSystem === "imperial"
-    ? `${_plFmtNum(raw.udq_lbs || 0)} lbs`
-    : `${_plFmtNum(raw.udq_kg || 0)} kg`;
+    ? `${_plFmtNum(raw.udq_lbs || 0)} lbs (${_plFmtNum(raw.udq_kg || 0)} kg)`
+    : `${_plFmtNum(raw.udq_kg || 0)} kg (${_plFmtNum(raw.udq_lbs || 0)} lbs)`;
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Packing List</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -906,7 +913,8 @@ function _plXlsxParts(data, opts) {
   crates.forEach(c => c.kids.forEach(k => totalUnits += (toFloat(k.units) || 0)));
   loose.forEach(k => totalUnits += (toFloat(k.units) || 0));
   const grossTxt = unitSystem === "imperial"
-    ? `${_plFmtNum(raw.udq_lbs || 0)} lbs` : `${_plFmtNum(raw.udq_kg || 0)} kg`;
+    ? `${_plFmtNum(raw.udq_lbs || 0)} lbs (${_plFmtNum(raw.udq_kg || 0)} kg)`
+    : `${_plFmtNum(raw.udq_kg || 0)} kg (${_plFmtNum(raw.udq_lbs || 0)} lbs)`;
   S.addRow([C("PACKAGES", PLS.chipK), null, C("TOTAL UNITS", PLS.chipK), null,
             C("GROSS WEIGHT", PLS.chipK), null]);
   const rSL = S.lastRow(); S.merge(rSL, 1, rSL, 2); S.merge(rSL, 3, rSL, 4); S.merge(rSL, 5, rSL, 6);
@@ -940,7 +948,7 @@ function _plXlsxParts(data, opts) {
               C(c.group ? "SHIP GRP " + c.group : "", PLS.ghTag), blank(PLS.ghTag)], 19);
     const rgh = S.lastRow(); S.merge(rgh, 1, rgh, 4); S.merge(rgh, 5, rgh, 6);
     // manifest row
-    S.addRow([C(`Gross: ${d.wt || "—"} ${wUnit}`, PLS.manifest), null,
+    S.addRow([C(`Gross: ${d.wtFull || "—"}`, PLS.manifest), null,
               C(`Dimensions: ${dims}`, PLS.manifest), null,
               C(`Line items: ${c.kids.length}`, PLS.manifest), null]);
     const rm = S.lastRow(); S.merge(rm, 1, rm, 2); S.merge(rm, 3, rm, 4); S.merge(rm, 5, rm, 6);
@@ -1383,7 +1391,7 @@ async function generatePl() {
     editRow(20, rx => _plSetCell(rx, "R20", st.idx(dateStr), "s"));
     const volStr = _plFmtVol(raw.udq_ft3 || 0);
     if (volStr) editRow(19, rx => _plSetCell(rx, "C19", st.idx(volStr), "s"));
-    const wtStr  = _plFmtWt(raw.udq_lbs || 0);
+    const wtStr  = unitSystem === "metric" ? _plFmtWtKg(raw.udq_kg || 0) : _plFmtWt(raw.udq_lbs || 0);
     if (wtStr)  editRow(23, rx => _plSetCell(rx, "C23", st.idx(wtStr),  "s"));
 
     /* ═══════════════════════════════════════════════════════════════════

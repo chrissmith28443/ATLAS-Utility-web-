@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.82",
+    title: "Packing List shows weights in both units",
+    notes: [
+      "In Imperial view, every weight on the Packing List now shows kilograms in parentheses after pounds — for example \"1,250 lbs (566.99 kg)\". In Metric view it's the reverse: \"566.99 kg (1,250 lbs)\".",
+      "This covers each package's gross weight, the gross weight summary at the top, and the totals at the bottom — in the preview, the printout and the Excel download.",
+    ],
+  },
+  {
     version: "2.5.81",
     title: "Purchase Orders can be issued in any currency",
     notes: [

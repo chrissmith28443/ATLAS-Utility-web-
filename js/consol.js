@@ -435,7 +435,7 @@ function _consolEnsureState() {
 
 /** The primary (pristine) data, if an SRF is loaded. */
 function _consolPrimary() {
-  if (typeof AppState === "undefined" || AppState.udqType !== "srf") return null;
+  if (typeof AppState === "undefined" || AppState.udqType !== "srf" || AppState.manualOnly) return null;
   return AppState.consolPrimaryBase || AppState.dataBase || AppState.data || null;
 }
 
@@ -477,6 +477,8 @@ function _consolLoadPrimary(data, grid, fileName, source) {
   AppState.dataBase = data;
   AppState.activeTool = null;
   AppState.manualParents = null;
+  AppState.manualDetails = null;
+  AppState.manualOnly = false;
   AppState.itemSplits = null;
   AppState.siBase = null;
   AppState.consol = { enabled: false, secondaries: [] };
@@ -496,8 +498,9 @@ function _consolLoadPrimary(data, grid, fileName, source) {
 /** Add a UDQ from the window: the first one becomes the primary, the rest are
  *  secondaries. Returns { role } or { error }. */
 function _consolAddUdq(data, grid, fileName, source) {
+  // Manual entry (no UDQ) has no real primary — the first UDQ added replaces it.
   const havePrimary = (typeof AppState !== "undefined") && AppState.udqType === "srf" &&
-    (AppState.consolPrimaryBase || AppState.dataBase);
+    !AppState.manualOnly && (AppState.consolPrimaryBase || AppState.dataBase);
   if (!havePrimary) {
     _consolLoadPrimary(data, grid, fileName, source);
     return { ok: true, role: "primary" };

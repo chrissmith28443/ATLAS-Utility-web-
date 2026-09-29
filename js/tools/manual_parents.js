@@ -472,7 +472,7 @@ function mpInjectDocToggle(container, toolId) {
       <span class="mp-db-lbl">Parent items</span>
       <span class="mp-db-badge">MANUAL</span>
       <label class="mp-switch" title="Use manual parent items for this document">
-        <input type="checkbox" id="mpDocToggle" ${on ? "checked" : ""} ${hasRows ? "" : "disabled"}
+        <input type="checkbox" id="mpDocToggle" data-fc-skip ${on ? "checked" : ""} ${hasRows ? "" : "disabled"}
                aria-label="Use manual parent items for this document">
         <span class="mp-track"></span>
       </label>
@@ -492,6 +492,8 @@ function mpInjectDocToggle(container, toolId) {
     mp.perTool[toolId] = input.checked;
     mpPersistCurrent();                      // remember this per-document choice for the WMTR
     mpApplyForActiveTool();                  // swap AppState.data for this document
+    // Re-layer the manual-values override on top (same mp -> md order as renderWorkspace).
+    if (typeof mdApplyGlobal === "function") mdApplyGlobal();
     mpRefreshActivePreview(toolId);          // rebuild preview in place (keeps form state)
     bar.classList.toggle("on", mpToolUsesManual(toolId) && mpHasRows());
     const st = bar.querySelector("#mpDocState");
@@ -754,6 +756,14 @@ function openManualParents() {
   // Split line items — opens the line-item split editor (children -> parts).
   const splitBtn = overlay.querySelector("#mpSplitItems");
   if (splitBtn) splitBtn.addEventListener("click", () => {
+    // The manual line-item table (manual_details.js) replaces the inventory, so
+    // splits made here would be discarded — ship groups go in that table instead.
+    if (typeof mdItemsActive === "function" && mdItemsActive()) {
+      alert("The manual line-item table is replacing the UDQ inventory, so set ship groups there instead: " +
+            "Override UDQ values / Edit details ▸ Every other field ▸ Line items ▸ \"Ship group #\" column. " +
+            "To split a quantity across pallets, enter it as separate rows.");
+      return;
+    }
     if (typeof openItemSplit === "function") openItemSplit();
     else alert("Line-item splitting isn't available (item_split.js not loaded).");
   });

@@ -262,6 +262,9 @@ function makeLineItem(o = {}) {
   return {
     line: o.line || "",
     units: o.units || "",
+    // Exact quantity as exported (units is the whole-number display). Lets the
+    // manual line-item table start from 2.5, not 2, so totals don't change.
+    units_raw: o.units_raw || "",
     // Quantity the warehouse has received so far ("" when none / not tracked).
     units_received: o.units_received || "",
     uom: o.uom || "",
@@ -302,13 +305,17 @@ function readPartyBlock(grid, shipMap, prefix) {
   const email = g("Email");
   const phone = g("Cell");
 
-  return makeParty({
+  const p = makeParty({
     contact: poc || org,
     phone, email,
     addr_lines: safeLines([org, addr0, addr1, cityStateZip(city, state, zip)]),
     country,
     city,
   });
+  // The 10 raw fields, kept so a manual override (manual_details.js) can edit one
+  // field and rebuild the party exactly as above. Property UDQs attach the same.
+  p.raw = { org, addr0, addr1, city, state, zip, country, poc_name: poc, email, phone };
+  return p;
 }
 
 /* ---- Main SRF reader (port of ci_reader.read_udq) ---- */
@@ -449,6 +456,7 @@ function readUdq(grid) {
     items.push(makeLineItem({
       line: String(lineCounter),
       units: qty,
+      units_raw: norm(qtyRaw),
       units_received: qtyRecvN ? String(Math.trunc(qtyRecvN)) : "",
       uom, desc, model, hts, eccn, auth, coo,
       unit_value: unitN ? fmtMoney(unitN) : norm(unitValRaw),
@@ -658,6 +666,18 @@ function readPropertyUdq(grid) {
     "Quantity Requested", "Quantity Ordered", "Quantity");
   const cQtyRecv = _propInvColFirst(invMap, "Quantity Received", "Qty Received");
 
+  // CoreIMS-only columns (optional). CoreIMS itself reads the spreadsheet; these
+  // exist so the manual line-item table can carry them when it replaces the UDQ
+  // inventory (or when there is no UDQ at all).
+  const cVendor = _propInvColFirst(invMap, "Actual Vendor");
+  const cCoo = _propInvColFirst(invMap, "Equipment Manufacture Country Of Origin");
+  const cTemp = _propInvColFirst(invMap, "Temperature Control Requirements");
+  const cShelf = _propInvColFirst(invMap, "Shelf Life/Expiration Date For Perishable Items");
+  const cHaz = _propInvColFirst(invMap, "HAZMAT Classification");
+  const cHandling = _propInvColFirst(invMap, "Material Handling Requirements");
+  const cComments = _propInvColFirst(invMap, "General Comments");
+  const opt = (r, c) => (c ? norm(gridCell(grid, r, c)) : "");
+
   const missing = [];
   if (!cDesc) missing.push("Description");
   if (!cQty) missing.push("Quantity");
@@ -706,6 +726,9 @@ function readPropertyUdq(grid) {
       value_raw: norm(valRaw),
       qty_requested: qtyReqN || qtyN,              // numeric
       qty_received: qtyRecvN,                      // numeric; 0 == none yet
+      vendor: opt(r, cVendor), coo: opt(r, cCoo), temp_control: opt(r, cTemp),
+      shelf_life: opt(r, cShelf), hazmat: opt(r, cHaz),
+      handling: opt(r, cHandling), comments: opt(r, cComments),
     });
   }
 

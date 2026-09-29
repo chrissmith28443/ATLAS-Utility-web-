@@ -11,6 +11,8 @@ const AppState = {
   data: null,        // ACTIVE SRF data model — pristine, or the manual-parent override
   dataBase: null,    // pristine readUdq output (override is rebuilt from this)
   manualParents: null, // { enabled, items[], perTool{} } — manual parent-item override (SRF only)
+  manualDetails: null, // { enabled, meta{}, parties{}, items[]|null } — manual UDQ-value override (SRF + Property)
+  manualOnly: false,   // true = manual entry, no UDQ loaded (data is a blank model + manualDetails)
   consol: null,      // { enabled, secondaries[] } — WMTR consolidation (SRF only)
   consolPrimaryBase: null, // pristine primary parse, preserved while consolidation is active
   itemSplits: null,  // { enabled, splits{} } — manual line-item splitting (SRF only)
@@ -33,14 +35,14 @@ const TOOLS = [
   // Close-out checklist for the loaded request: the Christmas Tree's checks run
   // against this one WMTR. Sits last in the group — it's what you press when the
   // documents are done, not another document.
-  { id: "audit",    group: "Shipping documents", label: "Audit",               needs: "srf",      ready: true  },
+  { id: "audit",    group: "Shipping documents", label: "Audit",               needs: "srf", needsGrid: true, ready: true  },
   { id: "metrics",  group: "Metrics",            label: "Metrics",             needs: "metrics",  ready: true  },
   { id: "pmr",      group: "Metrics",            label: "PMR",                 needs: "metrics",  ready: true  },
   // Required Attachments' Metrics role now lives inside the Metrics dashboard
   // (the "Shipping docs" card / section embeds this same window), so it's hidden
   // from the rail on Metrics UDQs. It stays on the rail for SRF UDQs, where it's
   // the single-WMTR attachment audit — a different view with no dashboard home.
-  { id: "reqatt",   group: "Metrics",            label: "Required Attachments",needs: "srf", hideOn: "metrics", ready: true  },
+  { id: "reqatt",   group: "Metrics",            label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
   { id: "ecm",      group: "Metrics",            label: "Export-Controlled Materials", needs: "metrics", ready: true },
   { id: "xmastree", group: "Christmas Tree",      label: "Christmas Tree",       needs: "none",     ready: true  },
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
@@ -91,6 +93,8 @@ async function loadFile(file) {
   AppState.data = null;
   AppState.dataBase = null;
   AppState.manualParents = null;
+  AppState.manualDetails = null;  // a previous WMTR's overrides must not carry over
+  AppState.manualOnly = false;
   if (typeof consolReset === "function") consolReset(); // clear WMTR consolidation
   if (typeof siReset === "function") siReset();          // clear line-item splits
   AppState.history = null;
@@ -151,10 +155,12 @@ async function loadFile(file) {
         `open PMR from the Metrics group`;
     } else if (udqType === "property") {
       AppState.data = readPropertyUdq(grid);
+      AppState.dataBase = AppState.data;   // pristine copy for the manual-values override
       status.textContent =
         `Loaded ${file.name} — Property Management UDQ · ${AppState.data.items.length} inventory item` +
         `${AppState.data.items.length === 1 ? "" : "s"}` +
         `${AppState.data.meta.ctr_program ? " · " + AppState.data.meta.ctr_program : ""}`;
+      if (typeof mdOnSrfLoaded === "function") mdOnSrfLoaded();
     } else {
       status.textContent = `Loaded ${file.name} — but it doesn't look like a known UDQ layout. ` +
         `Check that this is an unmodified ATLAS export.`;
@@ -227,8 +233,10 @@ function renderDropzone() {
     dz.classList.add("compact");
     fileTag.textContent = AppState.fileName;
     fileTag.classList.remove("hidden");
-    document.getElementById("dzTitle").textContent = "UDQ loaded";
-    document.getElementById("dzSub").textContent = "Drop another UDQ here, or click to browse.";
+    document.getElementById("dzTitle").textContent = AppState.manualOnly ? "Manual entry — no UDQ" : "UDQ loaded";
+    document.getElementById("dzSub").textContent = AppState.manualOnly
+      ? "Drop a UDQ here to switch to it, or click to browse."
+      : "Drop another UDQ here, or click to browse.";
   }
   if (typeof recentsRender === "function") recentsRender();
 }
@@ -305,6 +313,11 @@ function renderDashboard() {
       const vb = validationBanner();
       if (vb) dash.appendChild(vb);
     }
+    // Saved manual values that differ from the UDQ — flagged before any document is opened.
+    if (typeof mdDashboardBanner === "function") {
+      const mdb = mdDashboardBanner();
+      if (mdb) dash.appendChild(mdb);
+    }
     renderPropertyDashboard(dash);
     return;
   }
@@ -346,6 +359,11 @@ function renderDashboard() {
     const mb = mpDashboardBanner();
     if (mb) dash.appendChild(mb);
   }
+  // Saved manual values that differ from the UDQ — flagged before any document is opened.
+  if (typeof mdDashboardBanner === "function") {
+    const mdb = mdDashboardBanner();
+    if (mdb) dash.appendChild(mdb);
+  }
 
   const m = AppState.data.meta;
   const p = AppState.data.parties;
@@ -355,7 +373,7 @@ function renderDashboard() {
   dash.appendChild(el(`
     <div class="manifest">
       <div class="manifest-head">
-        <span class="wmtr">${esc(m.wmtr)}</span><span class="badge">SRF · Shipping</span>
+        <span class="wmtr">${esc(m.wmtr)}</span><span class="badge">${AppState.manualOnly ? "Manual entry · no UDQ" : "SRF · Shipping"}</span>
         ${dashToggleHtml()}
       </div>
       <div class="title">${esc(m.request_title)}</div>
@@ -592,7 +610,11 @@ function renderRail() {
           : Array.isArray(tool.needs)
             ? tool.needs.includes(AppState.udqType)
             : AppState.udqType === tool.needs;
-    const enabled = tool.ready && typeOk;
+    // Manual entry (no UDQ) serves Shipping AND Property documents from one set of
+    // details, so Property tools unlock too. needsGrid tools read the raw UDQ
+    // spreadsheet, so they stay off in manual entry.
+    const manualOk = AppState.manualOnly && tool.needs === "property";
+    const enabled = tool.ready && (typeOk || manualOk) && !(tool.needsGrid && AppState.manualOnly);
     const btn = el(`
       <button class="toolbtn ${AppState.activeTool === tool.id ? "active" : ""} ${enabled ? "ready" : ""}"
               ${enabled ? "" : "disabled"} data-tool="${tool.id}">
@@ -725,7 +747,7 @@ function renderWorkspace() {
   document.body.classList.toggle("xt-hide-dropzone", AppState.activeTool === "xmastree");
   // Per-document parent-items toggle (CI, PL, Placards, RFQ, Packet).
   if (typeof mpInjectDocToggle === "function") mpInjectDocToggle(ws, AppState.activeTool);
-  // Per-document manual-details override button/indicator (CI, Placards).
+  // Per-document manual-values override button/indicator (every SRF / Property document).
   if (typeof mdInjectDocBar === "function") mdInjectDocBar(ws, AppState.activeTool);
   if (typeof formcacheOnRender === "function") formcacheOnRender();
 
@@ -2856,7 +2878,7 @@ function renderCoreimsWorkspace(container) {
 }
 
 function updateCoreimsPreview() {
-  const model = coreimsBuildModel(AppState.grid);
+  const model = coreimsModelForState();
   const summary = document.getElementById("cimsSummary");
   if (summary) {
     if (model.missing && model.missing.length) {
@@ -2884,7 +2906,7 @@ async function generateCoreims() {
   status.classList.remove("err");
   status.textContent = "Generating…";
   try {
-    const model = coreimsBuildModel(AppState.grid);
+    const model = coreimsModelForState();
     const outB64 = await coreimsWriteWorkbook(model);
     const last5 = model.wmtr_last5 || "";
     const fname = (last5 ? `CoreIMS_Import_${last5}_${fileStamp()}` : `CoreIMS_Import_${fileStamp()}`) + ".xlsx";

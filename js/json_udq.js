@@ -962,6 +962,10 @@ function atlasBuildPop() {
       <div class="ap-drop-title">Drop a UDQ</div>
       <div class="ap-drop-sub">or click to browse (.xlsx)</div>
     </div>
+    <div class="ap-manual" style="margin-top:10px;">
+      <button class="btn ghost" type="button" id="apManual" style="width:100%;font-size:12px;padding:7px 10px;"
+              title="Build any Shipping or Property document by typing in the details — no UDQ needed">No UDQ? Manual entry</button>
+    </div>
     <div class="ap-foot">
       <input type="checkbox" id="apShowDrop" ${showDrop ? "checked" : ""}>
       <label for="apShowDrop">Keep UDQ drop zone visible</label>
@@ -1021,6 +1025,12 @@ function atlasBuildPop() {
   drop.addEventListener("drop", (e) => {
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (f && typeof loadFile === "function") { loadFile(f); atlasClosePop(); }
+  });
+
+  // Manual entry — build Shipping / Property documents with no UDQ (manual_details.js).
+  host.querySelector("#apManual").addEventListener("click", () => {
+    atlasClosePop();
+    if (typeof mdStartManual === "function") mdStartManual();
   });
 
   // View setting: checked -> compact drop zone visible in the main window;

@@ -147,6 +147,44 @@ function coreimsBuildModel(grid) {
   };
 }
 
+/* ---- Model from the property data model (manual entry / line-item override) ----
+   Used when there is no UDQ spreadsheet to read (manual entry) or when the
+   manual line-item table replaces the UDQ inventory. Same output shape as
+   coreimsBuildModel; the property reader captures the CoreIMS-only columns. */
+function coreimsBuildModelFromData(data) {
+  const m = (data && data.meta) || {};
+  const items = ((data && data.items) || []).map((it, i) => {
+    const serial = norm(it.serial).toUpperCase() === "P" ? "" : norm(it.serial);
+    return {
+      row: i + 1,
+      fields: {
+        description:        norm(it.desc),
+        isSerialControlled: serial,
+        customField03:      serial,
+        customField06:      norm(it.model),
+        customField07:      norm(it.vendor),
+        customField08:      norm(it.mfr),
+        customField09:      norm(it.uom),
+        customField11:      norm(it.coo),
+        customField12:      norm(it.temp_control),
+        customField13:      norm(it.shelf_life),
+        customField14:      norm(it.hazmat),
+        customField16:      norm(it.handling),
+        customField17:      norm(it.comments),
+      },
+    };
+  });
+  return { wmtr: m.wmtr || "", wmtr_last5: m.wmtr_last5 || wmtrLast5(m.wmtr),
+           invHdrRow: 0, cols: {}, resolvedHeader: {}, missing: [], items };
+}
+
+/** The model for what's loaded now: the spreadsheet, unless manual values replace it. */
+function coreimsModelForState() {
+  const manualItems = (typeof mdItemsActive === "function") && mdItemsActive();
+  if (!AppState.grid || manualItems) return coreimsBuildModelFromData(AppState.data);
+  return coreimsBuildModel(AppState.grid);
+}
+
 /* ---- Workbook writer: edit the template's sheet XML with JSZip ----
    Matches the IPC/PL/SLI tools (and avoids SheetJS XLSX.write, which froze the
    main thread). The template (sheet "in") is a single shared-strings header row

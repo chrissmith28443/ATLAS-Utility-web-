@@ -13,6 +13,21 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.83",
+    title: "Override any UDQ value on every document — or build documents with no UDQ at all",
+    notes: [
+      "Every Shipping and Property document now has an \"Override UDQ values\" bar at the top: Packet, CI, Packing List, Placards, SLI, RFQ, IPC, DD1149, TOP Documents, CoreIMS and the Inventory Sheet. Before, only the CI and Placards had it.",
+      "The most common fixes come first: all six party blocks (organization, address, city/state/ZIP, country, POC name, phone, e-mail, and Tax ID on Shipping), plus the CI's payment terms and IncoTerms. Each field shows the UDQ value in grey. Leave it blank to keep that value, or type a single \"-\" to print the field blank.",
+      "\"Every other field\" opens the rest: every shipment detail the documents print (WMTR, title, contract #, countries, mode, special handling, NLT date, total packages, gross weight, volume and so on) and a full line-item table. Switch the table on and it starts as a copy of the UDQ items, which you can edit, add to or delete. Packages and package weights are still set in Manual Parents, which the dialog links to.",
+      "New: Manual entry. ATLAS / UDQ ▸ \"No UDQ? Manual entry\" starts a blank request. Type in the details once and every Shipping and Property document can be generated from them with no UDQ loaded; the line-item table has one column per value, and the CoreIMS-only columns are labelled. Enter a WMTR number and the entry is saved under it — together with its packages — so you can pick it up again later. The picker at the top of the form opens a saved entry or starts a new blank one, and clicking \"No UDQ? Manual entry\" again just reopens the form. Audit and Required Attachments stay off in manual entry because they read the UDQ spreadsheet itself.",
+      "While WMTRs are consolidated, the line-item table is paused (it describes one WMTR); your saved table comes back when consolidation is turned off.",
+      "Document forms now remember only the fields you actually changed, and never remember dates — every date starts at its normal default (usually today). A field still showing its pre-filled value (for example the DD1149 consignee block) picks up the latest value, including a new override, instead of an old remembered one.",
+      "Anything filled in from memory is now impossible to miss. When a remembered value doesn't match the UDQ (or the form's default), the field is outlined in yellow and a yellow FROM MEMORY banner at the top of the document lists each one beside the UDQ value, with a one-click \"Use UDQ value\" (or \"Use UDQ values for all\"). Saved manual overrides get the same yellow list on the dashboard and on every document, showing only the values that actually differ from the UDQ.",
+      "Overrides are still saved per WMTR and come back when you reopen the UDQ. Overrides you saved before this version carry over.",
+      "Fixed: manual details saved for one WMTR could carry over onto the next UDQ you loaded.",
+    ],
+  },
+  {
     version: "2.5.82",
     title: "Packing List shows weights in both units",
     notes: [

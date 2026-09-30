@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.84",
+    title: "Commercial Invoice: cleaner design",
+    notes: [
+      "The Commercial Invoice has a cleaner look. Same layout, same content, same page breaks — only the styling changed.",
+      "Heavy black boxes are now soft outlines with slightly rounded corners, labels are small spaced capitals on a light tint, and the top grid has dividers so its fields no longer run together.",
+      "The line-item table has light row lines and gentle alternate-row shading so rows are easier to follow across the page. The totals sit in one tidy band, and Printed Name, Signature, Title and Date now have lines to write on.",
+      "Every page still fits on one landscape sheet; dense invoices are, if anything, a hair shorter than before. The red customs declaration is unchanged. The soft shading now prints the way it looks on screen.",
+    ],
+  },
+  {
     version: "2.5.83",
     title: "Override any UDQ value on every document — or build documents with no UDQ at all",
     notes: [

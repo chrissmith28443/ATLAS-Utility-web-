@@ -416,7 +416,9 @@ const CI_FIT_SCRIPT = `
 })();
 `;
 
-/* ---- ci.css, embedded verbatim from desktop templates/ci.css ---- */
+/* ---- CI stylesheet (layout from desktop templates/ci.css; visual refresh in
+   2.5.84 — softer rules, rounded blocks, consistent label styling. Same
+   markup, same content, same one-sheet-per-page sizing.) ---- */
 
 const CI_CSS = `
 @page{
@@ -427,7 +429,16 @@ const CI_CSS = `
   margin: 0.25in 0.35in;
 }
 
-:root{ --ci-gray:#f2f2f2; }
+:root{
+  --ci-ink:   #1b2733;   /* body text */
+  --ci-muted: #56626e;   /* labels */
+  --ci-rule:  #aab4be;   /* block outlines */
+  --ci-hair:  #d9dfe5;   /* dividers inside a block */
+  --ci-tint:  #eef2f5;   /* label bands */
+  --ci-zebra: #f7f9fa;   /* alternate item rows */
+  --ci-red:   #a40d0d;   /* customs declaration */
+  --ci-radius: 4px;
+}
 
 html, body{ margin:0; padding:0; }
 
@@ -435,7 +446,9 @@ body{
   font-family: Arial, Helvetica, sans-serif;
   font-size: 10pt;
   line-height: 1.15;
-  color: #000;
+  color: var(--ci-ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 /* =========================
@@ -475,6 +488,27 @@ body{
   page-break-before: always;
 }
 
+/* Shared "block" look: hairline outline, softly rounded, dividers inside. */
+.meta-grid, .grid, .row, .cont-grid, .cont-meta-row, .table{
+  border: 1px solid var(--ci-rule);
+  border-radius: var(--ci-radius);
+  overflow: hidden;
+}
+
+/* Shared label look: small spaced capitals on a light tint. */
+.meta-grid .label, .grid .section-label, .row .section-label,
+.cont-grid .section-label, .cont-meta-row .label{
+  background-color: var(--ci-tint);
+  color: var(--ci-muted);
+  font-size: 6.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+  margin: 0;
+  box-shadow: inset 0 -1px 0 var(--ci-hair);   /* divider that adds no height */
+}
+
 /* =========================
    PAGE 1 HEADER (LOGOS + TITLE)
    ========================= */
@@ -486,16 +520,18 @@ body{
 }
 .header-center{ text-align: center; line-height: 1.05; }
 .header-subtitle{
-  font-size: 8pt;
+  font-size: 7.5pt;
   font-weight: bold;
-  color: #b00000;
+  color: var(--ci-red);
   text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin: 0 0 1px 0;
 }
 .header-title{
   font-size: 14pt;
   font-weight: bold;
-  color: #000;
+  color: var(--ci-ink);
+  letter-spacing: 0.14em;
   margin: 0;
 }
 .header-logo{ display: flex; align-items: center; }
@@ -521,7 +557,8 @@ body{
 .cont-title{
   font-size: 14pt;
   font-weight: bold;
-  color: #000;
+  color: var(--ci-ink);
+  letter-spacing: 0.14em;
   line-height: 1.15;
   text-align: center;
 }
@@ -533,7 +570,8 @@ body{
   font-size: 7pt;
   line-height: 1.10;
   text-align: right;
-  padding-right: 10px;
+  padding-right: 4px;
+  color: var(--ci-muted);
 }
 .page-num--p1{ margin: 1px 0 4px 0; }
 .page-num--cont{ margin: 2px 0 4px 0; }
@@ -547,7 +585,6 @@ body{
   grid-template-columns: repeat(7, 1fr);
   gap: 0;
   margin-bottom: 0;
-  border: .75pt solid #000;
 }
 
 .meta-grid .field{
@@ -555,31 +592,33 @@ body{
   display: flex;
   flex-direction: column;
   border: 0;
+  border-left: 1px solid var(--ci-hair);
+}
+/* first cell of each row has no divider on its left */
+.meta-grid .m-invno, .meta-grid .m-shipref{ border-left: 0; }
+/* second row sits under a divider */
+.meta-grid .m-shipref .label, .meta-grid .m-shipdate .label, .meta-grid .m-shipcomments .label{
+  box-shadow: inset 0 1px 0 var(--ci-hair), inset 0 -1px 0 var(--ci-hair);
 }
 
 .meta-grid .label{
-  background-color: var(--ci-gray);
-  font-size: 8pt;
-  font-weight: bold;
-  line-height: 1.15;
-  padding: 2px 3px;
-  margin: 0;
+  padding: 2px 5px;
   display: block;
-  background-clip: padding-box;
-  border: 0.25pt solid transparent;
+  letter-spacing: 0.03em;   /* keeps "Payment Terms Remarks" on one line */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .meta-grid .value{
-  font-size: 7pt;
+  font-size: 7.5pt;
   font-weight: normal;
   line-height: 1.15;
-  padding: 3px 4px 4px 4px;
+  padding: 3px 5px 2px 5px;
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-left: 0;
-  border-bottom: 0;
   min-height: 1.15em;
 }
 
@@ -621,13 +660,17 @@ body{
   line-height: 1.05;
 }
 
-/* 3-up */
+.section-value b{ color: var(--ci-muted); font-weight: bold; }
+
+/* 3-up — the parties block and the pickup/deliver row read as one card:
+   rounded on top here, rounded on the bottom on .row below. */
 .grid{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border: 1px solid #000;
   margin-top: 4px;
   gap: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .grid .box{
   display: flex;
@@ -635,25 +678,17 @@ body{
   padding: 0;
   border: 0;
 }
-.grid .box + .box{ border-left: 1px solid #000; }
+.grid .box + .box{ border-left: 1px solid var(--ci-hair); }
 
-.grid .section-label{
-  background-color: var(--ci-gray);
-  font-size: 7pt;
-  font-weight: bold;
-  padding: 2px 5px;
-  margin: 0;
-  line-height: 1.05;
-  border-bottom: none;
-  background-clip: padding-box;
-  border: 0.25pt solid transparent;
-}
+.grid .section-label{ padding: 2px 6px; }
 
 .grid .section-value{
   font-size: 7pt;
   line-height: 1.10;
-  padding: 4px 5px;
+  padding: 4px 6px;
 }
+
+.int-consignee{ border-top-color: var(--ci-rule) !important; }
 
 /* 2-up pickup/deliver */
 .row{
@@ -661,9 +696,9 @@ body{
   grid-template-columns: 1fr 1fr;
   gap: 0;
   margin-top: 0;
-  border-left: 1px solid #000;
-  border-right: 1px solid #000;
-  border-bottom: 1px solid #000;
+  border-top: 0;             /* the parties card's bottom outline is the divider */
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 .row > .field{
   display: flex;
@@ -672,23 +707,13 @@ body{
   border: 0;
   min-height: 0;
 }
-.row > .field + .field{ border-left: 1px solid #000; }
+.row > .field + .field{ border-left: 1px solid var(--ci-hair); }
 
-.row .section-label{
-  background-color: var(--ci-gray);
-  font-size: 7pt;
-  font-weight: bold;
-  padding: 2px 5px;
-  margin: 0;
-  line-height: 1.05;
-  border-bottom: none;
-  background-clip: padding-box;
-  border: 0.25pt solid transparent;
-}
+.row .section-label{ padding: 2px 6px; }
 .row .section-value{
   font-size: 7pt;
   line-height: 1.10;
-  padding: 0px 5px 3px 5px;
+  padding: 2px 6px 3px 6px;
 }
 .row .addr-block{ display: inline; margin-top: 0; }
 .row .addr-6{ margin-top: 0; }
@@ -700,28 +725,19 @@ body{
 .cont-grid{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border: 1px solid #000;
   margin-top: 0;
   gap: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .cont-grid .box{ display: flex; flex-direction: column; padding: 0; border: 0; }
-.cont-grid .box + .box{ border-left: 1px solid #000; }
-.cont-grid .section-label{
-  background-color: var(--ci-gray);
-  font-size: 7pt;
-  font-weight: bold;
-  padding: 2px 5px;
-  margin: 0;
-  line-height: 1.05;
-  border-bottom: none;
-  background-clip: padding-box;
-  border: 0.25pt solid transparent;
-}
+.cont-grid .box + .box{ border-left: 1px solid var(--ci-hair); }
+.cont-grid .section-label{ padding: 2px 6px; }
 
 .cont-grid .section-value{
   font-size: 7pt;
   line-height: 1.10;
-  padding: 4px 5px;
+  padding: 4px 6px;
 }
 .cont-grid .addr-6{
   display: block;
@@ -737,32 +753,24 @@ body{
 }
 
 /* =========================
-   CONTINUATION: Compact meta row
+   CONTINUATION: Compact meta row (joins the address card above)
    ========================= */
 .cont-meta-row{
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0;
-  border-left: 1px solid #000;
-  border-right: 1px solid #000;
-  border-bottom: 1px solid #000;
   margin-top: 0;
+  border-top: 0;             /* the address card's bottom outline is the divider */
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 .cont-meta-row .field{ display: flex; flex-direction: column; }
-.cont-meta-row .field + .field{ border-left: 1px solid #000; }
-.cont-meta-row .label{
-  background-color: var(--ci-gray);
-  font-size: 8pt;
-  font-weight: bold;
-  padding: 2px 4px;
-  line-height: 1.10;
-  background-clip: padding-box;
-  border: 0.25pt solid transparent;
-}
+.cont-meta-row .field + .field{ border-left: 1px solid var(--ci-hair); }
+.cont-meta-row .label{ padding: 2px 5px; }
 
 .cont-meta-row .value{
-  font-size: 7pt;
-  padding: 2px 4px 3px 4px;
+  font-size: 7.5pt;
+  padding: 2px 5px 2px 5px;
   line-height: 1.10;
 }
 
@@ -774,27 +782,29 @@ body{
    ========================= */
 .table{
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;   /* separate + zero spacing so the outline can round */
+  border-spacing: 0;
   table-layout: fixed;
   font-size: 8pt;
   line-height: 1.15;
 }
 .table thead th{
-  background-color: var(--ci-gray);
-  border: 1px solid #000;
+  background-color: var(--ci-tint);
+  color: var(--ci-muted);
+  border: 0;
+  border-bottom: 1px solid var(--ci-rule);
   padding: 3px 4px;
   font-weight: bold;
-  font-size: 8pt;
+  font-size: 7.5pt;         /* title case, one line — narrow columns like "Total Value" */
   line-height: 1.15;
   text-align: center;
+  white-space: nowrap;
   vertical-align: middle;
 }
+.table thead th + th{ border-left: 1px solid var(--ci-hair); }
 
 .table tbody td{
-  border-left: 1px solid #000;
-  border-right: 1px solid #000;
-  border-top: none;
-  border-bottom: none;
+  border: 0;
   padding: 3px 4px;
   font-size: 8pt;
   line-height: 1.15;
@@ -810,6 +820,9 @@ body{
   max-height: 27px;
   overflow: hidden;
 }
+.table tbody td + td{ border-left: 1px solid var(--ci-hair); }
+.table tbody tr + tr td{ box-shadow: inset 0 1px 0 var(--ci-hair); }   /* no added height */
+.table tbody tr:nth-child(even) td{ background-color: var(--ci-zebra); }
 /* Every column except the description stays on a single line (ellipsis if too
    long) so a stray long Model/HTS/Authorization value can't add a second line
    and grow the row. */
@@ -817,7 +830,6 @@ body{
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.table tbody tr:last-child td{ border-bottom: 1px solid #000; }
 .center{ text-align: center !important; }
 .right{  text-align: right  !important; }
 
@@ -826,7 +838,7 @@ body{
    the other columns so two lines carry as much text as three used to) and
    clamp anything longer with an ellipsis instead of letting the row grow and
    push later items off the bottom of the page. */
-.table td.ci-desc{ text-align: left; vertical-align: middle; padding: 2px 4px; }
+.table td.ci-desc{ text-align: left; vertical-align: middle; padding: 2px 5px; }
 .ci-desc-clamp{
   display: -webkit-box;
   display: box;
@@ -862,7 +874,7 @@ body{
 .footer{
   margin-top: 0;
   border: 0;
-  padding: 4px;
+  padding: 0;
   page-break-inside: avoid;
   font-size: 8pt;
   line-height: 1.10;
@@ -870,11 +882,11 @@ body{
 .footer-totals{
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid #000;
-  border-bottom: 1px solid #000;
-  padding: 3px 4px;
+  border: 1px solid var(--ci-rule);
+  border-radius: var(--ci-radius);
+  padding: 3px 6px;
   column-gap: 10px;
-  background-color: var(--ci-gray);
+  background-color: var(--ci-tint);
   font-size: 8pt;
   line-height: 1.10;
 }
@@ -884,15 +896,25 @@ body{
   align-items: center;
   justify-content: center;
   white-space: nowrap;
-  font-weight: normal;
+  font-weight: bold;
+  color: var(--ci-ink);
 }
-.footer-totals .tlabel{ font-weight: bold; margin-right: 6px; }
+.footer-totals .tcell + .tcell{ border-left: 1px solid var(--ci-hair); }
+.footer-totals .tlabel{
+  font-weight: bold;
+  margin-right: 6px;
+  color: var(--ci-muted);
+  font-size: 6.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 
 .footer-bottom{
   display: grid;
   grid-template-columns: 2.6fr 1.2fr;
-  gap: 6px;
-  margin-top: 2px;
+  gap: 14px;
+  margin-top: 5px;
+  padding: 0 4px;
   align-items: stretch;
 }
 
@@ -913,6 +935,7 @@ body{
   flex: 1 1 auto;
   padding-bottom: calc(2 * 1.10em);
   overflow: hidden;
+  color: #3a4550;
 }
 
 .sign-area{
@@ -920,7 +943,7 @@ body{
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
   row-gap: 2px;
-  column-gap: 6px;
+  column-gap: 12px;
 }
 .sign-printed   { grid-column: 1; grid-row: 1; }
 .sign-signature { grid-column: 2; grid-row: 1; }
@@ -929,42 +952,54 @@ body{
 
 .fieldbox, .sigbox{
   border: none;
-  padding: 2px;
+  padding: 2px 0;
   display: flex;
   flex-direction: column;
   font-size: 8pt;
   line-height: 1.10;
 }
-.sig-blank{ flex: 1 1 auto; border: none; }
+/* Form-style lines to write / sign on. */
+.fieldbox .value{
+  border-bottom: 1px solid var(--ci-rule);
+  min-height: 1.1em;
+  padding: 0 0 1px 0;
+}
+.sig-blank{ flex: 1 1 auto; border: none; border-bottom: 1px solid var(--ci-rule); min-height: 1.1em; }
 
 .footer .label{
   font-weight: bold;
-  font-size: 8pt;
+  font-size: 6.5pt;
   line-height: 1.10;
+  color: var(--ci-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Page 1 bottom band */
 .page-bottom{ position: static; margin-top: auto; }
 
 .prepared-by{
-  border-top: 1px solid #000;
-  border-bottom: 1px solid #000;
-  padding: 3px 6px;
+  border: 1px solid var(--ci-hair);
+  border-left: 3px solid var(--ci-muted);
+  border-radius: var(--ci-radius);
+  padding: 3px 8px;
   font-size: 8pt;
   line-height: 1.10;
   text-align: left;
   margin-bottom: 3px;
   font-weight: bold;
   font-style: italic;
-  background-color: var(--ci-gray);
+  color: #3a4550;
+  background-color: var(--ci-tint);
 }
 .declaration{
   text-align: center;
-  font-size: 8pt;
+  font-size: 7.5pt;
   line-height: 1.10;
   font-weight: bold;
-  color: #b00000;
-  letter-spacing: 0.2px;
+  color: var(--ci-red);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin-top: 4px;
   margin-bottom: 3px;
 }
@@ -973,19 +1008,27 @@ body{
    CONTINUATION SUBTOTAL STRIP
    ========================= */
 .footer--cont{
-  margin-top: 0;
-  border-top: 1px solid #000;
-  padding: 2px 6px;
-  background: var(--ci-gray);
+  margin-top: 4px;
+  border: 1px solid var(--ci-rule);
+  border-radius: var(--ci-radius);
+  padding: 2px 8px;
+  background: var(--ci-tint);
 }
 .footer-subtotal{
   display: flex;
   justify-content: flex-end;
+  align-items: baseline;
   gap: 8px;
   font-weight: bold;
   font-size: 8pt;
   line-height: 1.10;
   margin: 0;
+}
+.footer-subtotal > span:first-child{
+  color: var(--ci-muted);
+  font-size: 6.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 .footer-subtotal .value{
   min-width: 90px;

@@ -208,6 +208,46 @@ function el(html) {
   return t.content.firstElementChild;
 }
 
+/* ---- Collapsible "Step 1 · Enter details" section ----
+   The CI, Packing List, Placards and RFQ start with their details form folded,
+   so the preview is right there. The header (a real button, keyboard-reachable)
+   toggles it. keepSelectors: fields that stay visible while folded (e.g. the
+   RFQ response date). Opening sticks per tool for the session (not across
+   reloads). Folded fields still feed the documents — they're only hidden. */
+const _atlasDetailsOpen = {};
+function atlasCollapsibleDetails(panel, toolId, keepSelectors) {
+  const grid = panel && panel.querySelector(".formgrid");
+  if (!grid || grid.classList.contains("fg-collapsible")) return;
+  (keepSelectors || []).forEach((sel) => {
+    const f = grid.querySelector(sel);
+    const fld = f && f.closest(".field");
+    if (fld) fld.classList.add("fg-keep");
+  });
+  const hasKeep = !!grid.querySelector(".fg-keep");
+  grid.classList.add("fg-collapsible");
+  grid.classList.toggle("fg-haskeep", hasKeep);
+  const head = el(`
+    <button type="button" class="fg-head" aria-expanded="false">
+      <span class="fg-chev" aria-hidden="true"></span>
+      <span class="fg-title">Step 1 &middot; Enter details</span>
+      <span class="fg-hint"></span>
+    </button>`);
+  grid.insertBefore(head, grid.firstChild);
+  const set = (open, remember) => {
+    grid.classList.toggle("fg-collapsed", !open);
+    head.setAttribute("aria-expanded", open ? "true" : "false");
+    head.querySelector(".fg-chev").textContent = open ? "▾" : "▸";
+    head.querySelector(".fg-hint").textContent = open ? "click to hide"
+      : (hasKeep ? "more details hidden — click to show" : "hidden — click to show or change");
+    if (remember) _atlasDetailsOpen[toolId] = open;   // only the user's own clicks stick
+  };
+  head.addEventListener("click", () => set(grid.classList.contains("fg-collapsed"), true));
+  // Used when a hidden field needs attention (FROM MEMORY flag): unfold this
+  // time only, so the next shipment still starts folded.
+  grid._fgExpand = () => set(true, false);
+  set(!!_atlasDetailsOpen[toolId]);
+}
+
 function renderAll() {
   if (typeof consolApplyGlobal === "function") consolApplyGlobal();
   // Line-item splits layer on the (possibly combined) inventory, BEFORE parents.
@@ -762,8 +802,12 @@ function renderWorkspace() {
 function renderCiWorkspace(container) {
   const m = AppState.data.meta;
 
+  // Start with the Settings "Default signer" — or, when none is set, whoever was
+  // picked last on a CI / PL / Packet (settings.js atlasStartSignerName).
+  const startSigner = (typeof atlasStartSignerName === "function") ? atlasStartSignerName() : "";
+  const startIdx = startSigner ? SIGNERS.findIndex((s) => s.name === startSigner) : -1;
   const signerOpts = ['<option value="">(leave blank)</option>']
-    .concat(SIGNERS.map((s, i) => `<option value="${i}">${esc(s.name)} — ${esc(s.title)}</option>`))
+    .concat(SIGNERS.map((s, i) => `<option value="${i}"${i === startIdx ? " selected" : ""}>${esc(s.name)} — ${esc(s.title)}</option>`))
     .join("");
   const curPurpose = m.purpose || "Donation";
   const purposeOpts = PURPOSE_CHOICES
@@ -851,7 +895,7 @@ function renderCiWorkspace(container) {
           </div>
           <div class="field">
             <label for="ciSigner">Printed name</label>
-            <select id="ciSigner">${signerOpts}</select>
+            <select id="ciSigner" data-fc-skip>${signerOpts}</select>
           </div>
           <div class="field span2">
             <label for="ciRemarks">Additional remarks</label>
@@ -874,6 +918,7 @@ function renderCiWorkspace(container) {
       </div>
     </div>`);
   container.appendChild(panel);
+  atlasCollapsibleDetails(panel, "ci");
 
   const purposeSel = panel.querySelector("#ciPurpose");
   const purposeOther = panel.querySelector("#ciPurposeOther");
@@ -901,6 +946,10 @@ function renderCiWorkspace(container) {
   syncModeLabels();
   modeChk.addEventListener("change", () => { syncModeLabels(); refresh(); });
   panel.querySelector("#ciIntConsignee").addEventListener("change", refresh);
+  panel.querySelector("#ciSigner").addEventListener("change", (e) => {
+    const sg = SIGNERS[Number(e.target.value)];
+    if (typeof atlasRememberSigner === "function") atlasRememberSigner(e.target.value !== "" && sg ? sg.name : "");
+  });
 
   for (const id of ["ciInvDate","ciShipDate","ciShipRef","ciContract","ciIncoterm","ciCurrency","ciComments","ciSigner","ciRemarks","ciPurposeOther"]) {
     panel.querySelector("#" + id).addEventListener("change", refresh);
@@ -2113,6 +2162,7 @@ function renderRfqWorkspace(container) {
       </div>
     </div>`);
   container.appendChild(panel);
+  atlasCollapsibleDetails(panel, "rfq", ["#rfqRespDate"]);   // response date stays visible
 
   // Pre-fill EAR/ITAR, dangerous goods, and temperature control straight from
   // the UDQ so the user starts from what the data says (all still overridable).

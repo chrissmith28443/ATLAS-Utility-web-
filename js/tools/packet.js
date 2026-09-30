@@ -277,7 +277,9 @@ function renderPacketWorkspace(container) {
     return;
   }
   _pktInitSelection();
-  const defaultSigner = (typeof AtlasSettings !== "undefined") ? AtlasSettings.get().packetSigner : "";
+  // Settings "Default signer", else whoever was picked last (settings.js).
+  const defaultSigner = (typeof atlasStartSignerName === "function") ? atlasStartSignerName()
+    : ((typeof AtlasSettings !== "undefined") ? AtlasSettings.get().packetSigner : "");
   const setN = (typeof AtlasSettings !== "undefined") ? AtlasSettings.get() : {};
   const locKeys = (typeof SLI_LOCATIONS !== "undefined") ? Object.keys(SLI_LOCATIONS) : [];
   const freightDefault = setN.packetSliFreight || "Sovana Global Logistics";
@@ -356,6 +358,9 @@ function renderPacketWorkspace(container) {
 
   panel.querySelectorAll(".pkt-check").forEach((cb) => {
     cb.addEventListener("change", () => { PacketUi.selected[cb.dataset.id] = cb.checked; updateCount(); updateSliVis(); });
+  });
+  panel.querySelector("#pktSigner").addEventListener("change", (e) => {
+    if (typeof atlasRememberSigner === "function") atlasRememberSigner(e.target.value);
   });
   const settingsLink = panel.querySelector("#pktOpenSettings");
   if (settingsLink) settingsLink.addEventListener("click", (e) => { e.preventDefault(); if (typeof openSettings === "function") openSettings(); });

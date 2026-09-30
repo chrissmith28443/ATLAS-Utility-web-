@@ -90,6 +90,7 @@ function renderPlacardsWorkspace(container) {
     </div>`);
 
   container.appendChild(panel);
+  if (typeof atlasCollapsibleDetails === "function") atlasCollapsibleDetails(panel, "placards");
 
   const refresh = () => updatePlacardsPreview();
   for (const id of ["pkFrom", "pkTo", "pkCount", "pkStart", "pkHandling", "pkHazmat"]) {

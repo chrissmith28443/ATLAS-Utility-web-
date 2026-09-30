@@ -28,7 +28,8 @@ const AtlasSettings = {
   defaults() {
     return {
       packetDocs: { ci: true, pl: true, placards: true, ipc: false, sli: false },
-      packetSigner: "",   // signer NAME ("" = leave blank)
+      packetSigner: "",   // Default signer NAME ("" = none set)
+      lastSigner: "",     // signer last picked on the CI / PL / Packet (used when no default is set)
       packetUnit: "imperial",
       defaultContract: (typeof DEFAULT_CONTRACT_NO !== "undefined" ? DEFAULT_CONTRACT_NO : ""),
       defaultPurpose: (typeof PURPOSE_CHOICES !== "undefined" ? PURPOSE_CHOICES[0] : "Donation"),
@@ -124,6 +125,20 @@ function atlasSignerOptions(selectedName) {
 function atlasResolveSigner(name) {
   if (!name) return null;
   return (typeof SIGNERS !== "undefined" ? SIGNERS : []).find((s) => s.name === name) || null;
+}
+
+/** The signer a CI / Packing List / Packet starts with: the Settings "Default
+ *  signer" when one is set; otherwise whoever was picked last on any of those
+ *  documents (any shipment). "" = start blank. */
+function atlasStartSignerName() {
+  const s = AtlasSettings.get();
+  if (s.packetSigner && atlasResolveSigner(s.packetSigner)) return s.packetSigner;
+  return atlasResolveSigner(s.lastSigner) ? s.lastSigner : "";
+}
+
+/** Remember the signer just picked on a document ("" = left blank). */
+function atlasRememberSigner(name) {
+  AtlasSettings.save({ lastSigner: name || "" });
 }
 
 /* =========================================================================

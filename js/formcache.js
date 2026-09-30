@@ -236,6 +236,10 @@ function _fcShowMemory(flagged) {
   const rows = _fcFlagged.map((f, i) => {
     const el = f.el;
     el.classList.add("fc-mem-field");
+    // A flagged field inside a folded "Enter details" section must be seen —
+    // unfold it (app.js atlasCollapsibleDetails).
+    const fg = el.closest(".formgrid.fg-collapsed");
+    if (fg && typeof fg._fgExpand === "function") fg._fgExpand();
     const udq = (el.type === "checkbox" || el.type === "radio")
       ? _fcShow(el, "", f.def.c) : _fcShow(el, f.def.v);
     const mem = (el.type === "checkbox" || el.type === "radio")

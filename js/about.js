@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.86",
+    title: "Signer picks itself again; details forms start folded",
+    notes: [
+      "Fixed: the Commercial Invoice ignored the Default signer from Settings and always started blank. The Commercial Invoice, Packing List and Packet now all start with the Settings \"Default signer\" when one is set.",
+      "New: when no Default signer is set, those three documents start with whoever you picked last on any of them — on any shipment — instead of blank.",
+      "The \"Step 1 · Enter details\" section of the Commercial Invoice, Packing List, Placards and RFQ Email now starts folded, so the preview is right there. Click the Step 1 bar to open or close it; once opened it stays open while you work. The RFQ's Requested response date stays visible even when folded. Folded fields still feed the documents, and a section opens by itself if any field in it is flagged FROM MEMORY.",
+    ],
+  },
+  {
     version: "2.5.85",
     title: "RFQ Email works offline again",
     notes: [

@@ -18,10 +18,11 @@
 
 function renderPlWorkspace(container) {
   const m = AppState.data.meta;
-  // Pre-select the Settings "Default signer" so a new Packing List starts with
-  // the configured signer (previously it always started blank). SIGNERS already
-  // includes any custom signers (rebuilt at startup), so this matches by name.
-  const defSigner = (typeof AtlasSettings !== "undefined") ? (AtlasSettings.get().packetSigner || "") : "";
+  // Pre-select the Settings "Default signer" — or, when none is set, whoever was
+  // picked last (settings.js atlasStartSignerName). SIGNERS already includes any
+  // custom signers (rebuilt at startup), so this matches by name.
+  const defSigner = (typeof atlasStartSignerName === "function") ? atlasStartSignerName()
+    : ((typeof AtlasSettings !== "undefined") ? (AtlasSettings.get().packetSigner || "") : "");
   const defIdx = defSigner ? SIGNERS.findIndex((s) => s.name === defSigner) : -1;
   const signerOpts = ['<option value="">(leave blank)</option>']
     .concat(SIGNERS.map((s, i) =>
@@ -125,6 +126,7 @@ function renderPlWorkspace(container) {
     </div>`);
 
   container.appendChild(panel);
+  if (typeof atlasCollapsibleDetails === "function") atlasCollapsibleDetails(panel, "pl");
   panel.querySelector("#plGenerate").addEventListener("click", generatePl);
   panel.querySelector("#plExcel").addEventListener("click", generatePlNewXlsx);
   panel.querySelector("#plPrint").addEventListener("click", printPl);
@@ -137,7 +139,11 @@ function renderPlWorkspace(container) {
   panel.querySelector("#plTo").addEventListener("change", refresh);
   panel.querySelector("#plThird").addEventListener("change", refresh);
   panel.querySelector("#plUnit").addEventListener("change", refresh);
-  panel.querySelector("#plSigner").addEventListener("change", refresh);
+  panel.querySelector("#plSigner").addEventListener("change", (e) => {
+    const sg = SIGNERS[Number(e.target.value)];
+    if (typeof atlasRememberSigner === "function") atlasRememberSigner(e.target.value !== "" && sg ? sg.name : "");
+    refresh();
+  });
   panel.querySelector("#plRefresh").addEventListener("click", refresh);
 
   updatePlPreview();

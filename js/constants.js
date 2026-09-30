@@ -4,7 +4,7 @@
    ========================================================================= */
 
 const APP_NAME = "ATLAS Utility";
-const APP_VERSION = "Web 2.5.85";
+const APP_VERSION = "Web 2.5.86";
 
 /* Signers (Printed Name dropdown) */
 const SIGNERS = [

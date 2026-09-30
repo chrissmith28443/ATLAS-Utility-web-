@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.85",
+    title: "RFQ Email works offline again",
+    notes: [
+      "Fixed. The app's offline copy listed an older version of the RFQ Email tool than the one the page actually loads, so the RFQ tool wasn't saved for offline use. It's now saved with everything else, and every other tool was checked and already matched.",
+    ],
+  },
+  {
     version: "2.5.84",
     title: "Commercial Invoice: cleaner design",
     notes: [

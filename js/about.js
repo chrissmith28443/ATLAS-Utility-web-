@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.87",
+    title: "One fetch button for Shipping and Property",
+    notes: [
+      "ATLAS / UDQ now has a single \"Shipping or Property\" button instead of separate Shipping and Property buttons. Type the WMTR number and the utility finds which one it is — WMTR numbers are unique across services, so there's nothing to choose.",
+      "A bare number (e.g. 10097) searches Shipping and Property at the same time and loads whichever has it. A full WMTR ending in -SRF or /PR goes straight to the right one. If a partial number matches several requests, the pick list labels each one SR or PR.",
+      "Fixed along the way: typing a full WMTR (rather than just the number) could come back \"not found\", and choosing from the pick list could fail the same way — ATLAS's search matches only the request number. Both now work. If Shipping or Property can't be searched (for example a permissions error), the utility says which one and asks you to confirm instead of loading the other's closest match.",
+      "Metrics is unchanged (it still pulls every record).",
+    ],
+  },
+  {
     version: "2.5.86",
     title: "Signer picks itself again; details forms start folded",
     notes: [

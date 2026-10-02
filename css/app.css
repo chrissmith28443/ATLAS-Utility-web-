@@ -1335,8 +1335,8 @@ body.rail-collapsed .main > *{ margin-left: auto; margin-right: auto; }
 .atlas-pop .ap-type:active{ transform: translateY(1px); }
 .atlas-pop .ap-type:focus-visible{ outline: 2px solid var(--ink); outline-offset: 2px; }
 .atlas-pop .ap-type.active{ border-color: var(--ink-2); background: #D9E2EC; color: var(--ink); }
-/* Metrics + Property: the smaller, less-used pair on the top row — a light
-   shade of the manifest navy (lighter than the solid Shipping button). */
+/* Metrics: the smaller, less-used button on the top row — a light shade of
+   the manifest navy (lighter than the solid Shipping-or-Property button). */
 .atlas-pop .ap-type.ap-small{
   font-size: 12.5px; padding: 9px 8px;
   background: #DCE4EC; border-color: #9FB2C6; color: var(--ink);
@@ -1344,7 +1344,8 @@ body.rail-collapsed .main > *{ margin-left: auto; margin-right: auto; }
 .atlas-pop .ap-type.ap-small:hover{ background: #CBD8E4; border-color: var(--steel); }
 .atlas-pop .ap-type.ap-small.active{ background: #B7C8D8; border-color: var(--ink-2); color: var(--ink); }
 .atlas-pop .ap-type.ap-small .ap-sub{ color: var(--steel); }
-/* Shipping: the primary, most-used action — full-width, larger, dark navy. */
+.atlas-pop .ap-type.ap-wide{ grid-column: 1 / -1; }   /* Metrics alone on its row */
+/* Shipping or Property: the primary, most-used action — full-width, larger, dark navy. */
 .atlas-pop .ap-type.ap-big{
   grid-column: 1 / -1; font-size: 15px; padding: 15px 10px;
   color: #fff; background: var(--ink); border-color: var(--ink);

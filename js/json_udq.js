@@ -744,14 +744,127 @@ function atlasSetStatus(msg, isErr) {
   status.textContent = msg;
 }
 
+/* -------------------------------------------------------------------------
+   ONE "Shipping or Property" lookup. WMTR numbers are unique across services
+   (the numeric segment never repeats between an SRF and a PR), so the user
+   just types the number and the utility finds which UDQ holds it.
+   ------------------------------------------------------------------------- */
+
+const ATLAS_DS_LABEL = { shipping: "Shipping (SR)", property: "Property (PR)" };
+
+/** Which single-WMTR UDQ a typed WMTR names by its suffix: "shipping" for …-SRF,
+ *  "property" for …/PR, "other" for …/PMCT or …/WS (not fetchable here), else "". */
+function atlasWmtrService(wmtr) {
+  const s = String(wmtr || "").trim().toUpperCase();
+  if (/[-\/\s]SRF$/.test(s)) return "shipping";
+  if (/[-\/\s]PR$/.test(s)) return "property";
+  if (/[-\/\s](PMCT|WS)$/.test(s)) return "other";
+  return "";
+}
+
+/** The server-side filter value for an entry. ATLAS's requestNumber is a
+ *  CONTAINS match on the request number only — the WMTR's numeric segment
+ *  (10223 in WMTR-26-1-P-RO-10223-SRF) — so a full WMTR or "10223/PR" must be
+ *  reduced to its last run of digits or the server returns nothing. The full
+ *  text is still used for the suffix routing and the client-side re-check. */
+function atlasRequestNumberQuery(wmtr) {
+  if (!ATLAS_UDQ_CONFIG.requestNumberParam) return undefined;
+  const m = String(wmtr || "").match(/(\d+)(?!.*\d)/);
+  const num = m ? m[1] : String(wmtr || "").trim();
+  return `${encodeURIComponent(ATLAS_UDQ_CONFIG.requestNumberParam)}=${encodeURIComponent(num)}`;
+}
+
+/** Fetch one single-WMTR UDQ and return its records matching the entry, as
+ *  [{ ds, rec }]. Server-filtered (requestNumberParam) when configured; else a
+ *  full pull sliced client-side. Throws on a missing ID or fetch failure. */
+async function atlasFetchWmtrMatches(ds, wmtr) {
+  const id = atlasIds()[ds];
+  if (!id) throw new Error(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} ${ATLAS_DS_LABEL[ds]} UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`);
+  const q = atlasRequestNumberQuery(wmtr);
+  const recs = await atlasFetchUdqJson(id, q);
+  const matches = atlasFindRecords(recs, wmtr);
+  // Server already filtered: trust what it returned when the client re-check
+  // finds nothing more specific. A full pull is only ever trusted via matches.
+  const chosen = matches.length ? matches : (q ? recs : []);
+  return chosen.filter((r) => r && String(r.GMTRNumber || "").trim()).map((rec) => ({ ds, rec }));
+}
+
+/** Load one fetched record through the normal pipeline. */
+async function atlasLoadWmtrRecord(hit, wmtr) {
+  const last5 = atlasLast5(hit.rec.GMTRNumber) || wmtr;
+  if (hit.ds === "property") {
+    await atlasLoadGridAsFile(atlasPropertyRecordToGrid(hit.rec), `ATLAS API — Property WMTR ${last5}`);
+  } else {
+    await atlasLoadGridAsFile(atlasRecordsToGrid([hit.rec]), `ATLAS API — WMTR ${last5}`);
+  }
+}
+
+/** Shipping or Property by WMTR: one entry, the right UDQ found automatically. */
+async function atlasLoadRequest(wmtrIn) {
+  const wmtr = String(wmtrIn || "").trim();
+  if (!wmtr) { atlasSetStatus("Enter a WMTR number to fetch a shipping or property request.", true); return; }
+  if ((wmtr.replace(/\D/g, "").length) < ATLAS_MIN_REQUEST_DIGITS) {
+    atlasSetStatus(`Enter at least ${ATLAS_MIN_REQUEST_DIGITS} digits of the WMTR/request number so the search is specific enough.`, true);
+    return;
+  }
+  const svc = atlasWmtrService(wmtr);
+  if (svc === "other") {
+    atlasSetStatus(`"${wmtr}" is a PMCT / WS request — only Shipping (SRF) and Property (PR) requests can be fetched here.`, true);
+    return;
+  }
+  // A suffix names the UDQ; a bare number searches both (in parallel).
+  const ids = atlasIds();
+  const want = svc ? [svc] : ["shipping", "property"].filter((ds) => ids[ds]);
+  if (!want.length) {
+    atlasSetStatus(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Shipping or Property UDQ ID configured. Set them in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`, true);
+    return;
+  }
+  atlasSetStatus(`Fetching WMTR ${wmtr} from ATLAS…`);
+  const results = await Promise.all(want.map((ds) =>
+    atlasFetchWmtrMatches(ds, wmtr).then((hits) => ({ ds, hits }), (err) => ({ ds, err }))));
+  const hits = results.flatMap((r) => r.hits || []);
+  const errs = results.filter((r) => r.err);
+  if (errs.length) console.error(errs.map((r) => r.err));
+  try {
+    if (!hits.length) {
+      if (errs.length) { atlasSetStatus(errs[0].err.message || String(errs[0].err), true); return; }
+      atlasSetStatus(`WMTR "${wmtr}" wasn't found in ${want.length > 1 ? "Shipping or Property" : ATLAS_DS_LABEL[want[0]]}. Check the number, or your ATLAS permissions for that request.`, true);
+      return;
+    }
+    // One UDQ couldn't be searched: the request may be in the one that failed,
+    // so never auto-load what the other returned — say so, and let the user pick.
+    if (errs.length) {
+      atlasRenderWmtrPicker(hits);
+      const why = String(errs[0].err.message || errs[0].err).replace(/\.\s*$/, "");
+      atlasSetStatus(`Couldn't search ${errs.map((r) => ATLAS_DS_LABEL[r.ds]).join(" or ")}: ${why}. ` +
+        `Pick from what ${ATLAS_DS_LABEL[hits[0].ds]} returned (ATLAS / UDQ menu) only if it's the right request.`, true);
+      return;
+    }
+    // More than one record in play (a partial number, or a broad contains-match)
+    // -> let the user pick rather than silently loading the first.
+    if (hits.length > 1) {
+      atlasRenderWmtrPicker(hits);
+      atlasSetStatus(`${hits.length} requests match "${wmtr}" — pick one in the ATLAS / UDQ menu.`);
+      return;
+    }
+    await atlasLoadWmtrRecord(hits[0], wmtr);
+  } catch (e) {
+    console.error(e);
+    atlasSetStatus(e.message || String(e), true);
+  }
+}
+
 /**
  * Fetch + load.
- *   opts.dataset : "metrics" | "shipping" | "property"
- *   opts.wmtr    : WMTR number (last-5 or full) — required for "shipping"
+ *   opts.dataset : "metrics" | "request" (Shipping or Property, found by WMTR)
+ *                  | "shipping" | "property" (one UDQ — used by the pick list)
+ *   opts.wmtr    : WMTR number (last-5 or full) — required except for "metrics"
  */
 async function loadFromAtlasUdq(opts) {
   const ids = atlasIds();
   const dataset = opts.dataset;
+
+  if (dataset === "request") { await atlasLoadRequest(opts.wmtr); return; }
 
   if (dataset === "property") {
     const wmtr = String(opts.wmtr || "").trim();
@@ -765,9 +878,7 @@ async function loadFromAtlasUdq(opts) {
     try {
       // Server-side filter (same ?requestNumber= as Shipping; confirmed on the PR
       // UDQ). Falls back to a full pull + client slice if the param is cleared.
-      const q = ATLAS_UDQ_CONFIG.requestNumberParam
-        ? `${encodeURIComponent(ATLAS_UDQ_CONFIG.requestNumberParam)}=${encodeURIComponent(wmtr)}`
-        : undefined;
+      const q = atlasRequestNumberQuery(wmtr);   // numeric segment only
       atlasSetStatus(q ? `Fetching Property WMTR ${wmtr} from ATLAS…` : "Fetching Property UDQ from ATLAS…");
       const recs = await atlasFetchUdqJson(id, q);
       const matches = atlasFindRecords(recs, wmtr);
@@ -805,7 +916,7 @@ async function loadFromAtlasUdq(opts) {
       // Server-side filter wired: pull just the matching record(s).
       if (ATLAS_UDQ_CONFIG.requestNumberParam) {
         atlasSetStatus(`Fetching WMTR ${wmtr} from ATLAS…`);
-        const recs = await atlasFetchUdqJson(id, `${encodeURIComponent(ATLAS_UDQ_CONFIG.requestNumberParam)}=${encodeURIComponent(wmtr)}`);
+        const recs = await atlasFetchUdqJson(id, atlasRequestNumberQuery(wmtr));   // numeric segment only
         const matches = atlasFindRecords(recs, wmtr);
         const chosen = matches.length ? matches : recs;   // server already filtered
         if (!chosen.length) { atlasSetStatus(`ATLAS returned no records for "${wmtr}". Check the number, or your ATLAS permissions for that request.`, true); return; }
@@ -905,37 +1016,50 @@ async function loadFromAtlasXmasTree(opts) {
    UI — a "Fetch from ATLAS" popover anchored under the topbar button.
 
    ATLAS is becoming the primary data path, so Fetch lives in the header and the
-   manual UDQ drop zone is de-emphasised (see loaderView). The popover offers a
-   dedicated button per dataset instead of a dropdown; the WMTR entry appears
-   ONLY for the two single-WMTR datasets (Shipping/SR and Property/PR). Metrics
-   pulls every record and needs no WMTR.
+   manual UDQ drop zone is de-emphasised (see loaderView). The popover offers
+   two buttons: Metrics (pulls every record, no WMTR) and one "Shipping or
+   Property" button whose WMTR entry searches both single-WMTR UDQs and loads
+   whichever holds that number (atlasLoadRequest).
    ------------------------------------------------------------------------- */
 
 /** Where the multi-match WMTR picker renders (inside the header popover). */
 function atlasPickHost() { return document.getElementById("atlasFetchPop"); }
 
-function atlasRenderWmtrPicker(matches, dataset) {
-  const ds = dataset || "shipping";
+/** items: [{ ds, rec }] (from the Shipping-or-Property lookup), or raw records
+ *  from one UDQ named by `dataset`. A choice loads the record already fetched —
+ *  no second query (re-querying with the full WMTR would miss: the server's
+ *  requestNumber filter matches the numeric segment only). */
+function atlasRenderWmtrPicker(items, dataset) {
   const host = atlasPickHost();
   if (!host) return;
   const list = host.querySelector(".atlas-pick-list");
   if (!list) return;
-  const rows = matches.map((r) => {
-    const g = String(r.GMTRNumber || "");
-    const t = String(r.RequestTitle || "");
-    return `<button class="btn ghost atlas-pick" data-wmtr="${g.replace(/"/g, "&quot;")}" style="display:block;width:100%;text-align:left;margin:4px 0">${g} — ${t.replace(/</g, "&lt;")}</button>`;
+  const hits = items.map((x) => (x && x.rec ? x : { ds: dataset || "shipping", rec: x }));
+  const mixed = new Set(hits.map((h) => h.ds)).size > 1;
+  const rows = hits.map((h, i) => {
+    const g = String(h.rec.GMTRNumber || "");
+    const t = String(h.rec.RequestTitle || "");
+    const tag = mixed ? `<b>${h.ds === "property" ? "PR" : "SR"}</b> · ` : "";
+    return `<button class="btn ghost atlas-pick" data-i="${i}" style="display:block;width:100%;text-align:left;margin:4px 0">${tag}${esc(g)} — ${esc(t)}</button>`;
   }).join("");
-  list.innerHTML = `<div class="dz-sub" style="margin:6px 0">Several WMTRs match — pick one:</div>${rows}`;
+  const head = hits.length > 1 ? "Several WMTRs match — pick one:" : "Is this the right request?";
+  list.innerHTML = `<div class="dz-sub" style="margin:6px 0">${head}</div>${rows}`;
   list.querySelectorAll(".atlas-pick").forEach((b) => {
-    b.addEventListener("click", () => {
+    b.addEventListener("click", async () => {
       list.innerHTML = "";
-      loadFromAtlasUdq({ dataset: ds, wmtr: b.getAttribute("data-wmtr") });
+      const hit = hits[Number(b.getAttribute("data-i"))];
+      try {
+        await atlasLoadWmtrRecord(hit, String(hit.rec.GMTRNumber || ""));
+      } catch (e) {
+        console.error(e);
+        atlasSetStatus(e.message || String(e), true);
+      }
     });
   });
 }
 
-/* Datasets that require a WMTR number (single-WMTR slices). Metrics is omitted. */
-const ATLAS_WMTR_DATASETS = { shipping: "Shipping (SR)", property: "Property (PR)" };
+/* Datasets that require a WMTR number. Metrics is omitted (it pulls every record). */
+const ATLAS_WMTR_DATASETS = { request: "Shipping or Property" };
 
 function atlasBuildPop() {
   const host = document.getElementById("atlasFetchPop");
@@ -945,14 +1069,13 @@ function atlasBuildPop() {
   host.innerHTML = `
     <span class="ap-label">Fetch from ATLAS / UDQ</span>
     <div class="ap-types">
-      <button class="ap-type ap-small" type="button" data-ds="metrics">Metrics<span class="ap-sub">all records</span></button>
-      <button class="ap-type ap-small" type="button" data-ds="property">Property<span class="ap-sub">PR · single WMTR</span></button>
-      <button class="ap-type ap-big" type="button" data-ds="shipping">Shipping<span class="ap-sub">SR · single WMTR</span></button>
+      <button class="ap-type ap-small ap-wide" type="button" data-ds="metrics">Metrics<span class="ap-sub">all records</span></button>
+      <button class="ap-type ap-big" type="button" data-ds="request">Shipping or Property<span class="ap-sub">SR or PR · single WMTR — found automatically</span></button>
     </div>
     <div class="ap-wmtr hidden" id="apWmtr">
       <label for="apWmtrInput" id="apWmtrLabel">WMTR number</label>
       <div class="ap-wmtr-row">
-        <input id="apWmtrInput" type="text" inputmode="numeric" placeholder="e.g. 10097" autocomplete="off">
+        <input id="apWmtrInput" type="text" placeholder="e.g. 10097, or the full WMTR" autocomplete="off">
         <button class="btn primary" id="apGo" type="button">Fetch</button>
       </div>
     </div>
@@ -996,7 +1119,7 @@ function atlasBuildPop() {
         loadFromAtlasUdq({ dataset: ds });
         return;
       }
-      // Shipping/Property — reveal the WMTR entry (the "PR or SR" case).
+      // Shipping or Property — reveal the WMTR entry; the lookup finds which.
       selectedDs = ds;
       host.querySelectorAll(".ap-type").forEach((b) => b.classList.toggle("active", b === btn));
       wmtrLabel.textContent = `${ATLAS_WMTR_DATASETS[ds]} — WMTR number`;

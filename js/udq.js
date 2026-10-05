@@ -42,6 +42,13 @@ const SECTION_STOP_TITLES = [
   // adding it here is a no-op for SRF. (The linked-request reader already had
   // this via its own extra-stops list; this makes the inventory scan agree.)
   "Workflow Logs",
+  // A PR / property UDQ can also put the "Activity Tracker List" directly under
+  // the Inventory List (Inventory -> Activity Tracker -> Linked Request -> Workflow
+  // Logs). Without this stop its title, header and status rows were read as
+  // phantom line items (Stage text as the Description, the date as the Model #)
+  // on the Inventory Sheet, DD1149, TOP and CoreIMS. Never follows an SRF
+  // inventory, so a no-op there. (The linked-request reader already stopped here.)
+  "Activity Tracker List",
 ];
 
 /* ---- Linked Request List (new ATLAS export section) ----
@@ -652,7 +659,10 @@ function readPropertyUdq(grid) {
   const cQty = _propInvColFirstWithValue(grid, invMap, invStartRow, invEndRow,
     "Quantity Received", "Quantity Ordered", "Quantity Requested",
     "Qty Received", "Quantity");
-  const cUom = _propInvColFirst(invMap,
+  // Value-aware, like the quantity: a PR that was never ordered through ATLAS
+  // carries a "Unit Of Measure Ordered" header with nothing under it, which used
+  // to shadow the filled "Unit Of Measure Requested" and blank every U/I.
+  const cUom = _propInvColFirstWithValue(grid, invMap, invStartRow, invEndRow,
     "Unit Of Measure Ordered", "Unit Of Measure Requested", "Unit Of Issue",
     "Unit Of Measure", "U/M");
   const cValue = _propInvColFirst(invMap, "Value(USD)", "Value (USD)");

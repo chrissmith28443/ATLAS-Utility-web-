@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.88",
+    title: "Property UDQs: Activity Tracker rows no longer show up as inventory",
+    notes: [
+      "Fixed. In a Property (PR) UDQ export the Activity Tracker List can sit directly under the Inventory List. The utility didn't treat that heading as the end of the inventory, so the Activity Tracker's heading, column titles and status entries (\"TTI POC Status Check\" with a date) were read as extra line items on the Inventory Sheet, DD1149, TOP Documents and CoreIMS export. The inventory now stops at the Activity Tracker.",
+      "Fixed: the U/I (unit) column was blank on property documents when ATLAS exports an empty \"Unit Of Measure Ordered\" column alongside a filled \"Unit Of Measure Requested\". The utility now uses the first unit column that actually has values, the same way it already picks the quantity.",
+    ],
+  },
+  {
     version: "2.5.87",
     title: "One fetch button for Shipping and Property",
     notes: [

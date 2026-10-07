@@ -54,10 +54,9 @@ const ATLAS_UDQ_CONFIG = {
       // records, not a single request); the utility filters to the entered
       // WMTR / PR number client-side, exactly like Shipping.
       property: "75abb665-d493-47ab-be82-20210a09282c",
-      // Christmas Tree pulls per-service UDQs in one action. SRF tracks the
-      // Metrics UDQ (same combined dataset); PR / PMCT / WS have their own.
+      // Christmas Tree pulls per-service UDQs in one action, each with its own ID.
       christmasTree: {
-        srf:  "f3e5981e-bd54-4bb5-8b4b-3321a2c19568",     // = Metrics UDQ (kept in sync)
+        srf:  "fc32d169-1701-4202-a601-183d43a68c8c",
         pr:   "d7636e76-d298-4e73-8a78-39848a88d0e7",
         pmct: "3f12340c-0b35-4e1d-a32c-3ae1385d425a",
         ws:   "7ce9dfef-82ee-43f2-9c24-8105a10ee909",
@@ -995,17 +994,6 @@ async function loadFromAtlasXmasTree(opts) {
     try {
       status(`Fetching ${svc} UDQ from ATLAS…`, false);
       const recs = await atlasFetchUdqJson(String(cfg[key]).trim());
-      // TEMP DEBUG (2.5.89): save the raw ATLAS response so the Workflow Logs /
-      // Activity Tracker JSON shape can be mapped. Remove once atlasXmasTreeGrid()
-      // builds those sections.
-      try {
-        const blob = new Blob([JSON.stringify(recs, null, 2)], { type: "application/json" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `ATLAS_${svc}_UDQ_raw.json`;
-        document.body.appendChild(a); a.click();
-        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
-      } catch (e) { console.error(e); }
       const usable = (recs || []).filter((r) => r && String(r.GMTRNumber || "").trim());
       if (!usable.length) { status(`ATLAS returned no records for the ${svc} UDQ.`, true); continue; }
       const grid = atlasXmasTreeGrid(usable);

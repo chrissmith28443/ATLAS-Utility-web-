@@ -14,10 +14,9 @@
 const ATLAS_CHANGELOG = [
   {
     version: "2.5.89",
-    title: "Christmas Tree: Fetch saves a copy of the ATLAS data (temporary)",
+    title: "Christmas Tree: new SRF UDQ",
     notes: [
-      "Temporary diagnostic. When you press Fetch on the Christmas Tree, the utility now also downloads the raw ATLAS data for each service (ATLAS_SRF_UDQ_raw.json, ATLAS_PR_UDQ_raw.json, and so on). These files show how ATLAS sends Workflow Logs, which Fetch doesn't read yet. That is why a fetched SRF UDQ reports \"No WMTR carries a Workflow Logs section\" even though the Excel export has them.",
-      "Dragging the Excel export onto the Christmas Tree is unaffected and still reads Workflow Logs correctly. The download goes away once Fetch is taught to read Workflow Logs.",
+      "The Christmas Tree's SRF fetch now uses the new dedicated SRF UDQ in ATLAS instead of the Metrics UDQ.",
     ],
   },
   {

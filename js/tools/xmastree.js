@@ -514,6 +514,15 @@ function xtLastActivityDate(grid, rr, rEnd, service) {
   return best;
 }
 
+/** Manually-entered metric note for one WMTR. Reviewers flag a bust the utility
+    can't detect (e.g. a lost package) by typing a note in either repurposed
+    field: "DTRA-Only Import/Export Comments" (locked after compliance review) or
+    "Revision Number". Placeholder text ("N/A", "-", …) doesn't count. When both
+    hold a note, they're joined. Returns "" when the WMTR isn't flagged. */
+function xtManualMetricNote(dtraComments, revisionNumber) {
+  return [dtraComments, revisionNumber].filter(hasRealValue).map(norm).join(" · ");
+}
+
 /** Extract every WMTR record from one service grid. */
 function xtParseRecords(grid, service) {
   const shipMap = buildHeaderMap(grid, 1);
@@ -558,11 +567,8 @@ function xtParseRecords(grid, service) {
         status:         norm(S(rr, "Status")),
         dateCompleted:  S(rr, "Date Completed"),
         deliveryDate:   S(rr, "Delivery Date"),
-        // Manually-entered metric flag: repurposes the (DTRA-unused) "DTRA-Only
-        // Import/Export Comments" field so a reviewer can flag a WMTR that busted
-        // a metric the utility can't detect (e.g. a lost package). Any text here
-        // flags the WMTR; the text is shown as the reason.
-        manualMetric:   norm(S(rr, "DTRA-Only Import/Export Comments")),
+        // Manually-entered metric flag — see xtManualMetricNote.
+        manualMetric:   xtManualMetricNote(S(rr, "DTRA-Only Import/Export Comments"), S(rr, "Revision Number")),
       },
       wfl: xtReadWorkflowLogs(grid, rr, rEnd),
       lastActivity: xtLastActivityDate(grid, rr, rEnd, service),
@@ -922,8 +928,8 @@ function xtRowIssues(row) {
   if (row.rejected === "Yes")
     add("rejected", "current_status", "flag", "Rejected during/after review");
 
-  // Manually-entered metric (SRF): any text in the repurposed DTRA-Only field
-  // flags the WMTR; the text is the reason. Not tied to a column, so it shows in
+  // Manually-entered metric (SRF): a note in the DTRA-Only comments or Revision
+  // Number field flags the WMTR; the text is the reason. Not tied to a column, so it shows in
   // the Issues panel / row shading only.
   if (row.service === "SRF" && norm(row.manual_metric))
     add("manual", null, "flag", "Manually flagged: " + norm(row.manual_metric));
@@ -1061,8 +1067,9 @@ const XT_ROLLUP_METRICS = [
     elig: (r) => typeof r.cost_variance === "number", pass: (r) => Math.abs(r.cost_variance) < 0.10,
     failReason: (r) => (r.cost_revised ? "Revised estimate" : "Estimate") + " vs. actual off by "
       + Math.round(Math.abs(r.cost_variance) * 100) + "%" },
-  // Manually-entered metric: a reviewer flags a WMTR by putting text in the
-  // (DTRA-unused) "DTRA-Only Import/Export Comments" field. Any text = a bust
+  // Manually-entered metric: a reviewer flags a WMTR by putting a note in the
+  // "DTRA-Only Import/Export Comments" or "Revision Number" field
+  // (xtManualMetricNote). Any note = a bust
   // the utility can't otherwise detect (e.g. a lost package); the text is the
   // reason. green/yellow at 1.00 so a single flag turns the metric red.
   { key: "manual", svc: "SRF", src: "row",
@@ -1278,8 +1285,8 @@ function xtBuildRollup() {
     }
   }
 
-  // Attach the owning TTI POC and anything captured in the DTRA-Only
-  // Import/Export Comments field to every flagged record, so the drill-down (and
+  // Attach the owning TTI POC and any manual metric note (DTRA-Only comments /
+  // Revision Number) to every flagged record, so the drill-down (and
   // the summary exports) can show who to chase and what was noted by hand. The
   // fails are raised in four different places, so this is done once here rather
   // than at each push site.
@@ -1398,7 +1405,7 @@ function xtRollupPanelHtml() {
           ? `<span class="xtr-poc" title="TTI POC">${esc(f.poc)}</span>`
           : `<span class="xtr-poc none" title="TTI POC">No TTI POC</span>`;
         const note = f.note
-          ? `<div class="xtr-fnote"><span class="k">DTRA-Only Import/Export Comments</span>${esc(f.note)}</div>` : "";
+          ? `<div class="xtr-fnote"><span class="k">Manual metric note</span>${esc(f.note)}</div>` : "";
         return `<div class="xtr-fail">
           <span class="xt-wmtr-chip" data-wmtr="${esc(f.req)}"><span class="lbl">${esc(f.req.replace(/^WMTR-/, ""))}</span></span>
           <span class="xtr-fbody"><span class="xtr-reason">${esc(f.reason)}</span>${poc}${note}</span>
@@ -1576,7 +1583,7 @@ function xtExportMetricsXlsx() {
 
     // Sheet 2 — flagged records worklist.
     const fails = xtRollupFlatFails(R);
-    const head2 = ["Metric", "Svc", "Quarter", "WMTR", "TTI POC", "Flagged For", "DTRA-Only Import/Export Comments"];
+    const head2 = ["Metric", "Svc", "Quarter", "WMTR", "TTI POC", "Flagged For", "Manual Metric Note"];
     const aoa2 = [head2, ...fails.map((f) => [f.mlabel, f.svc, f.quarter, f.req, f.poc, f.reason, f.note])];
     const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
     ws2["!cols"] = [{ wch: 52 }, { wch: 5 }, { wch: 10 }, { wch: 22 }, { wch: 22 }, { wch: 60 }, { wch: 60 }];
@@ -1703,9 +1710,9 @@ async function xtExportMetricsPdf() {
         text(trunc(f.poc || "—", 24), M + 190, y, 7.5, font, steel);
         text(trunc(f.reason, 95), M + 310, y, 7.5, font, ink);
         y -= 11;
-        // Manual metric notes live in the DTRA-Only Import/Export Comments field;
-        // they get their own indented line so a long note doesn't crowd the reason.
-        if (f.note) { text(trunc("DTRA-Only comments: " + f.note, 150), M + 70, y, 7, font, steel); y -= 10; }
+        // Manual metric notes (DTRA-Only comments / Revision Number) get their
+        // own indented line so a long note doesn't crowd the reason.
+        if (f.note) { text(trunc("Manual metric note: " + f.note, 150), M + 70, y, 7, font, steel); y -= 10; }
       }
       y -= 5;
     }

@@ -762,7 +762,7 @@ function mxRenderFlaggedBox(dash, daily) {
   dash.appendChild(box);
 }
 
-/* Count SRF WMTRs manually flagged via the DTRA-Only comments field (loaded UDQ,
+/* Count SRF WMTRs manually flagged (DTRA-Only comments / Revision Number; loaded UDQ,
    window-independent). Used to decide whether the shared Ignored manager shows. */
 function mxManualFlagCount() {
   if (typeof xtParseRecords !== "function") return 0;
@@ -777,7 +777,7 @@ function mxManualFlagCount() {
 
    A reviewer flags a WMTR that busted a metric the utility can't detect (e.g. a
    lost package) by putting a note in the repurposed "DTRA-Only Import/Export
-   Comments" field. This box lists every such SRF WMTR in the loaded UDQ with its
+   Comments" or "Revision Number" field (xtManualMetricNote). This box lists every such SRF WMTR in the loaded UDQ with its
    note as the reason. It is window-independent on purpose — a flagged WMTR may
    never have been delivered (that's often the point), so it should surface
    regardless of the reporting window. Each flag can be acknowledged/hidden via
@@ -824,7 +824,7 @@ function mxRenderManualMetricBox(dash) {
         <span class="count">${flagged.length} flagged${ackNote}</span>
       </header>
       <div class="body">
-        <div class="statusline">These WMTRs were manually flagged (a note in the DTRA-Only Import/Export Comments field) as busting a metric the utility can't detect on its own. “×” acknowledges &amp; hides a flag.</div>
+        <div class="statusline">These WMTRs were manually flagged (a note in the DTRA-Only Import/Export Comments or Revision Number field) as busting a metric the utility can't detect on its own. “×” acknowledges &amp; hides a flag.</div>
         <div class="mx-manuallist" style="margin-top:6px;">${rows}</div>
       </div>
     </div>`);
@@ -1517,7 +1517,7 @@ function mxRenderManualSection(host) {
   if (!host.querySelector("#mxsec-manual")) {
     host.appendChild(el(`
       <div class="panel mx-flag-ok" id="mxsec-manual"><div class="body">
-        <div class="statusline">No manually-entered metric flags in this dataset. A reviewer can flag a WMTR the utility can't otherwise catch by adding a note to the DTRA-Only Import/Export Comments field.</div>
+        <div class="statusline">No manually-entered metric flags in this dataset. A reviewer can flag a WMTR the utility can't otherwise catch by adding a note to the DTRA-Only Import/Export Comments or Revision Number field.</div>
       </div></div>`));
   }
 }

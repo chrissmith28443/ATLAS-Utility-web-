@@ -76,7 +76,7 @@ function raudRecord(grid) {
       status:          norm(S("Status")),
       dateCompleted:   S("Date Completed"),
       deliveryDate:    S("Delivery Date"),
-      manualMetric:    norm(S("DTRA-Only Import/Export Comments")),
+      manualMetric:    xtManualMetricNote(S("DTRA-Only Import/Export Comments"), S("Revision Number")),
     },
     wfl:           xtReadWorkflowLogs(grid, rr, rEnd),
     lastActivity:  xtLastActivityDate(grid, rr, rEnd, service),
@@ -150,7 +150,7 @@ function raudBuild(grid) {
             : { state: "ok", detail: "No rejection in the workflow history." },
     () => row.reject_reason ? `reason given: ${row.reject_reason}` : "");
 
-  /* 2. Manually-entered metric flag (the repurposed DTRA-Only comments field). */
+  /* 2. Manually-entered metric flag (DTRA-Only comments / Revision Number). */
   add("manual", "Manually-entered metric flag", () =>
     ({ state: "ok", detail: "Nobody has flagged this record by hand." }));
 

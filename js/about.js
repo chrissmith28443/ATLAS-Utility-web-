@@ -18,6 +18,7 @@ const ATLAS_CHANGELOG = [
     notes: [
       "Fixed: a Christmas Tree fetched from ATLAS reported \"No WMTR in the SRF UDQ carries a Workflow Logs section\", even though the records have them. Fetch now reads each WMTR's Workflow Logs, the same as the Excel export, so the DTRA review dates, the approved estimate amount, the Ready-to-Invoice / Invoiced dates and SRF Cost Estimate Accuracy fill in. Record Audit benefits the same way. Dragging in the Excel export already worked and is unchanged.",
       "New ATLAS UDQ IDs: the Christmas Tree's SRF fetch now uses the new dedicated SRF UDQ, and the Metrics dashboard uses the new Metrics (SRF) UDQ.",
+      "Manually-entered metric flags can now go in the Revision Number field as well as DTRA-Only Import/Export Comments, which is locked after compliance review. A note in either field flags the WMTR on the Christmas Tree, the Metrics dashboard and Record Audit, and the note is shown as the reason. If both fields have a note, both are shown. Placeholder entries like \"N/A\" or \"-\" don't count as a flag. Six SRF WMTRs currently have \"N/A\" in Revision Number. The drill-down, Excel and PDF exports now label the note \"Manual metric note\".",
       "Still to do: PR, PMCT and WS fetches don't yet read the Activity Tracker List (used for the PR periodic-update check). That needs a sample of the PR UDQ data.",
     ],
   },

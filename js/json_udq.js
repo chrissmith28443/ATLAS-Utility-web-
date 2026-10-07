@@ -995,6 +995,17 @@ async function loadFromAtlasXmasTree(opts) {
     try {
       status(`Fetching ${svc} UDQ from ATLAS…`, false);
       const recs = await atlasFetchUdqJson(String(cfg[key]).trim());
+      // TEMP DEBUG (2.5.89): save the raw ATLAS response so the Workflow Logs /
+      // Activity Tracker JSON shape can be mapped. Remove once atlasXmasTreeGrid()
+      // builds those sections.
+      try {
+        const blob = new Blob([JSON.stringify(recs, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `ATLAS_${svc}_UDQ_raw.json`;
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
+      } catch (e) { console.error(e); }
       const usable = (recs || []).filter((r) => r && String(r.GMTRNumber || "").trim());
       if (!usable.length) { status(`ATLAS returned no records for the ${svc} UDQ.`, true); continue; }
       const grid = atlasXmasTreeGrid(usable);

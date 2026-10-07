@@ -350,6 +350,21 @@ const ATLAS_WORKFLOW_COLUMNS = [
   ["totalCostDisplay", "Total Cost"],
 ];
 
+/* Activity Tracker List columns (start at col B) — PR / PMCT / WS records.
+   Same order as the export, so Stage lands in col D and Date in col E, where
+   the Christmas Tree's "TTI POC Status Check" reader looks. */
+const ATLAS_ACTIVITY_COLUMNS = [
+  ["group", "PR Group#"],
+  ["trackingLink", "Tracking#/Link"],
+  ["stageText", "Stage"],
+  ["date", "Date"],
+  ["time", "Time"],
+  ["countryText", "Country"],
+  ["city", "City"],
+  ["facility", "Facility"],
+  ["notes", "Notes"],
+];
+
 /* Linked Request List columns (start at col B). Drives consolidation analysis. */
 const ATLAS_LINKED_COLUMNS = [
   ["mappedRequestCategory", "Request Type"],
@@ -639,6 +654,10 @@ function atlasRecordsToGrid(records) {
         }
       }
     }
+
+    // --- Activity Tracker List (PR / PMCT / WS; Christmas Tree PR status checks) ---
+    const atl = Array.isArray(rec.ActivityTrackerList) ? rec.ActivityTrackerList : [];
+    if (atl.length) atlasPushSection(grid, "Activity Tracker List", 2, ATLAS_ACTIVITY_COLUMNS, 2, atl);
 
     // --- Linked Request List (consolidation analysis) ---
     const lr = Array.isArray(rec.LinkedRequests) ? rec.LinkedRequests : [];
@@ -981,8 +1000,7 @@ async function loadFromAtlasUdq(opts) {
 /**
  * Build a Christmas-Tree-ready grid from ATLAS JSON records.
  * atlasRecordsToGrid() emits the scalar row, Inventory, Attachments, (SRF)
- * Daily Status History and Workflow Logs. TODO(chris): the "Activity Tracker
- * List" (Date in col E) for PR/PMCT/WS still needs a PR UDQ JSON sample.
+ * Daily Status History, (PR/PMCT/WS) Activity Tracker List and Workflow Logs.
  */
 function atlasXmasTreeGrid(records) {
   return atlasRecordsToGrid(records);

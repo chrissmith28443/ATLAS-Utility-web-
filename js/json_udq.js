@@ -23,8 +23,8 @@
                      grid (detects as "srf"), then all SRF document tools run.
 
    Sections intentionally NOT rebuilt (no current tool reads them, keeps the
-   in-browser grid smaller): "Cost List" and "Workflow Logs". If a future
-   feature needs Workflow Logs, add a builder below and they'll flow through.
+   in-browser grid smaller): "Cost List". Workflow Logs ARE rebuilt (the
+   Christmas Tree and Record Audit read them).
    ========================================================================= */
 
 /* -------------------------------------------------------------------------
@@ -43,7 +43,7 @@ const ATLAS_UDQ_CONFIG = {
     qa: {
       // The Metrics UDQ carries every WMTR's full detail — the combined, all-WMTR
       // dataset the Metrics dashboard and the Christmas Tree read.
-      metrics:  "f3e5981e-bd54-4bb5-8b4b-3321a2c19568",
+      metrics:  "cfb99354-d596-4a86-b067-7b19eea14708",
       // Shipping now has its OWN dedicated UDQ (it is no longer the same ID as
       // Metrics). A single shipment is still narrowed SERVER-SIDE via
       // requestNumberParam ("requestNumber") so it pulls ~1 record instead of the
@@ -335,6 +335,19 @@ const ATLAS_SHIPACT_COLUMNS = [
   ["awlBol", "AWB/BoL"],
   ["incoterms", "INCOTERMS"],
   ["trackingLink", "Tracking Link"],
+];
+
+/* Workflow Logs columns (start at col B), newest-first as ATLAS sends them.
+   The *Display fields carry exactly what the Excel export shows — e.g.
+   "DTRA Estimate Review (Approved)" and "$4,388.24" only on the approved
+   estimate row (totalCostHist is filled on many rows the export leaves blank).
+   Drives the Christmas Tree review/estimate/invoice dates and Record Audit. */
+const ATLAS_WORKFLOW_COLUMNS = [
+  ["statusDisplay", "Status"],
+  ["createdDateDisplay", "Date/Time"],
+  ["userDisplay", "User"],
+  ["rejectedReasonDisplay", "Rejected Reason"],
+  ["totalCostDisplay", "Total Cost"],
 ];
 
 /* Linked Request List columns (start at col B). Drives consolidation analysis. */
@@ -631,8 +644,14 @@ function atlasRecordsToGrid(records) {
     const lr = Array.isArray(rec.LinkedRequests) ? rec.LinkedRequests : [];
     if (lr.length) atlasPushSection(grid, "Linked Request List", 2, ATLAS_LINKED_COLUMNS, 2, lr);
 
-    // NOTE: "Cost List" and "Workflow Logs" are intentionally not rebuilt — no
-    // current tool reads them. Add a builder here if a future feature needs them.
+    // --- Workflow Logs (Christmas Tree dates/approved amount, Record Audit) ---
+    // Sits after the Linked Request List, as in the export. A blank Total Cost
+    // ("") becomes an empty cell so it reads like the export's blank.
+    const wfl = (Array.isArray(rec.WorkflowLogs) ? rec.WorkflowLogs : [])
+      .map((w) => ({ ...w, totalCostDisplay: w.totalCostDisplay || null }));
+    if (wfl.length) atlasPushSection(grid, "Workflow Logs", 2, ATLAS_WORKFLOW_COLUMNS, 2, wfl);
+
+    // NOTE: "Cost List" is intentionally not rebuilt — no current tool reads it.
   }
   return grid;
 }
@@ -955,23 +974,18 @@ async function loadFromAtlasUdq(opts) {
 
 /* -------------------------------------------------------------------------
    Christmas Tree — fetch all FOUR per-service UDQs in one action.
-   Stubbed: returns a friendly "not wired yet" message until the four QA UDQ
-   IDs are filled in ATLAS_UDQ_CONFIG.ids.<env>.christmasTree. The loop below is
-   structurally complete so finishing it is just (1) fill IDs and (2) confirm the
-   Workflow-Logs JSON shape in atlasXmasTreeGrid().
+   Returns a friendly "not configured" message when a service's UDQ ID is blank
+   in ATLAS_UDQ_CONFIG.ids.<env>.christmasTree.
    ------------------------------------------------------------------------- */
 
 /**
  * Build a Christmas-Tree-ready grid from ATLAS JSON records.
- * atlasRecordsToGrid() already emits the scalar row, Inventory, Attachments and
- * (SRF) Daily Status History — but NOT Workflow Logs, which the tracker needs
- * for its review/estimate/invoice dates. TODO(chris): once a live UDQ response
- * is available, append a "Workflow Logs" section per WMTR block here (title in
- * col B; header Status|Date/Time|User|Rejected Reason|Total Cost; newest-first),
- * plus the "Activity Tracker List" (Date in col E) for PR/PMCT/WS.
+ * atlasRecordsToGrid() emits the scalar row, Inventory, Attachments, (SRF)
+ * Daily Status History and Workflow Logs. TODO(chris): the "Activity Tracker
+ * List" (Date in col E) for PR/PMCT/WS still needs a PR UDQ JSON sample.
  */
 function atlasXmasTreeGrid(records) {
-  return atlasRecordsToGrid(records); // scalar + inventory + daily; workflow TODO
+  return atlasRecordsToGrid(records);
 }
 
 async function loadFromAtlasXmasTree(opts) {

@@ -14,9 +14,11 @@
 const ATLAS_CHANGELOG = [
   {
     version: "2.5.89",
-    title: "Christmas Tree: new SRF UDQ",
+    title: "Christmas Tree: fetched data now includes Workflow Logs",
     notes: [
-      "The Christmas Tree's SRF fetch now uses the new dedicated SRF UDQ in ATLAS instead of the Metrics UDQ.",
+      "Fixed: a Christmas Tree fetched from ATLAS reported \"No WMTR in the SRF UDQ carries a Workflow Logs section\", even though the records have them. Fetch now reads each WMTR's Workflow Logs, the same as the Excel export, so the DTRA review dates, the approved estimate amount, the Ready-to-Invoice / Invoiced dates and SRF Cost Estimate Accuracy fill in. Record Audit benefits the same way. Dragging in the Excel export already worked and is unchanged.",
+      "New ATLAS UDQ IDs: the Christmas Tree's SRF fetch now uses the new dedicated SRF UDQ, and the Metrics dashboard uses the new Metrics (SRF) UDQ.",
+      "Still to do: PR, PMCT and WS fetches don't yet read the Activity Tracker List (used for the PR periodic-update check). That needs a sample of the PR UDQ data.",
     ],
   },
   {

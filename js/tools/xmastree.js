@@ -1926,6 +1926,17 @@ function renderXmasTreeWorkspace(container) {
         body.theme-dark table.xt-data tr.xt-row-red td.stick{background:#2a1a1c}
         body.theme-dark table.xt-data tr.xt-row-warn{background:#2a2612}
         body.theme-dark table.xt-data tr.xt-row-warn td.stick{background:#2a2612}
+        table.xt-data tr.xt-row-noted{background:#F2EDFA}
+        table.xt-data tr.xt-row-noted td.stick{background:#F2EDFA;box-shadow:inset 3px 0 0 #6B4FA0}
+        body.theme-dark table.xt-data tr.xt-row-noted{background:#221c2e}
+        body.theme-dark table.xt-data tr.xt-row-noted td.stick{background:#221c2e}
+        .xt-cell-noted{color:#6B4FA0 !important;font-weight:600}
+        table.xt-data td.xt-cell-noted{background:#E8DFF7}
+        body.theme-dark table.xt-data td.xt-cell-noted{background:#2e2443}
+        body.theme-dark .xt-cell-noted,body.theme-dark .xt-miss.noted,body.theme-dark .xt-rowflag.noted{color:#B9A3E3 !important}
+        .xt-miss.noted,.xt-rowflag.noted{color:#6B4FA0}
+        .xt-card-noted{border-color:#6B4FA0}
+        .xt-card-noted h4{background:#6B4FA0}
         table.xt-data tr.xt-grp td{background:#e9edf1;font-family:var(--disp);text-transform:uppercase;letter-spacing:1px;font-size:11px;font-weight:600;color:var(--ink);padding:6px 10px;border-top:2px solid var(--line);border-bottom:1px solid var(--line)}
         body.theme-dark table.xt-data tr.xt-grp td{background:#182430;color:var(--ink)}
         table.xt-data tr.xt-grp .xt-grp-n{font-family:var(--mono);font-size:10.5px;color:var(--steel);margin-left:8px}
@@ -2343,6 +2354,13 @@ function renderXmasTreeWorkspace(container) {
   }
 }
 
+/** Hard (red) issue kinds. */
+function xtIsHardKind(k) { return k === "missing" || k === "late" || k === "flag"; }
+/** A WMTR carrying a manual metric note (DTRA-Only comments / Revision Number)
+    has its hits explained, so they show purple ("noted") instead of red. */
+function xtRowNoted(row) { return !!norm(row.manual_metric); }
+function xtShownKind(kind, noted) { return noted && xtIsHardKind(kind) ? "noted" : kind; }
+
 function xtRenderView(host, rows) {
   if (!rows.length) { host.innerHTML = `<div class="hint">No WMTRs match this filter.</div>`; return; }
   if (XTree.view === "stack") { xtRenderStacked(host, rows); return; }
@@ -2352,20 +2370,23 @@ function xtRenderView(host, rows) {
     `<th class="${i === 0 ? "stick" : ""}">${esc(c.label)}</th>`).join("");
   const renderRow = (row) => {
     // Whole-row shading so flagged WMTRs are visible without scrolling right to
-    // the flagged cell: light pink for a hard issue, light yellow for a warning.
+    // the flagged cell: light pink for a hard issue, light purple for a hard issue
+    // explained by a manual metric note, light yellow for a warning.
+    const noted = xtRowNoted(row);
     const kinds = (row.issues || []).map((i) => i.kind);
-    const hasRed = kinds.some((k) => k === "missing" || k === "late" || k === "flag");
+    const hasHard = kinds.some(xtIsHardKind);
     const hasWarn = kinds.some((k) => k === "yellow" || k === "due" || k === "variance");
-    const rowClass = hasRed ? "xt-row-red" : hasWarn ? "xt-row-warn" : "";
-    const rowFlag = hasRed;   // the ⚑ glyph in the first column marks hard issues
+    const rowClass = hasHard ? (noted ? "xt-row-noted" : "xt-row-red") : hasWarn ? "xt-row-warn" : "";
+    const rowFlag = hasHard;  // the ⚑ glyph in the first column marks hard issues
+    const flagTitle = rowFlag ? row.issues.map((x) => x.label).join("\n") : "";
     const tds = cols.map((c, i) => {
       const iss = row.issueByCol ? row.issueByCol[c.id] : null;
-      const issCls = iss ? ` xt-cell-${iss.kind}` : "";
+      const issCls = iss ? ` xt-cell-${xtShownKind(iss.kind, noted)}` : "";
       const stick = i === 0 ? " stick" : "";
       const num = (c.type === "money" || c.type === "pct") ? " num" : "";
       let inner;
       if (iss && iss.kind === "missing") {
-        inner = `<span class="xt-miss" title="${esc(iss.label)}">\u26A0 ${esc(iss.label.length > 22 ? "missing" : iss.label)}</span>`;
+        inner = `<span class="xt-miss${noted ? " noted" : ""}" title="${esc(iss.label)}">\u26A0 ${esc(iss.label.length > 22 ? "missing" : iss.label)}</span>`;
       } else if (iss && iss.kind === "due") {
         inner = `<span class="xt-due" title="${esc(iss.label)}">due</span>`;
       } else if (iss && iss.kind === "yellow") {
@@ -2373,7 +2394,7 @@ function xtRenderView(host, rows) {
       } else {
         const txt = xtFmtCell(row, c);
         inner = (c.type === "badge" && txt) ? `<span class="${xtBadgeClass(txt)}">${esc(txt)}</span>`
-              : (i === 0 && rowFlag) ? `<span class="xt-rowflag" title="${esc(row.issues.map((x) => x.label).join("\n"))}">\u2691</span>${esc(txt)}`
+              : (i === 0 && rowFlag) ? `<span class="xt-rowflag${noted ? " noted" : ""}" title="${esc(flagTitle)}">\u2691</span>${esc(txt)}`
               : esc(txt);
       }
       return `<td class="${(stick + num + issCls).trim()}"${iss ? ` title="${esc(iss.label)}"` : ""}>${inner}</td>`;
@@ -2424,22 +2445,23 @@ function xtRenderStacked(host, rows) {
   const cols = XT_COLUMNS.filter((c) => !c.hidden && c.id !== "request_no" && c.id !== "service");
   const cards = rows.map((row) => {
     const flagged = row.issues && row.issues.length;
+    const noted = xtRowNoted(row);
     const rowFlag = row.issues && row.issues.some((i) => i.kind === "missing" || i.kind === "flag");
     const issueStrip = flagged
-      ? `<div class="xt-card-issues">${row.issues.map((x) => `<span class="xt-chip xt-cell-${x.kind}">${esc(x.label)}</span>`).join("")}</div>`
+      ? `<div class="xt-card-issues">${row.issues.map((x) => `<span class="xt-chip xt-cell-${xtShownKind(x.kind, noted)}">${esc(x.label)}</span>`).join("")}</div>`
       : "";
     const kv = cols.map((c) => {
       const iss = row.issueByCol ? row.issueByCol[c.id] : null;
       const txt = xtFmtCell(row, c);
       let val;
-      if (iss && iss.kind === "missing") val = `<span class="xt-miss">\u26A0 ${esc(iss.label)}</span>`;
+      if (iss && iss.kind === "missing") val = `<span class="xt-miss${noted ? " noted" : ""}">\u26A0 ${esc(iss.label)}</span>`;
       else if (iss && iss.kind === "due") val = `<span class="xt-due">${esc(iss.label)}</span>`;
       else if (iss && iss.kind === "yellow") val = `<span class="xt-yellow">${esc(iss.label)}</span>`;
       else val = (c.type === "badge" && txt) ? `<span class="${xtBadgeClass(txt)}">${esc(txt)}</span>` : esc(txt || "\u2014");
-      const vcls = iss ? ` xt-cell-${iss.kind}` : "";
+      const vcls = iss ? ` xt-cell-${xtShownKind(iss.kind, noted)}` : "";
       return `<div class="k">${esc(c.label)}</div><div class="v${vcls}">${val}</div>`;
     }).join("");
-    return `<div class="xt-card${rowFlag ? " xt-card-flagged" : ""}">
+    return `<div class="xt-card${rowFlag ? (noted ? " xt-card-flagged xt-card-noted" : " xt-card-flagged") : ""}">
       <h4><span>${rowFlag ? "\u2691 " : ""}${esc(row.request_no)}</span><span class="svc-tag">${esc(row.service)}</span></h4>
       ${issueStrip}
       <div class="xt-kv">${kv}</div>

@@ -13,6 +13,27 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.91",
+    title: "New: Inventory List Export, from a fetched WMTR",
+    notes: [
+      "New \"Inventory List Export\" tool in both Shipping and Property management. It turns the loaded or fetched WMTR's inventory into an ATLAS Inventory List template (SRF, PR, WS or PMCT), ready to upload into another request.",
+      "Defaults to SRF on a Property (PR) WMTR, the usual case of shipping what was procured, and to PR on a Shipping (SRF) WMTR. Pick another format if you need one.",
+      "Fills the template from the request's own inventory columns. Combined \"L x W x H\" dimensions are split into the separate Ln / Wd / Ht (in) columns, and dates and Brand Name Only? come through as real dates and checkboxes. Package rows (Serial # = P) on an SRF are left out unless you tick the box to include them.",
+      "Anything the chosen template has no column for (e.g. UN Code) is kept on a \"Crosswalk Carryover\" tab, the same as Inventory Crosswalk.",
+      "\"Shipping documents\" in the menu is now just \"Shipping\".",
+    ],
+  },
+  {
+    version: "2.5.90",
+    title: "New: Inventory Crosswalk (General Tools)",
+    notes: [
+      "New \"General Tools\" section in the menu, with its first tool: Inventory Crosswalk. It converts an ATLAS Inventory List export from one service type to another, so a PR inventory can be uploaded into an SRF, WS or PMCT (and back) without the columns getting jumbled.",
+      "Drop one or more inventory exports (or click to browse). The utility detects which template each one is, then you tick the format(s) you want, or All. One result downloads as an .xlsx; several come as a .zip.",
+      "PR and SRF use the identical layout, so those two need no conversion. WS and PMCT differ only by PMCT's Transfer Date column. Going PR/SRF to WS/PMCT, Vendor, Manufacturer and U/M take the Actual/Ordered value (or Recommended/Requested when blank), and Qty takes Qty Ordered (or Qty Requested). Going the other way, the single value fills both sides.",
+      "Columns with no home in the target (e.g. Brand Name Only?, Lead Time, Property Type, Transfer Date) are kept on a second tab, \"Crosswalk Carryover\". Converting that file again restores them, so a PR to WS to PR round trip loses nothing.",
+    ],
+  },
+  {
     version: "2.5.89",
     title: "Christmas Tree: fetched data now includes Workflow Logs",
     notes: [

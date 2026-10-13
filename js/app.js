@@ -23,19 +23,20 @@ const AppState = {
 };
 
 const TOOLS = [
-  { id: "packet",   group: "Shipping documents", label: "Generate packet",     needs: "srf",      ready: true  },
-  { id: "ci",       group: "Shipping documents", label: "Commercial Invoice",  needs: "srf",      ready: true  },
-  { id: "pl",       group: "Shipping documents", label: "Packing List/Inventory", needs: "srf",   ready: true  },
-  { id: "placards", group: "Shipping documents", label: "Placards",            needs: "srf",      ready: true  },
-  { id: "sli",      group: "Shipping documents", label: "SLI",                 needs: "srf",      ready: true  },
-  { id: "rfq",      group: "Shipping documents", label: "RFQ Email",           needs: "srf",      ready: true  },
-  { id: "ipc",      group: "Shipping documents", label: "IPC",                 needs: "srf",      ready: true  },
-  { id: "po",       group: "Shipping documents", label: "Purchase Order",      needs: "none",     ready: true  },
-  { id: "mct",      group: "Shipping documents", label: "MCT Entry Letter",    needs: "none",     ready: true  },
+  { id: "packet",   group: "Shipping",           label: "Generate packet",     needs: "srf",      ready: true  },
+  { id: "ci",       group: "Shipping",           label: "Commercial Invoice",  needs: "srf",      ready: true  },
+  { id: "pl",       group: "Shipping",           label: "Packing List/Inventory", needs: "srf",   ready: true  },
+  { id: "placards", group: "Shipping",           label: "Placards",            needs: "srf",      ready: true  },
+  { id: "sli",      group: "Shipping",           label: "SLI",                 needs: "srf",      ready: true  },
+  { id: "rfq",      group: "Shipping",           label: "RFQ Email",           needs: "srf",      ready: true  },
+  { id: "ipc",      group: "Shipping",           label: "IPC",                 needs: "srf",      ready: true  },
+  { id: "po",       group: "Shipping",           label: "Purchase Order",      needs: "none",     ready: true  },
+  { id: "invgen",   group: "Shipping",           label: "Inventory List Export", needs: "srf", needsGrid: true, ready: true  },
+  { id: "mct",      group: "Shipping",           label: "MCT Entry Letter",    needs: "none",     ready: true  },
   // Close-out checklist for the loaded request: the Christmas Tree's checks run
   // against this one WMTR. Sits last in the group — it's what you press when the
   // documents are done, not another document.
-  { id: "audit",    group: "Shipping documents", label: "Audit",               needs: "srf", needsGrid: true, ready: true  },
+  { id: "audit",    group: "Shipping",           label: "Audit",               needs: "srf", needsGrid: true, ready: true  },
   { id: "metrics",  group: "Metrics",            label: "Metrics",             needs: "metrics",  ready: true  },
   { id: "pmr",      group: "Metrics",            label: "PMR",                 needs: "metrics",  ready: true  },
   // Required Attachments' Metrics role now lives inside the Metrics dashboard
@@ -49,7 +50,9 @@ const TOOLS = [
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },
   { id: "invpr",    group: "Property management",label: "Inventory Sheet",     needs: "property", ready: true  },
+  { id: "invgen",   group: "Property management",label: "Inventory List Export", needs: "property", needsGrid: true, ready: true  },
   { id: "propo",    group: "Property management",label: "Purchase Order",       needs: "none",     ready: true  },
+  { id: "invconv",  group: "General Tools",      label: "Inventory Crosswalk",  needs: "none",     ready: true  },
   // Compliance Search is hidden while the bundled history index is empty (the
   // TRLS I / TRLS II data was pulled out of js/data/history_index.js — shipping
   // it in the JS made it searchable). Restore this line to bring the tool back
@@ -608,7 +611,7 @@ function renderRail() {
     // Attachments hides on Metrics, where the dashboard embeds it).
     if (tool.hideOn && [].concat(tool.hideOn).indexOf(AppState.udqType) !== -1) continue;
     if (tool.group !== lastGroup) {
-      if (tool.group === "Shipping documents") {
+      if (tool.group === "Shipping") {
         const pkOk = AppState.udqType === "srf";
         const head = el(`
           <div class="railhead">
@@ -656,7 +659,7 @@ function renderRail() {
     const manualOk = AppState.manualOnly && tool.needs === "property";
     const enabled = tool.ready && (typeOk || manualOk) && !(tool.needsGrid && AppState.manualOnly);
     const btn = el(`
-      <button class="toolbtn ${AppState.activeTool === tool.id ? "active" : ""} ${enabled ? "ready" : ""}"
+      <button class="toolbtn ${AppState.activeTool === tool.id && enabled ? "active" : ""} ${enabled ? "ready" : ""}"
               ${enabled ? "" : "disabled"} data-tool="${tool.id}">
         <span class="dot"></span>${esc(tool.label)}
         ${tool.ready ? "" : `<span class="soon">SOON</span>`}
@@ -781,10 +784,14 @@ function renderWorkspace() {
   else if (AppState.activeTool === "ecm") renderEcmWorkspace(ws);
   else if (AppState.activeTool === "xmastree") renderXmasTreeWorkspace(ws);
   else if (AppState.activeTool === "search") renderSearchWorkspace(ws);
+  else if (AppState.activeTool === "invconv") renderInvConvWorkspace(ws);
+  else if (AppState.activeTool === "invgen") renderInvGenWorkspace(ws);
   // The Christmas Tree has its own per-service UDQ drop targets, so hide the main drop
   // zone while it's active — stops UDQs being dropped into the wrong window. Uses its
   // own class so it doesn't disturb the user's loader-view (show/hide) preference.
-  document.body.classList.toggle("xt-hide-dropzone", AppState.activeTool === "xmastree");
+  // Inventory Crosswalk has its own drop zone too.
+  document.body.classList.toggle("xt-hide-dropzone",
+    AppState.activeTool === "xmastree" || AppState.activeTool === "invconv");
   // Per-document parent-items toggle (CI, PL, Placards, RFQ, Packet).
   if (typeof mpInjectDocToggle === "function") mpInjectDocToggle(ws, AppState.activeTool);
   // Per-document manual-values override button/indicator (every SRF / Property document).

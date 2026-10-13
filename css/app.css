@@ -1407,3 +1407,18 @@ body.rail-collapsed .main > *{ margin-left: auto; margin-right: auto; }
 .dropzone.loader-compact .dz-sub{ margin-top: 0; }
 body.dropzone-hidden #dropzone{ display: none; }
 body.xt-hide-dropzone #dropzone{ display: none; }
+
+/* ---- Inventory Crosswalk (General Tools) ---- */
+#icDrop{ margin: 12px 0; }
+.ic-table{ margin-top: 10px; }
+.ic-table .ic-rm{ height: 26px; padding: 0 9px; }
+.ic-err{ color: var(--warn); }
+.ic-out{ margin: 14px 0 10px; }
+.ic-outhead{ font-weight: 600; margin-bottom: 6px; }
+.ic-fmts{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+.ic-fmt{ display: inline-flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.ic-fmts .btn{ height: 30px; padding: 0 14px; }
+.ic-map{ margin-top: 14px; font-size: 13px; }
+.ic-map summary{ cursor: pointer; font-weight: 600; }
+.ic-map ul{ margin: 8px 0 0 18px; padding: 0; }
+.ig-pkgs{ margin-top: 10px; font-weight: 400; }

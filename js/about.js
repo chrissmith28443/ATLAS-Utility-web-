@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.93",
+    title: "Inventory Crosswalk: fix \"atob\" error after updating",
+    notes: [
+      "Fixed: after the 2.5.92 update, converting could fail with \"Failed to execute 'atob'… not correctly encoded\". The browser had paired the new converter with a cached copy of the old template file. The templates now live inside the converter file itself, so the two can't get out of step again. Inventory Crosswalk and Inventory List Export both benefit.",
+      "If the app's files are ever out of date again, the tool now says so plainly and asks you to reopen the Utility, instead of showing that error.",
+    ],
+  },
+  {
     version: "2.5.92",
     title: "Inventory tools now use the real SRF template",
     notes: [

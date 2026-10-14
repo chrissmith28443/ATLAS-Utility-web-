@@ -39,7 +39,7 @@ const INVGEN_UDQ_KEYS = {
   "actual trls warehouse delivery date": "trlsDate",
   "current custody": "custody", "country": "country", "city": "city",
   "general comments": "comments", "ship group #": "group", "pr group #": "group",
-  "bis/ddtc authorization or exception": "auth",
+  "bis/ddtc authorization or exception": "auth", "un code": "unCode",
 };
 
 /* Combined "L x W x H" columns -> the template's separate inch columns. */

@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.92",
+    title: "Inventory tools now use the real SRF template",
+    notes: [
+      "Fixed: Inventory Crosswalk and Inventory List Export treated SRF and PR as the same layout, because the SRF template they were built from was actually a copy of the PR one. They now use the real Shipping and Delivery (SRF) import template: 45 columns with single Vendor / Manufacturer / Qty / U/M, UN Code, Current Custody Name / Country / City, Comments and Ship Group #.",
+      "A PR export dropped into Inventory Crosswalk is now detected as PR (not \"already in SRF format\") and converts to SRF. Inventory List Export on a PR request now builds the real SRF layout.",
+      "PR to SRF: Vendor, Manufacturer and U/M take the Actual/Ordered value (or Recommended/Requested when blank), and Qty takes Qty Ordered (or Qty Requested). PR-only columns like Brand Name Only? and Reorder? go to the Crosswalk Carryover tab. Going SRF to PR, the single values fill both sides; UN Code goes to the carryover tab.",
+      "Also reads the header spellings in current PR exports (\"Gen. Comments\", \"Temp Storage Req.\", \"Original Wquipment Manu.\").",
+    ],
+  },
+  {
     version: "2.5.91",
     title: "New: Inventory List Export, from a fetched WMTR",
     notes: [

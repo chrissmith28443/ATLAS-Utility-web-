@@ -5,10 +5,12 @@
    (SRF, PR, WS, PMCT). Row 3 holds the headers, data starts on row 4.
 
    Layouts (v1.3):
-     PR / SRF — identical 58-column layout (Recommended/Actual vendor and
-                manufacturer, Requested/Ordered qty and U/M, plus PR extras).
-     WS       — 44-column layout (single Vendor / Manufacturer / Qty / U/M).
-     PMCT     — the WS layout plus "Transfer Date".
+     PR   — 58-column Procurement layout (Recommended/Actual vendor and
+            manufacturer, Requested/Ordered qty and U/M, plus PR extras).
+     SRF  — 45-column Shipping and Delivery layout (single Vendor / Qty / U/M,
+            UN Code, Current Custody Name/Country/City, Ship Group #).
+     WS   — 44-column layout (single Vendor / Manufacturer / Qty / U/M).
+     PMCT — the WS layout plus "Transfer Date".
 
    Columns are matched by HEADER TEXT (not position), so a column move in a
    future template version still lands correctly. Source columns with no home
@@ -17,12 +19,12 @@
    ========================================================================= */
 
 const INVCONV_FORMATS = [
-  { id: "SRF",  label: "SRF",  layout: "PRSRF" },
-  { id: "PR",   label: "PR",   layout: "PRSRF" },
+  { id: "SRF",  label: "SRF",  layout: "SRF"   },
+  { id: "PR",   label: "PR",   layout: "PR"    },
   { id: "WS",   label: "WS",   layout: "WS"    },
   { id: "PMCT", label: "PMCT", layout: "PMCT"  },
 ];
-const INVCONV_LAYOUT_LABEL = { PRSRF: "PR / SRF", WS: "WS", PMCT: "PMCT" };
+const INVCONV_LAYOUT_LABEL = { PR: "PR", SRF: "SRF", WS: "WS", PMCT: "PMCT" };
 const INVCONV_CARRY_SHEET = "Crosswalk Carryover";
 
 /* Normalized header text -> field key (union of all four templates). */
@@ -43,14 +45,16 @@ const INVCONV_HEADER_KEYS = {
   "final ln (in)": "finLnIn", "final wd (in)": "finWdIn", "final ht (in)": "finHtIn",
   "final ln (cm)": "finLnCm", "final wd (cm)": "finWdCm", "final ht (cm)": "finHtCm",
   "eccn/usml": "eccn", "schedule b/hts code": "hts",
-  "original equipment manu.": "oem",
+  "original equipment manu.": "oem", "original wquipment manu.": "oem",
   "manu. country of origin": "coo", "mat. manu. country of origin": "coo",
-  "property type": "propType", "temp. control req.": "temp",
-  "haz class": "haz", "installation req.": "install", "mat. handling req.": "handling",
-  "term storage req.": "termStorage", "current custody": "custody",
-  "country": "country", "city": "city", "transfer date": "transferDate",
-  "general comments": "comments",
-  "pr group #": "group", "ws group #": "group", "pmct group #": "group",
+  "property type": "propType", "temp. control req.": "temp", "temp. control": "temp",
+  "haz class": "haz", "un code": "unCode", "installation req.": "install", "mat. handling req.": "handling",
+  "term storage req.": "termStorage", "temp storage req.": "termStorage",
+  "current custody": "custody", "current custody name": "custody",
+  "country": "country", "current custody country": "country",
+  "city": "city", "current custody city": "city", "transfer date": "transferDate",
+  "general comments": "comments", "gen. comments": "comments", "comments": "comments",
+  "pr group #": "group", "ws group #": "group", "pmct group #": "group", "ship group #": "group",
   "bis/ddtc auth or exception": "auth", "reorder? y/n": "reorder",
   "previously selected item": "prevItem", "purchase order": "po",
 };
@@ -139,7 +143,8 @@ function _invconvReadSheet(rows, carryTab) {
 function invconvDetectLayout(cols) {
   const keys = new Set(cols.map((c) => c.key));
   const hdrs = new Set(cols.map((c) => invconvNormHdr(c.label)));
-  if (keys.has("vendorRec") || keys.has("qtyReq") || hdrs.has("pr group #")) return "PRSRF";
+  if (keys.has("vendorRec") || keys.has("qtyReq") || hdrs.has("pr group #")) return "PR";
+  if (hdrs.has("ship group #") || keys.has("unCode") || hdrs.has("current custody name")) return "SRF";
   if (hdrs.has("pmct group #") || keys.has("transferDate")) return "PMCT";
   if (hdrs.has("ws group #") || (keys.has("vendor") && keys.has("qty"))) return "WS";
   return null;
@@ -345,8 +350,7 @@ function renderInvConvWorkspace(container) {
             ${fmtBoxes}
             <button class="btn ghost" id="icAll" type="button">All</button>
           </div>
-          <div class="hint">PR and SRF use the same layout, so a PR inventory already uploads into an SRF as-is (and vice versa).
-            A file is never converted to its own layout.</div>
+          <div class="hint">A file is never converted to its own format.</div>
         </div>
 
         <div class="btnrow"><button class="btn primary" id="icGo" type="button">Convert &amp; download</button></div>
@@ -357,12 +361,13 @@ function renderInvConvWorkspace(container) {
           <summary>How fields are mapped</summary>
           <ul>
             <li>Columns are matched by their header name, so matching columns copy straight across.</li>
-            <li><strong>PR/SRF → WS/PMCT:</strong> Vendor, Manufacturer and U/M take the <em>Actual</em> / <em>Ordered</em>
+            <li><strong>PR → SRF/WS/PMCT:</strong> Vendor, Manufacturer and U/M take the <em>Actual</em> / <em>Ordered</em>
               value, or the Recommended / Requested value when that's blank. Qty takes Qty Ordered, or Qty Requested when blank.</li>
-            <li><strong>WS/PMCT → PR/SRF:</strong> Vendor, Manufacturer, Qty and U/M fill both the Recommended/Requested and
+            <li><strong>SRF/WS/PMCT → PR:</strong> Vendor, Manufacturer, Qty and U/M fill both the Recommended/Requested and
               Actual/Ordered columns.</li>
-            <li>Mat. Manu. Country of Origin ↔ Manu. Country of Origin, and WS / PMCT / PR Group # carry across.</li>
-            <li>Anything with no home in the target (e.g. Brand Name Only?, Lead Time, Property Type, Transfer Date) goes to a
+            <li>Current Custody Name / Country / City (SRF) ↔ Current Custody / Country / City, Comments ↔ General Comments,
+              and Ship / PR / WS / PMCT Group # carry across.</li>
+            <li>Anything with no home in the target (e.g. Brand Name Only?, Lead Time, Property Type, UN Code, Transfer Date) goes to a
               second tab, <em>${esc(INVCONV_CARRY_SHEET)}</em>. Convert that file again and those columns come back.</li>
           </ul>
         </details>

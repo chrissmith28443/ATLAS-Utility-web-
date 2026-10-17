@@ -378,11 +378,11 @@ function renderEcmWorkspace(container) {
         <div class="pmr-window">
           <div class="field">
             <label for="ecmFy">Fiscal year</label>
-            <select id="ecmFy">${yearOpts}</select>
+            <select id="ecmFy" data-fc-skip>${yearOpts}</select>
           </div>
           <div class="field">
             <label for="ecmPeriod">Period</label>
-            <select id="ecmPeriod">${periodOpts}</select>
+            <select id="ecmPeriod" data-fc-skip>${periodOpts}</select>
           </div>
           <div class="field pmr-runcell">
             <button class="btn primary" id="ecmRun">Run</button>

@@ -911,7 +911,7 @@ function _mdItemRowHtml(r, i, type) {
 
 function openManualDetails() {
   if (typeof AppState === "undefined" || !mdType() || !AppState.data) {
-    alert("Load a Shipping (SRF) or Property UDQ first — or use ATLAS / UDQ ▸ Manual entry to build documents without one.");
+    alert("Load a Shipping (SRF) or Property UDQ first — or use Fetch / UDQ ▸ Manual entry to build documents without one.");
     return;
   }
   closeManualDetails();

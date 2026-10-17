@@ -874,14 +874,14 @@ async function atlasLoadRequest(wmtrIn) {
       atlasRenderWmtrPicker(hits);
       const why = String(errs[0].err.message || errs[0].err).replace(/\.\s*$/, "");
       atlasSetStatus(`Couldn't search ${errs.map((r) => ATLAS_DS_LABEL[r.ds]).join(" or ")}: ${why}. ` +
-        `Pick from what ${ATLAS_DS_LABEL[hits[0].ds]} returned (ATLAS / UDQ menu) only if it's the right request.`, true);
+        `Pick from what ${ATLAS_DS_LABEL[hits[0].ds]} returned (Fetch / UDQ menu) only if it's the right request.`, true);
       return;
     }
     // More than one record in play (a partial number, or a broad contains-match)
     // -> let the user pick rather than silently loading the first.
     if (hits.length > 1) {
       atlasRenderWmtrPicker(hits);
-      atlasSetStatus(`${hits.length} requests match "${wmtr}" — pick one in the ATLAS / UDQ menu.`);
+      atlasSetStatus(`${hits.length} requests match "${wmtr}" — pick one in the Fetch / UDQ menu.`);
       return;
     }
     await atlasLoadWmtrRecord(hits[0], wmtr);
@@ -1089,9 +1089,6 @@ function atlasRenderWmtrPicker(items, dataset) {
   });
 }
 
-/* Datasets that require a WMTR number. Metrics is omitted (it pulls every record). */
-const ATLAS_WMTR_DATASETS = { request: "Shipping or Property" };
-
 function atlasBuildPop() {
   const host = document.getElementById("atlasFetchPop");
   if (!host) return;
@@ -1101,10 +1098,9 @@ function atlasBuildPop() {
     <span class="ap-label">Fetch from ATLAS / UDQ</span>
     <div class="ap-types">
       <button class="ap-type ap-small ap-wide" type="button" data-ds="metrics">Metrics<span class="ap-sub">all records</span></button>
-      <button class="ap-type ap-big" type="button" data-ds="request">Shipping or Property<span class="ap-sub">SR or PR · single WMTR — found automatically</span></button>
     </div>
-    <div class="ap-wmtr hidden" id="apWmtr">
-      <label for="apWmtrInput" id="apWmtrLabel">WMTR number</label>
+    <div class="ap-wmtr" id="apWmtr">
+      <label for="apWmtrInput" id="apWmtrLabel">Shipping or Property — WMTR number</label>
       <div class="ap-wmtr-row">
         <input id="apWmtrInput" type="text" placeholder="e.g. 10097, or the full WMTR" autocomplete="off">
         <button class="btn primary" id="apGo" type="button">Fetch</button>
@@ -1125,37 +1121,22 @@ function atlasBuildPop() {
       <label for="apShowDrop">Keep UDQ drop zone visible</label>
     </div>`;
 
-  const wmtrWrap = host.querySelector("#apWmtr");
-  const wmtrLabel = host.querySelector("#apWmtrLabel");
+  // The WMTR entry is always showing: one Shipping-or-Property lookup finds
+  // whether the number is an SR or a PR, so there's nothing to pick first.
   const wmtrInput = host.querySelector("#apWmtrInput");
   const pickList = host.querySelector(".atlas-pick-list");
-  let selectedDs = null;
 
   const fireWmtr = () => {
-    if (!selectedDs) return;
     pickList.innerHTML = "";
-    loadFromAtlasUdq({ dataset: selectedDs, wmtr: wmtrInput.value });
+    loadFromAtlasUdq({ dataset: "request", wmtr: wmtrInput.value });
   };
 
   host.querySelectorAll(".ap-type").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const ds = btn.getAttribute("data-ds");
+      // Metrics — no WMTR needed; fetch immediately and close.
       pickList.innerHTML = "";
-      if (!ATLAS_WMTR_DATASETS[ds]) {
-        // Metrics — no WMTR needed; fetch immediately and close.
-        host.querySelectorAll(".ap-type").forEach((b) => b.classList.remove("active"));
-        wmtrWrap.classList.add("hidden");
-        selectedDs = null;
-        atlasClosePop();
-        loadFromAtlasUdq({ dataset: ds });
-        return;
-      }
-      // Shipping or Property — reveal the WMTR entry; the lookup finds which.
-      selectedDs = ds;
-      host.querySelectorAll(".ap-type").forEach((b) => b.classList.toggle("active", b === btn));
-      wmtrLabel.textContent = `${ATLAS_WMTR_DATASETS[ds]} — WMTR number`;
-      wmtrWrap.classList.remove("hidden");
-      wmtrInput.focus();
+      atlasClosePop();
+      loadFromAtlasUdq({ dataset: btn.getAttribute("data-ds") });
     });
   });
 
@@ -1214,14 +1195,13 @@ function atlasInitFetchUi() {
     const showing = !pop.classList.contains("hidden");
     if (showing) { atlasClosePop(); return; }
     if (!built) { atlasBuildPop(); built = true; }
-    // Reset transient state each open (type selection, WMTR entry, picker).
-    pop.querySelectorAll(".ap-type").forEach((b) => b.classList.remove("active"));
-    const w = pop.querySelector("#apWmtr"); if (w) w.classList.add("hidden");
+    // Reset transient state each open (picker); the WMTR box stays up, ready to type in.
     const pl = pop.querySelector(".atlas-pick-list"); if (pl) pl.innerHTML = "";
     const cb = pop.querySelector("#apShowDrop");
     if (cb && typeof AtlasSettings !== "undefined") cb.checked = (AtlasSettings.get().loaderView !== "hide");
     pop.classList.remove("hidden");
     btn.setAttribute("aria-expanded", "true");
+    const wi = pop.querySelector("#apWmtrInput"); if (wi) wi.focus();
   });
 
   // Click-away / Esc closes the popover.

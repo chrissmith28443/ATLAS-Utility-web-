@@ -1057,11 +1057,11 @@ function renderPmrWorkspace(container) {
         <div class="pmr-window">
           <div class="field">
             <label for="pmrFy">Fiscal year</label>
-            <select id="pmrFy">${yearOpts}</select>
+            <select id="pmrFy" data-fc-skip>${yearOpts}</select>
           </div>
           <div class="field">
             <label for="pmrQtr">Quarter</label>
-            <select id="pmrQtr">${qtrOpts}</select>
+            <select id="pmrQtr" data-fc-skip>${qtrOpts}</select>
           </div>
           <div class="pmr-spacer"></div>
 

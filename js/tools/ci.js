@@ -633,6 +633,16 @@ body{
 .m-shipref      { grid-column: 1; grid-row: 2; }
 .m-shipdate     { grid-column: 2; grid-row: 2; }
 .m-shipcomments { grid-column: 3 / span 5; grid-row: 2; }
+/* Shipment Comments wraps to a second line (and honours a typed line break);
+   anything past two lines is cut with an ellipsis. */
+.meta-grid .m-shipcomments .value{
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-height: calc(2 * 1.15em);
+}
 
 /* ======================================================================
    ORIGIN / CONSIGNEE / END USER + PICKUP / DELIVER

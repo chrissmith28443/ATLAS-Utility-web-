@@ -379,13 +379,19 @@ async function _consolFetchAtlas(wmtr, ui, onData) {
   if (!id) { setErr(`No Shipping UDQ ID configured. Add it to ATLAS_UDQ_CONFIG.`); return; }
   const q = String(wmtr || "").trim();
   if (!q) { setErr("Enter a WMTR number to fetch."); return; }
+  if (typeof ATLAS_MIN_REQUEST_DIGITS !== "undefined" && q.replace(/\D/g, "").length < ATLAS_MIN_REQUEST_DIGITS) {
+    setErr(`Enter at least ${ATLAS_MIN_REQUEST_DIGITS} digits of the WMTR/request number.`); return;
+  }
 
   const btnLabel = ui.btn ? ui.btn.textContent : "";
   if (ui.btn) { ui.btn.disabled = true; ui.btn.textContent = "Fetching…"; }
   try {
     let recs;
-    if (typeof ATLAS_UDQ_CONFIG !== "undefined" && ATLAS_UDQ_CONFIG.shippingWmtrParam) {
-      recs = await atlasFetchUdqJson(id, `${encodeURIComponent(ATLAS_UDQ_CONFIG.shippingWmtrParam)}=${encodeURIComponent(q)}`);
+    // Server-side filter (~1 record) — same query the main fetch sends; a full
+    // WMTR is reduced to its request number, which is all ATLAS matches on.
+    const rq = (typeof atlasRequestNumberQuery === "function") ? atlasRequestNumberQuery(q) : undefined;
+    if (rq) {
+      recs = await atlasFetchUdqJson(id, rq);
     } else {
       if (!_consolAtlasRecs) _consolAtlasRecs = await atlasFetchUdqJson(id);
       recs = _consolAtlasRecs;

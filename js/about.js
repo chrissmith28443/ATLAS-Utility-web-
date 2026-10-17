@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.94",
+    title: "Fetch / UDQ menu; packet saves separate PDFs; faster consolidation fetch",
+    notes: [
+      "Generate packet: \"Merged PDF\" is now \"Save PDFs\". Each selected document is saved as its own PDF (CI_…, PL_…, Placards_…) instead of one combined file. They print one after another in a single window, already named, and you choose \"Save as PDF\" in each dialog. The Packing List is now a PDF in the packet (it was Excel), including in the .zip download. CI, PL and Placards stay checked by default.",
+      "PMR, Export-Controlled Materials and Required Attachments: switching tools and coming back no longer shows a \"from memory\" warning that the fiscal year or quarter was changed from the UDQ value. Those are just report-period choices, not UDQ data, so they aren't remembered or flagged any more. Each tool opens on its normal default period.",
+      "The orange ATLAS / UDQ button is now \"Fetch / UDQ\". Opening it shows the WMTR number box straight away, ready to type in. There's no Shipping or Property button to press first, since the lookup already works out whether the number is an SR or a PR. Metrics, the UDQ drop zone and Manual entry are still in the same menu.",
+      "Consolidation: adding a WMTR from ATLAS now asks ATLAS for just that one request, the same way the main ATLAS / UDQ button does, instead of downloading the entire Shipping UDQ (every record, about 5 MB) and searching it in the browser. Each WMTR you add now comes back in about the time a single fetch takes. Enter at least 3 digits of the WMTR number.",
+      "Commercial Invoice: Shipment Comments can now run to two lines on the CI instead of being cut off after one. Long text wraps onto the second line, and a line break you type in the comments box is kept. Anything past two lines is cut off with \"…\".",
+    ],
+  },
+  {
     version: "2.5.93",
     title: "Inventory Crosswalk: fix \"atob\" error after updating",
     notes: [

@@ -442,11 +442,11 @@ function renderReqattWorkspace(container) {
         <div class="pmr-window">
           <div class="field">
             <label for="raFy">Fiscal year</label>
-            <select id="raFy">${yearOpts}</select>
+            <select id="raFy" data-fc-skip>${yearOpts}</select>
           </div>
           <div class="field">
             <label for="raPeriod">Period</label>
-            <select id="raPeriod">${periodOpts}</select>
+            <select id="raPeriod" data-fc-skip>${periodOpts}</select>
           </div>
           <div class="field pmr-runcell">
             <button class="btn primary" id="raRun">Run</button>

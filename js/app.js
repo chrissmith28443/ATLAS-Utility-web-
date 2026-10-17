@@ -988,7 +988,9 @@ function ciOptionsFromForm() {
     contractNo: g("ciContract").value.trim(),
     incoterm: g("ciIncoterm") ? g("ciIncoterm").value.trim() : undefined,
     currency: g("ciCurrency") ? g("ciCurrency").value : "USD",
-    shipmentComments: g("ciComments").value.replace(/\s+/g, " ").trim(),
+    // Keep line breaks (the CI prints up to two lines); tidy spaces within each line.
+    shipmentComments: g("ciComments").value.split(/\r?\n/)
+      .map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n"),
     printedName, title,
     userRemarks: g("ciRemarks").value.trim(),
     mode: g("ciMode") && g("ciMode").checked ? "export" : "import",

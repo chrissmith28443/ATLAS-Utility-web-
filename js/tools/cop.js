@@ -1053,7 +1053,7 @@ function copEvaluate(rec, ctx) {
 const COP_STEPS = [
   { id: "qr",       n: 1, label: "TTI Quality Review",               sub: "TTI" },
   { id: "review",   n: 2, label: "DTRA Program / Compliance Review", sub: "DTRA" },
-  { id: "estimate", n: 3, label: "Estimate",                         sub: "TTI preparation · DTRA review" },
+  { id: "estimate", n: 3, label: "Estimate Preparation",             sub: "TTI preparation · DTRA review" },
   { id: "exec",     n: 4, label: "Execution",                        sub: "Pending → Delivered" },
 ];
 const COP_STEP_IDX = { qr: 0, review: 1, estimate: 2, exec: 3 };
@@ -1588,10 +1588,10 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 @media (max-width:1250px){.copx-board{grid-template-columns:1fr 1fr 1fr}.copx-col.exec{grid-column:1 / -1}}
 @media (max-width:760px){.copx-board{grid-template-columns:1fr}}
 .copx-col{border:1px solid var(--ax-line);border-radius:10px;background:var(--ax-soft);display:flex;flex-direction:column;min-width:0}
-.copx-col .ch{position:relative;background:var(--ax-blue);color:#fff;border-radius:9px 9px 0 0;padding:10px 64px 10px 14px;min-height:62px;display:flex;flex-direction:column;justify-content:center}
+.copx-col .ch{position:relative;background:var(--ax-navy);color:#fff;border-radius:9px 9px 0 0;padding:10px 64px 10px 14px;min-height:62px;display:flex;flex-direction:column;justify-content:center}
 .copx-col .ch .t{font-weight:600;font-size:13.5px;line-height:1.25}
 .copx-col .ch .s{font-size:11px;opacity:.85}
-.copx-col .ch .cnt{position:absolute;right:11px;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:#fff;color:var(--ax-blue);
+.copx-col .ch .cnt{position:absolute;right:11px;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:#fff;color:var(--ax-navy);
   font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
 .copx-col .tally{display:flex;gap:10px;flex-wrap:wrap;padding:7px 12px;font-size:11.5px;color:var(--ax-ink2);border-bottom:1px solid var(--ax-line2);background:var(--ax-card)}
 .copx-col .tally b{font-weight:700}

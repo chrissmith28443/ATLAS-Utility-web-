@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.9",
+    title: "COP: darker step headers, \"Estimate Preparation\"",
+    notes: [
+      "Board step headers use the ATLAS navy instead of the brighter blue.",
+      "The Estimate step is now labelled \"Estimate Preparation\".",
+    ],
+  },
+  {
     version: "2.6.8",
     title: "COP: the board follows every filter",
     notes: [

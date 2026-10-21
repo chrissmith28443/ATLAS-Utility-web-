@@ -194,3 +194,7 @@ Arrived Warehouse or the warehouse actual date is filled.
 - v2.6.8: Board = exactly the table's rows (top filters, search, attention, RDD, column filters).
   Mockup sheet: per-row Save (ATLAS times out on long sessions) + "Save all updates"; unsaved
   typed text kept in CopUi.sheetText across re-renders.
+- v2.6.9: Step headers navy (--ax-navy); step 3 = "Estimate Preparation".
+- PLAN (user, 2026-10-21): Phase 1 = COP in the Utility only (read-only, no update entry) — test
+  thoroughly. Phase 2 = move to the ATLAS WMTR dashboard and add daily-update editing (the
+  COP_MOCKUP.editUpdates code: per-row Save + Save all). The standalone dev mockup waits for Phase 2.

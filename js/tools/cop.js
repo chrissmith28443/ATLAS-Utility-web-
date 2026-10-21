@@ -112,6 +112,7 @@ const COP_STUCK_LABELS = {
 const COP_RDD_WARN_BDAYS = 5;      // amber when the RDD is this many business days away
 const COP_DUE_SOON_DAYS = 5;       // ETD / MARAD "coming due" window (calendar days)
 const COP_PLACARD_TYPE_ISO = "2026-10-21";   // ATLAS "Pallet Placard" attachment type added
+const COP_CHECK_ESTIMATE = false;            // "Estimate attached" check (Request Estimate List) — off for now
 
 const COP_PREFS_KEY = "atlas.cop.prefs";
 const COP_TRACKER_KEY = "atlas.cop.tracker";
@@ -183,6 +184,7 @@ const CopUi = {
   atRisk: false,        // only shipments with a red/amber item
   rddDays: 0,           // only RDD within N calendar days (0 = any)
   stuckOnly: false,
+  hit: "",              // check id — only shipments missing it ("Find metric hits")
   q: "",
   expanded: new Set(),  // WMTRs with the checklist open
   settingsOpen: false,
@@ -395,11 +397,16 @@ function copParseGrid(grid) {
   return { records, ds };
 }
 
-/** Parse once per loaded grid. */
+/** Parse once per loaded grid (Metrics UDQ only). */
 function copData() {
   const grid = AppState.grid;
-  if (!grid) return null;
-  if (!CopUi._parsed || CopUi._parsed.grid !== grid) CopUi._parsed = { grid, data: copParseGrid(grid) };
+  if (!grid || AppState.udqType !== "metrics") return null;
+  if (!CopUi._parsed || CopUi._parsed.grid !== grid) {
+    CopUi._parsed = { grid, data: copParseGrid(grid) };
+    // A new UDQ starts unfiltered (view / scope / your name are kept).
+    Object.assign(CopUi, { lane: "", poc: "", atRisk: false, stuckOnly: false, rddDays: 0, q: "", hit: "", msg: "" });
+    CopUi.expanded = new Set();
+  }
   return CopUi._parsed.data;
 }
 
@@ -710,14 +717,15 @@ function copEvaluate(rec, ctx) {
     add("redflag", "general", "req", "Red Flag", { state: "fail", detail: xrow.red_flag || "Red Flag is set on the request." }, ["cop.redflag"]);
   }
 
-  // Daily status updates: every business day from the moment the request left
-  // Draft (its oldest non-Draft Workflow Logs stamp — "Date Submitted" is
+  // Daily status updates: every business day from the business day after the
+  // request left Draft (its oldest non-Draft Workflow Logs stamp — "Date Submitted" is
   // user-entered and can predate the real submission by months — or its first
   // daily entry, if earlier) until delivery. Same rule as PMR / Christmas Tree.
   (function () {
     const label = "Daily status updates";
     let start = null;
     for (const e of wfl) if (e.dt && !/^draft\b/i.test(norm(e.status)) && (!start || e.dt.getTime() < start.getTime())) start = e.dt;
+    if (start) start = xtWorkday(start, 1, true);              // first update due the next business day
     // Never before ATLAS began recording daily updates (Feb 2026).
     const logStart = typeof PMR_DAILY_LOG_START_ISO !== "undefined" ? xtParseDate(PMR_DAILY_LOG_START_ISO) : null;
     if (start && logStart && start.getTime() < logStart.getTime()) start = logStart;
@@ -939,7 +947,10 @@ function copEvaluate(rec, ctx) {
   if (!sc.handCarry && !sc.courier && sc.category !== "DOMESTIC") {
     add("doc.civAny", "estimate", "req", "Commercial Invoice attached", { met: hasDoc("civAny"), detail: hasDoc("civAny") ? "Attached." : "No Commercial/Proforma Invoice or Draft CIV attached." }, ["cop.doc.civAny", "docs"]);
   }
-  (function () {
+  // Placeholder — switched off (COP_CHECK_ESTIMATE): not every POC fills the
+  // Request Estimate List yet. The approved amount is always in the Workflow
+  // Logs, and POCs upload the estimate as an attachment.
+  if (COP_CHECK_ESTIMATE) (function () {
     const label = "Estimate attached";
     const n = rec.est.filter((e) => e["estimate"]).length;
     const asAttachment = rec.att.some((a) => /estimate/i.test(a.file) && !/rfq/i.test(a.file));
@@ -1175,6 +1186,7 @@ function copFilterRows(all) {
   const base = rows;                                 // before lane / risk filters (strip counts)
   if (CopUi.lane && CopUi.view === "active") rows = rows.filter((r) => r.lane === CopUi.lane);
   if (CopUi.atRisk) rows = rows.filter((r) => r.counts.red || r.counts.amber);
+  if (CopUi.hit) rows = rows.filter((r) => r.checks.some((c) => c.id === CopUi.hit && (c.state === "fail" || c.state === "warn" || c.state === "due")));
   if (CopUi.stuckOnly) rows = rows.filter((r) => r.stuck === "fail" || r.stuck === "warn");
   if (CopUi.rddDays) rows = rows.filter((r) => r.rddDays !== null && r.rddDays <= CopUi.rddDays);
   if (CopUi.q) {
@@ -1316,6 +1328,52 @@ const COP_CSS = `
   @media (max-width:560px){.cop-lane{flex-basis:calc(50% - 6px)}.cop-upd,.cop-ttl{max-width:180px}}
 `;
 
+/* -------------------------------------------------------------------------
+   HUB — the COP is the one rail button for every management view; Pipeline,
+   Metrics (the Metrics dashboard), PMR, Export-Controlled and the Christmas
+   Tree are tabs inside it. Tab ids are the TOOLS ids (app.js, hub: true).
+   ------------------------------------------------------------------------- */
+const COP_HUB_TOOLS = ["cop", "pmr", "ecm", "xmastree"];     // workspace tools ("metrics" = the dashboard)
+function copIsHubTool(id) { return COP_HUB_TOOLS.indexOf(id) !== -1; }
+/** True while any COP tab is on screen (the Metrics tab = no tool on a Metrics UDQ). */
+function copHubActive() {
+  return copIsHubTool(AppState.activeTool) || (!AppState.activeTool && AppState.udqType === "metrics");
+}
+function copHubSelect(id) {
+  if (id === "metrics") { AppState.activeTool = null; AppState.dashCollapsed = false; }
+  else { AppState.activeTool = id; AppState.dashCollapsed = true; }
+  renderRail(); renderDashboard(); renderWorkspace();
+  requestAnimationFrame(() => {
+    const nav = document.querySelector(".cop-hub");
+    if (nav) nav.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+function copRailButton() {
+  const btn = el(`
+    <button class="rail-cop ${copHubActive() ? "active" : ""}" type="button" title="Common Operational Picture — pipeline, metrics, PMR, Christmas Tree">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="10" rx="1"/><rect x="17" y="4" width="4" height="6" rx="1"/>
+      </svg>
+      <span><span class="t">COP</span><span class="s">Common Operational Picture</span></span>
+    </button>`);
+  btn.addEventListener("click", () => copHubSelect("cop"));
+  return btn;
+}
+function copHubTabs() {
+  const hasMetrics = AppState.udqType === "metrics";
+  const cur = AppState.activeTool || (hasMetrics ? "metrics" : "");
+  const tabs = (typeof TOOLS !== "undefined" ? TOOLS : []).filter((t) => t.hub);
+  const nav = el(`<nav class="cop-hub" aria-label="COP views"></nav>`);
+  for (const t of tabs) {
+    const ok = t.needs !== "metrics" || hasMetrics;
+    const b = el(`<button type="button" class="${cur === t.id ? "active" : ""}" ${ok ? "" : "disabled"}
+      ${cur === t.id ? 'aria-current="page"' : ""} title="${ok ? esc(t.label) : "Load or fetch a Metrics UDQ first"}">${esc(t.label)}</button>`);
+    if (ok) b.addEventListener("click", () => { if (cur !== t.id) copHubSelect(t.id); });
+    nav.appendChild(b);
+  }
+  return nav;
+}
+
 function copChip(state) {
   const s = COP_STATES[state] || COP_STATES.na;
   return `<span class="cop-pill ${s.cls}">${esc(s.word)}</span>`;
@@ -1334,7 +1392,22 @@ function renderCopWorkspace(container) {
   const body = panel.querySelector("#copBody");
 
   if (!built) {
-    body.appendChild(el(`<div class="statusline">Load or fetch a Metrics UDQ to see the COP.</div>`));
+    const empty = el(`<div>
+      <div class="statusline" style="margin-bottom:10px">The COP runs on the Metrics UDQ (every shipment). Fetch it from ATLAS, or drop the exported .xlsx on the drop zone.</div>
+      <div class="btnrow">
+        <button class="btn" id="copFetch" type="button">Fetch Metrics UDQ from ATLAS</button>
+        <button class="btn ghost" id="copBrowse" type="button">Browse for the .xlsx…</button>
+      </div>
+      <div class="note" style="margin-top:10px">The Christmas Tree tab works without it — it loads its own SRF / PR / PMCT / WS UDQs.</div>
+    </div>`);
+    body.appendChild(empty);
+    empty.querySelector("#copFetch").addEventListener("click", () => {
+      if (typeof loadFromAtlasUdq === "function") loadFromAtlasUdq({ dataset: "metrics" });
+    });
+    empty.querySelector("#copBrowse").addEventListener("click", () => {
+      const fi = document.getElementById("fileInput");
+      if (fi) fi.click();
+    });
     return;
   }
   const all = built.rows;
@@ -1360,6 +1433,21 @@ function renderCopWorkspace(container) {
     pocs.map((p) => `<option value="${esc(p)}"${copLow(p) === copLow(sel) ? " selected" : ""}>${esc(p)}</option>`).join("");
   const meOpts = `<option value="">— pick your name —</option>` +
     pocs.map((p) => `<option value="${esc(p)}"${copLow(p) === copLow(prefs.me) ? " selected" : ""}>${esc(p)}</option>`).join("");
+  // "Find metric hits": every check that's red or amber somewhere in this scope, worst first.
+  const hits = {};
+  for (const r of base) for (const c of r.checks) {
+    if (c.state !== "fail" && c.state !== "warn" && c.state !== "due") continue;
+    const h = hits[c.id] || (hits[c.id] = { label: c.label, red: 0, amber: 0 });
+    if (c.state === "fail") h.red++; else h.amber++;
+  }
+  const hitOpts = `<option value="">All checks</option>` + Object.keys(hits)
+    .sort((a, b) => (hits[b].red - hits[a].red) || (hits[b].amber - hits[a].amber) || hits[a].label.localeCompare(hits[b].label))
+    .map((id) => {
+      const h = hits[id];
+      const n = [h.red ? `${h.red} red` : "", h.amber ? `${h.amber} amber` : ""].filter(Boolean).join(", ");
+      return `<option value="${esc(id)}"${CopUi.hit === id ? " selected" : ""}>${esc(h.label)} — ${n}</option>`;
+    }).join("");
+  if (CopUi.hit && !hits[CopUi.hit]) CopUi.hit = "";
   const rddOpts = [[0, "Any RDD"], [7, "RDD ≤ 7 days"], [14, "RDD ≤ 14 days"], [30, "RDD ≤ 30 days"]]
     .map(([v, t]) => `<option value="${v}"${CopUi.rddDays === v ? " selected" : ""}>${t}</option>`).join("");
   body.appendChild(el(`
@@ -1373,6 +1461,7 @@ function renderCopWorkspace(container) {
       ${scope === "mine"
         ? `<div class="field"><label>You are</label><select id="copMe">${meOpts}</select></div>`
         : `<div class="field"><label>TTI POC</label><select id="copPoc">${pocOpts(CopUi.poc)}</select></div>`}
+      <div class="field"><label>Find metric hits</label><select id="copHit" style="max-width:320px">${hitOpts}</select></div>
       <div class="field"><label>RDD</label><select id="copRdd">${rddOpts}</select></div>
       <div class="field"><label>Search</label><input type="search" id="copQ" placeholder="WMTR, title, country" value="${esc(CopUi.q)}"></div>
       <label class="cop-check"><input type="checkbox" id="copRisk"${CopUi.atRisk ? " checked" : ""}> At-risk only</label>
@@ -1440,7 +1529,7 @@ function renderCopWorkspace(container) {
       <button class="btn ghost" id="copExport" type="button">Export (.xlsx)</button>
       <button class="btn ghost" id="copPrint" type="button">Print / PDF</button>
       <button class="btn ghost" id="copSettingsBtn" type="button">${CopUi.settingsOpen ? "Hide" : "Day limits"}</button>
-      ${CopUi.lane || CopUi.poc || CopUi.atRisk || CopUi.stuckOnly || CopUi.rddDays || CopUi.q ? `<button class="btn ghost" id="copClear" type="button">Clear filters</button>` : ""}
+      ${CopUi.lane || CopUi.poc || CopUi.atRisk || CopUi.stuckOnly || CopUi.rddDays || CopUi.q || CopUi.hit ? `<button class="btn ghost" id="copClear" type="button">Clear filters</button>` : ""}
       <span class="statusline" id="copMsg">${esc(CopUi.msg)}</span>
     </div>`));
   if (CopUi.settingsOpen) {
@@ -1595,6 +1684,7 @@ function copWire(panel, built, rows) {
   const poc = $("#copPoc");
   if (poc) poc.addEventListener("change", () => { CopUi.poc = poc.value; copRerender(); });
   $("#copRdd").addEventListener("change", (e) => { CopUi.rddDays = Number(e.target.value) || 0; copRerender(); });
+  $("#copHit").addEventListener("change", (e) => { CopUi.hit = e.target.value; copRerender(); });
   $("#copRisk").addEventListener("change", (e) => { CopUi.atRisk = e.target.checked; copRerender(); });
   $("#copStuck").addEventListener("change", (e) => { CopUi.stuckOnly = e.target.checked; copRerender(); });
   const q = $("#copQ");
@@ -1608,7 +1698,7 @@ function copWire(panel, built, rows) {
     }, 250);
   });
   const clear = $("#copClear");
-  if (clear) clear.addEventListener("click", () => { Object.assign(CopUi, { lane: "", poc: "", atRisk: false, stuckOnly: false, rddDays: 0, q: "" }); copRerender(); });
+  if (clear) clear.addEventListener("click", () => { Object.assign(CopUi, { lane: "", poc: "", atRisk: false, stuckOnly: false, rddDays: 0, q: "", hit: "" }); copRerender(); });
 
   // lane strip + rollup
   panel.querySelectorAll(".cop-lane").forEach((b) => {

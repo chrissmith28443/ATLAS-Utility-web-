@@ -13,10 +13,22 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.97",
+    title: "COP is the hub for Metrics, PMR, Export-Controlled and the Christmas Tree",
+    notes: [
+      "The menu now starts with one big COP button. Metrics, PMR, Export-Controlled and the Christmas Tree moved inside it as tabs along the top (Pipeline · Metrics · PMR · Export-Controlled · Christmas Tree), so the separate Management / Metrics / Christmas Tree menu entries are gone. Required Attachments (single SRF) moved to the Shipping group.",
+      "COP Pipeline: new \"Find metric hits\" picker. It lists every check that's red or amber in the current view with how many shipments miss it — pick one and the table shows just those shipments.",
+      "If no Metrics UDQ is loaded, the COP offers Fetch and Browse buttons; the Christmas Tree tab still works on its own UDQs.",
+      "Daily updates: the first required update is the business day after the request leaves Draft (not the same day).",
+      "The \"Estimate attached\" check is switched off for now (the approved amount is always in the Workflow Logs and the estimate is uploaded as an attachment).",
+      "UDQ readers are ready for the Request Estimate List section now being added to every UDQ: Export-Controlled Materials, Required Attachments and the PMR daily check stop at it instead of reading its rows, and section searches look further down long UDQs.",
+    ],
+  },
+  {
     version: "2.5.96",
     title: "Daily updates are required from the day a request leaves Draft",
     notes: [
-      "Daily Update Check (Metrics, PMR, Christmas Tree and COP all use the same rule): a daily entry is now required every business day from the day the request left Draft until it's delivered. Before, the check only started at the first entry someone made and stopped at the last one, so a slow start or a request that stopped being updated was never counted.",
+      "Daily Update Check (Metrics, PMR, Christmas Tree and COP all use the same rule): a daily entry is now required every business day from the business day after the request left Draft until it's delivered. Before, the check only started at the first entry someone made and stopped at the last one, so a slow start or a request that stopped being updated was never counted.",
       "\"Left Draft\" is the request's first Workflow Logs stamp after Draft (Date Submitted is typed in by the requestor and can be months off, so it isn't used). A request that has left Draft but has no daily entries at all is now flagged too.",
       "Nothing is required before 24 Feb 2026, when ATLAS started recording daily updates, and a request delivered before then isn't checked. Open requests are checked through yesterday (today's entry isn't late yet). Requests sent back to Draft, cancelled ones and pre-Oct 2025 deliveries are treated as before.",
       "Expect lower \"clean\" percentages for past quarters where a request's first update came a day or two after it was submitted.",
@@ -27,14 +39,14 @@ const ATLAS_CHANGELOG = [
     version: "2.5.95",
     title: "COP — Common Operational Picture",
     notes: [
-      "New: COP (Management › COP). A Metrics UDQ now opens on a picture of every active shipment: eight workflow steps across the top (Draft, TTI Quality Review, DTRA Program Review, DTRA Compliance Review, Estimate, Ready to Ship, In Transit, Delivered) with how many shipments sit in each and how many have a missed (red) or attention (amber) item, and a table of the shipments underneath. Click a step to show only those shipments.",
+      "New: COP. A Metrics UDQ now opens on a picture of every active shipment: eight workflow steps across the top (Draft, TTI Quality Review, DTRA Program Review, DTRA Compliance Review, Estimate, Ready to Ship, In Transit, Delivered) with how many shipments sit in each and how many have a missed (red) or attention (amber) item, and a table of the shipments underneath. Click a step to show only those shipments.",
       "Each shipment has a step-by-step checklist (click its row): what has to be done at each step before it moves on — addresses, POCs and inventory fields at Quality Review; Denied Party Screen and BIS/DDTC authorization after Compliance; RFQ within 1 business day, cost list, CIV and estimate at the Estimate step; PO, final CIV, packing list, SLI/AES, label photo, pallet placard, RC, DG declaration and pack date before pickup; AWB/BoL and VAT in transit; POD, MCT and vendor invoice before close-out. An item still to do in the current step shows as a box; once the shipment has moved past it, a missed required item turns red.",
       "Throughout: daily status updates are required every business day from the moment a request enters TTI Quality Review until delivery; RDD turns amber 5 business days out and red once passed (unless an Approval to Adjust RDD is attached); and each step has a limit on how long a shipment can sit there (Day limits — editable). Rejections, manual metric flags and cost over the approved amount come straight from the Christmas Tree.",
       "Hover over a shipment for its latest daily status update, carrier and AWB/BoL and its open items. The latest update is also a column in the table. Consolidated shipments are tagged and highlight each other.",
       "My shipments / All: pick your name once and the COP shows your shipments; All adds a by-POC grid (shipments per step, red counts) for managers. Filters for TTI POC, RDD, at-risk and stuck. Copy as text, Export (.xlsx with a full checklist tab) and Print / PDF.",
       "Ops Tracker: drop the tracker .xlsx onto the COP (or the main drop zone) to add RFQ Sent, Date Packed, AES / ITN and MARAD checks — including a hard red when a shipment that needs AES has been picked up without an ITN. The last tracker loaded is kept in this browser; load an updated one any time. Also flags shipments active in ATLAS but missing from the tracker, and AES classes that don't match the route.",
       "Closed view lists every completed, invoiced, ready-to-invoice or cancelled shipment with its final checklist.",
-      "\"Metrics\" in the menu is now \"Management\" and sits at the top. Settings › Backup now also saves the Christmas Tree acknowledgements, the holiday list, the PMR ignore list, line-item splits and your COP settings.",
+      "Settings › Backup now also saves the Christmas Tree acknowledgements, the holiday list, the PMR ignore list, line-item splits and your COP settings.",
     ],
   },
   {

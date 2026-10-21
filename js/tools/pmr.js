@@ -135,9 +135,9 @@ function pmrRound2(x) {
    Daily Update Check (new in 2.5.0 — no desktop predecessor)
 
    For every WMTR, confirm:
-     1. a daily entry exists for each *business day* from the day the request
-        left Draft (its first non-Draft Workflow Logs stamp, or its first daily
-        entry if earlier) until its Delivery Date — or until yesterday while it's
+     1. a daily entry exists for each *business day* from the business day after
+        the request left Draft (its first non-Draft Workflow Logs stamp), or its
+        first daily entry if earlier, until its Delivery Date — or until yesterday while it's
         still open (weekends + US federal holidays are not expected), and
      2. (disabled, see below) the first daily entry lands within
         PMR_DAILY_START_GRACE_BIZDAYS business days of "Date Submitted".
@@ -323,6 +323,7 @@ function pmrParseDailyBlocks(grid) {
       for (let k = r + 2; k < rEnd; k++) {
         const st = norm(gridCell(grid, k, 2));
         if (!st) break;
+        if (/^(attachment list|inventory list|cost list|shipping activity & history|linked request list|activity tracker list|request estimate list|workflow logs)$/i.test(st)) break;
         if (/^draft\b/i.test(st)) continue;
         const d = pmrToDate(gridCell(grid, k, 3));
         if (d && (!leftDraft || pmrDayDiff(d, leftDraft) > 0)) leftDraft = d;
@@ -406,11 +407,16 @@ function pmrDailyUpdateCheck(grid, startIso, endIso) {
     const inDraft = /^draft\b/.test(st);              // sent back to Draft: only its logged span counts
     const closedSt = /^(completed|ready to invoice|invoiced)$/.test(st);
     let leftDraft = inDraft ? null : b.leftDraft;
+    if (leftDraft) {                                   // first update is due the next business day
+      let d = pmrAddDays(leftDraft, 1);
+      while (!pmrIsBusinessDay(d, holSet)) d = pmrAddDays(d, 1);
+      leftDraft = d;
+    }
     if (leftDraft && pmrDayDiff(leftDraft, logStart) > 0) leftDraft = logStart;        // before ATLAS logged updates
     if (leftDraft && b.delivery && pmrDayDiff(b.delivery, leftDraft) > 0) leftDraft = null; // delivered before then
     if (!b.dates.length && (!leftDraft || (closedSt && !b.delivery))) continue;   // nothing to count from / to
-    // Updates are due every business day from the day the request left Draft
-    // (or its first entry, if that's earlier) until delivery. A request that has
+    // Updates are due every business day from the business day after the request
+    // left Draft (or its first entry, if that's earlier) until delivery. A request that has
     // left Draft but never been updated is flagged too.
     let first = b.dates.length ? b.dates[0] : leftDraft;
     if (leftDraft && pmrDayDiff(leftDraft, first) > 0) first = leftDraft;
@@ -1509,7 +1515,7 @@ function renderPmrResults(result) {
       const scope = (result.window_start && result.window_end) ? "due daily updates in this window" : "due daily updates";
       if (!d.with_daily) return `No WMTRs ${scope} — nothing to check.`;
       return `${d.compliant} of ${d.with_daily} WMTRs ${scope} have no gaps (${d.compliant_pct.toFixed(1)}%) · WMTRs with gaps: ${d.has_gaps}. ` +
-        `A daily entry is expected every business day (weekends + US federal holidays excluded) from the day a request leaves Draft until it's delivered, checked over the part that falls inside the reporting window.`;
+        `A daily entry is expected every business day (weekends + US federal holidays excluded) from the business day after a request leaves Draft until it's delivered, checked over the part that falls inside the reporting window.`;
     })(),
     cancelled: (() => {
       const n = result.cancelled_count || 0;

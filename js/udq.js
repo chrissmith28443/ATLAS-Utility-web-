@@ -103,7 +103,7 @@ function buildHeaderMap(grid, headerRow) {
 }
 
 /** Find the row containing a section title (e.g. "Inventory List"). 0 if absent. */
-function findSectionTitleRow(grid, title, maxScan = 300) {
+function findSectionTitleRow(grid, title, maxScan = 2000) {
   const limR = Math.min(gridMaxRow(grid), maxScan);
   const limC = Math.min(gridMaxCol(grid), 25);
   const want = normKey(title);
@@ -201,7 +201,9 @@ function sectionTableValue(grid, sectionTitle, headerName, maxScanRows = 500) {
 
 function detectUdqType(grid) {
   try {
-    const maxRow = Math.min(gridMaxRow(grid), 300);
+    // Generous scan: every UDQ now carries a Request Estimate List (and long
+    // attachment / daily lists) above its later sections.
+    const maxRow = Math.min(gridMaxRow(grid), 3000);
     const maxCol = Math.min(gridMaxCol(grid), 30);
 
     // Row 1 headers
@@ -235,7 +237,7 @@ function detectUdqType(grid) {
     if (row1.includes("WMTR Number") && a2.startsWith("WMTR-")) return "srf";
 
     // --- Secondary SRF fallback: "Inventory List" anywhere in the upper-left ---
-    const limR = Math.min(gridMaxRow(grid), 200);
+    const limR = Math.min(gridMaxRow(grid), 2000);
     for (let r = 1; r <= limR; r++) {
       for (let c = 1; c <= 20; c++) {
         if (normWs(gridCell(grid, r, c)) === "Inventory List") return "srf";

@@ -115,6 +115,16 @@ Arrived Warehouse or the warehouse actual date is filled.
   "left Draft" (oldest non-Draft Workflow Logs stamp; Date Submitted is unreliable) to
   delivery / yesterday; floor PMR_DAILY_LOG_START_ISO = 2026-02-24 (ATLAS daily history
   began 23–24 Feb 2026). QA impact: Q2 FY26 100%→92.6%, Q3 100%→98.7%. Not pushed yet.
+- v2.5.97: COP is the hub — one big rail button; Pipeline / Metrics / PMR / Export-Controlled /
+  Christmas Tree are tabs (TOOLS entries with hub:true; copHubTabs in cop.js). Management
+  rail group removed; Required Attachments moved to Shipping. "Find metric hits" picker.
+  Daily rule: first update due the NEXT business day after leaving Draft (QA: Q2 FY26 96.2%,
+  Q3 100%). "Estimate attached" check OFF (COP_CHECK_ESTIMATE=false) — user: not everyone
+  fills the Request Estimate List; estimates are uploaded as attachments.
+- Request Estimate List is being added to ALL UDQs. Readers audited + hardened (ecm.js stop
+  set, reqattParseUdq stop titles, pmr Workflow-Logs walk, udq.js scan caps). Tested with the
+  section inserted under the record row / after attachments / inventory / workflow logs.
+- Not pushed: 2.5.95, 2.5.96, 2.5.97 — waiting on user's go-ahead.
 - Fetch path (json_udq.js) does NOT rebuild Cost List or Request Estimate List — COP shows
   "No data" for those checks on fetched data. Need a JSON sample to add them.
 - Open question for user: ~1/3 of requests past estimate review have an empty Request

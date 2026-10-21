@@ -23,17 +23,15 @@ const AppState = {
 };
 
 const TOOLS = [
-  // Management sits at the top of the rail. The COP is its first item and is
-  // what a Metrics UDQ opens on (loadFile).
-  { id: "cop",      group: "Management",         label: "COP",                 needs: "metrics",  ready: true  },
-  { id: "metrics",  group: "Management",         label: "Metrics",             needs: "metrics",  ready: true  },
-  { id: "pmr",      group: "Management",         label: "PMR",                 needs: "metrics",  ready: true  },
-  // Required Attachments' Metrics role now lives inside the Metrics dashboard
-  // (the "Shipping docs" card / section embeds this same window), so it's hidden
-  // from the rail on Metrics UDQs. It stays on the rail for SRF UDQs, where it's
-  // the single-WMTR attachment audit — a different view with no dashboard home.
-  { id: "reqatt",   group: "Management",         label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
-  { id: "ecm",      group: "Management",         label: "Export-Controlled Materials", needs: "metrics", ready: true },
+  // The COP hub: one big button at the top of the rail (renderRail). These
+  // tools are reached through the tab bar inside it (copHubTabs), not the rail.
+  // A Metrics UDQ opens on the COP (loadFile). "metrics" = the Metrics
+  // dashboard, which shows when no tool is active on a Metrics UDQ.
+  { id: "cop",      group: "COP", hub: true,     label: "Pipeline",            needs: "none",     ready: true  },
+  { id: "metrics",  group: "COP", hub: true,     label: "Metrics",             needs: "metrics",  ready: true  },
+  { id: "pmr",      group: "COP", hub: true,     label: "PMR",                 needs: "metrics",  ready: true  },
+  { id: "ecm",      group: "COP", hub: true,     label: "Export-Controlled",   needs: "metrics",  ready: true  },
+  { id: "xmastree", group: "COP", hub: true,     label: "Christmas Tree",      needs: "none",     ready: true  },
   { id: "packet",   group: "Shipping",           label: "Generate packet",     needs: "srf",      ready: true  },
   { id: "ci",       group: "Shipping",           label: "Commercial Invoice",  needs: "srf",      ready: true  },
   { id: "pl",       group: "Shipping",           label: "Packing List/Inventory", needs: "srf",   ready: true  },
@@ -47,8 +45,11 @@ const TOOLS = [
   // Close-out checklist for the loaded request: the Christmas Tree's checks run
   // against this one WMTR. Sits last in the group — it's what you press when the
   // documents are done, not another document.
+  // Required Attachments' Metrics role lives inside the Metrics dashboard (the
+  // "Shipping docs" card embeds this same window), so it's hidden on Metrics
+  // UDQs. On an SRF UDQ it's the single-WMTR attachment audit.
+  { id: "reqatt",   group: "Shipping",           label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
   { id: "audit",    group: "Shipping",           label: "Audit",               needs: "srf", needsGrid: true, ready: true  },
-  { id: "xmastree", group: "Christmas Tree",      label: "Christmas Tree",       needs: "none",     ready: true  },
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },
@@ -161,8 +162,8 @@ async function loadFile(file) {
       }
       status.textContent =
         `Loaded ${file.name} — Metrics UDQ · ${wmtrCount} SRF record${wmtrCount === 1 ? "" : "s"} · ` +
-        `showing the COP; Metrics and PMR are in the Management group`;
-      // A Metrics UDQ opens on the COP (Management › COP).
+        `showing the COP; Metrics, PMR and the other tabs are along its top`;
+      // A Metrics UDQ opens on the COP.
       if (typeof renderCopWorkspace === "function") AppState.activeTool = "cop";
     } else if (udqType === "property") {
       AppState.data = readPropertyUdq(grid);
@@ -352,7 +353,9 @@ function renderDashboard() {
   // The Christmas Tree is a standalone tool — the loaded shipping/PR/Metrics UDQ
   // is irrelevant to it, so hide the request dashboard entirely (not just
   // collapse it) so only the Christmas Tree functions are on screen.
-  if (AppState.activeTool === "xmastree") {
+  // The COP hub tools (COP, PMR, Export-Controlled) have their own view and tab
+  // bar, so the request dashboard is hidden behind them too.
+  if (AppState.activeTool === "xmastree" || (typeof copIsHubTool === "function" && copIsHubTool(AppState.activeTool))) {
     dash.classList.add("hidden");
     dash.classList.remove("dash-collapsed");
     return;
@@ -389,6 +392,7 @@ function renderDashboard() {
     }
     dash.classList.remove("hidden");
     dash.classList.remove("dash-collapsed"); // metrics view IS the dashboard — never collapse
+    if (typeof copHubTabs === "function") dash.appendChild(copHubTabs()); // it's the COP's "Metrics" tab
     if (typeof validationBanner === "function") {
       const vb = validationBanner();
       if (vb) dash.appendChild(vb);
@@ -613,8 +617,11 @@ function scrollAfterToolSelect() {
 function renderRail() {
   const rail = document.getElementById("rail");
   rail.innerHTML = "";
+  // The COP: one big button at the top; its tools are tabs inside it.
+  if (typeof copRailButton === "function") rail.appendChild(copRailButton());
   let lastGroup = null;
   for (const tool of TOOLS) {
+    if (tool.hub) continue;   // reached through the COP's tab bar
     // A tool can opt out of the rail for specific UDQ types (e.g. Required
     // Attachments hides on Metrics, where the dashboard embeds it).
     if (tool.hideOn && [].concat(tool.hideOn).indexOf(AppState.udqType) !== -1) continue;
@@ -795,6 +802,8 @@ function renderWorkspace() {
   else if (AppState.activeTool === "search") renderSearchWorkspace(ws);
   else if (AppState.activeTool === "invconv") renderInvConvWorkspace(ws);
   else if (AppState.activeTool === "invgen") renderInvGenWorkspace(ws);
+  // COP hub tools get the hub's tab bar above their own panel.
+  if (typeof copIsHubTool === "function" && copIsHubTool(AppState.activeTool)) ws.insertBefore(copHubTabs(), ws.firstChild);
   // The Christmas Tree has its own per-service UDQ drop targets, so hide the main drop
   // zone while it's active — stops UDQs being dropped into the wrong window. Uses its
   // own class so it doesn't disturb the user's loader-view (show/hide) preference.

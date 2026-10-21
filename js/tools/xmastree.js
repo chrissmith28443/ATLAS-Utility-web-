@@ -695,7 +695,7 @@ function xtBuildRow(rec) {
 
   // Is Activity Tracker Update Late? SRF (daily) and PR (TTI POC Status Check) only.
   // An update is expected every working day (holidays/weekends exempt). SRF: from the
-  // day the request left Draft (oldest non-Draft Workflow Logs stamp — "Date Submitted"
+  // business day after the request left Draft (oldest non-Draft Workflow Logs stamp — "Date Submitted"
   // is user-entered and unreliable), so a request with no entries at all is flagged
   // too. PR: from the first entry onward. Any missing past working day -> "missed";
   // only today's entry still outstanding -> "due". Only evaluated while active.
@@ -703,6 +703,7 @@ function xtBuildRow(rec) {
   if (rec.service === "SRF") {
     for (const e of wfl) if (e.dt && !/^draft\b/i.test(norm(e.status)) && (!leftDraft || e.dt.getTime() < leftDraft.getTime())) leftDraft = e.dt;
     if (/^draft\b/i.test(norm(sc.status))) leftDraft = null;      // sent back to Draft: not due
+    if (leftDraft) leftDraft = xtWorkday(leftDraft, 1, true);       // first update due the next business day
     // Never before ATLAS began recording daily updates (PMR_DAILY_LOG_START_ISO).
     const logStart = typeof PMR_DAILY_LOG_START_ISO !== "undefined" ? xtParseDate(PMR_DAILY_LOG_START_ISO) : null;
     if (leftDraft && logStart && leftDraft.getTime() < logStart.getTime()) leftDraft = logStart;

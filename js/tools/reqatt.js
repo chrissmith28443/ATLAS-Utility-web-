@@ -123,6 +123,12 @@ function _raHasAnyExact(values, allowed) {
 
 /* ---------------- parser (port of parse_metrics_udq) --------------------- */
 
+/* Col-B section titles that end a Metrics-UDQ Attachment List. */
+const REQATT_BLOCK_STOP = new Set([
+  "inventory list", "cost list", "shipping activity & history", "request estimate list",
+  "linked request list", "workflow logs", "activity tracker list",
+]);
+
 /** Returns an array of { fields, attachment_types, attachment_notes }. */
 function reqattParseUdq(grid) {
   const shipMap = buildHeaderMap(grid, 1); // normalized header -> 1-based col
@@ -172,6 +178,9 @@ function reqattParseUdq(grid) {
         }
         let k = hdrIdx + 1;
         while (k < n && !isWmtrRow(k)) {
+          // Stop at the next titled section (e.g. a Request Estimate List placed
+          // after the attachments) so its rows aren't read as attachments.
+          if (REQATT_BLOCK_STOP.has(cell0(k, 1).toLowerCase())) break;
           if (typeCol !== null) { const t = cell0(k, typeCol); if (t) blk.attachment_types.push(t); }
           if (notesCol !== null) { const nt = cell0(k, notesCol); if (nt) blk.attachment_notes.push(nt); }
           k++;

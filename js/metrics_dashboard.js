@@ -274,7 +274,7 @@ function mxRenderDailyUpdateSection(dash, precomputed) {
   dash.appendChild(panel);
   const host = panel.querySelector("#mxDailyBody");
 
-  host.appendChild(el(`<div class="hint" style="margin-bottom:12px;">A daily entry is expected for every <strong>business day</strong> from the day a request leaves Draft (its first Workflow Logs stamp after Draft) until it's delivered — weekends and US federal holidays are skipped. A request that has left Draft but has no entries at all is flagged too. A WMTR is flagged when a business day with no entry falls inside the reporting window above.</div>`));
+  host.appendChild(el(`<div class="hint" style="margin-bottom:12px;">A daily entry is expected for every <strong>business day</strong> from the business day after a request leaves Draft (its first Workflow Logs stamp after Draft) until it's delivered — weekends and US federal holidays are skipped. A request that has left Draft but has no entries at all is flagged too. A WMTR is flagged when a business day with no entry falls inside the reporting window above.</div>`));
 
   if (!d.with_daily) {
     host.appendChild(el(`<div class="mx-empty">No WMTRs were due daily updates in this window — nothing to check.</div>`));

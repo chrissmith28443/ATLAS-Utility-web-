@@ -1056,6 +1056,37 @@ body.theme-dark .atlas-fetch input{
 .rail-packet:disabled{ background:var(--line); color:var(--steel); cursor:default; box-shadow:none; }
 .rail-packet svg{ display:block; }
 
+/* ===== COP hub: big rail button + tab bar (cop.js copHubTabs) ===== */
+.rail-cop{
+  display:flex; align-items:center; gap:10px; width:100%;
+  margin:6px 0 4px; padding:11px 12px;
+  background:var(--accent); color:#fff;
+  border:0; border-radius:9px; cursor:pointer; text-align:left;
+  box-shadow:0 1px 0 rgba(0,0,0,.12);
+  transition:background .15s, transform .05s;
+}
+.rail-cop:hover{ background:var(--accent-dark); }
+.rail-cop:active{ transform:translateY(1px); }
+.rail-cop.active{ outline:2px solid var(--accent); outline-offset:2px; }
+.rail-cop:focus-visible{ outline:2px solid var(--ink); outline-offset:2px; }
+.rail-cop svg{ flex:none; display:block; }
+.rail-cop .t{ display:block; font-family:var(--disp); font-size:19px; font-weight:600; letter-spacing:.12em; line-height:1.05; }
+.rail-cop .s{ display:block; font-size:10.5px; opacity:.9; letter-spacing:.02em; }
+.cop-hub{
+  display:flex; flex-wrap:wrap; gap:4px; margin:0 0 10px; padding:4px;
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius-panel);
+}
+.cop-hub button{
+  border:0; background:transparent; color:var(--ink); cursor:pointer;
+  font-family:var(--disp); text-transform:uppercase; letter-spacing:1px; font-size:13px;
+  padding:7px 14px; border-radius:var(--radius-btn);
+}
+.cop-hub button:hover:not(:disabled){ background:#F2F5F8; }
+.cop-hub button.active{ background:var(--accent); color:#fff; }
+.cop-hub button:disabled{ color:#A9B4BF; cursor:not-allowed; }
+body.theme-dark .cop-hub button:hover:not(:disabled){ background:#1a2632; }
+body.theme-dark .cop-hub button:disabled{ color:#4b5a68; }
+
 /* ===== Dangerous goods dashboard panel (feature #8) ===== */
 .dg-panel{ border-color: rgba(176,0,0,.35); }
 .dg-panel > header .dg-flag{ color: var(--warn); }

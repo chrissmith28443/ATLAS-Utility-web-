@@ -43,6 +43,7 @@ const ECM_MONTHS = {
 
 const ECM_BLOCK_SECTIONS = new Set([
   "Attachment List", "Inventory List", "Cost List", "Service List", "Shipping Activity & History",
+  "Request Estimate List", "Linked Request List", "Workflow Logs", "Activity Tracker List",
 ]);
 
 /* ---------------- helpers (ports) ---------------------------------------- */

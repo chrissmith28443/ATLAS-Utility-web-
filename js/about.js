@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.98",
+    title: "COP: AES and MARAD worked out from ATLAS",
+    notes: [
+      "AES / ITN: every US export (US origin, foreign destination) now needs an ITN — decided from the ATLAS route, not the tracker's AES Class column. Hand carry is skipped. The export date is ATLAS \"Departure from Origin Est. Date\", and a shipment with a \"Departure from Origin Act. Date\" (or status Picked Up or later) and no ITN is a hard red. The ITN / NOEEI citation still comes from the Ops Tracker until ATLAS has a field for it.",
+      "MARAD (sealift): the due date is now calculated from ATLAS \"Departure from Origin Act. Date\" — 20 working days for cargo leaving the US, 30 for cargo leaving anywhere else (46 CFR 381.3). The submitted date still comes from the Ops Tracker.",
+      "Removed the \"AES class matches the route\" check — the route is now the rule.",
+      "Ops Tracker: the Closed MTR Tracker tab is read too, so the COP's Closed view shows RFQ, pack, ITN and MARAD results for closed shipments. An RFQ cell with text instead of a date (\"Hand Carry\", \"FEDEX\") counts as no RFQ needed.",
+    ],
+  },
+  {
     version: "2.5.97",
     title: "COP is the hub for Metrics, PMR, Export-Controlled and the Christmas Tree",
     notes: [

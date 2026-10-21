@@ -124,7 +124,17 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Request Estimate List is being added to ALL UDQs. Readers audited + hardened (ecm.js stop
   set, reqattParseUdq stop titles, pmr Workflow-Logs walk, udq.js scan caps). Tested with the
   section inserted under the record row / after attachments / inventory / workflow logs.
-- Not pushed: 2.5.95, 2.5.96, 2.5.97 — waiting on user's go-ahead.
+- v2.5.98: AES required = US export (ATLAS route), hand carry skipped; ETD = Shipping Activity
+  "Departure from Origin Est. Date"; departed = "...Act. Date" or lane >= transit. MARAD due =
+  Departure from Origin Act. Date + 20 working days (US origin) / 30 (foreign) per 46 CFR 381.3
+  — user to double-check the rule (COP_MARAD_WORKDAYS_*). Tracker Closed tab now read too.
+- Fields still needed in ATLAS to retire the Ops Tracker: RFQ Sent Date, Date Packed,
+  ITN / NOEEI Citation, MARAD Submitted Date (+ optional Final Shipping / Warehouse Invoice
+  Received dates). NOT needed: ETD (Departure from Origin Est. Date exists), AES class
+  (derived from route), MARAD due (calculated), Reason for RDD change (in ATLAS / comments).
+- Fetch path builds only 4 Shipping Activity columns — departure dates missing on fetched
+  data until json_udq.js maps them (needs the Metrics JSON sample).
+- Not pushed: 2.5.95–2.5.98 — waiting on user's go-ahead.
 - Fetch path (json_udq.js) does NOT rebuild Cost List or Request Estimate List — COP shows
   "No data" for those checks on fetched data. Need a JSON sample to add them.
 - Open question for user: ~1/3 of requests past estimate review have an empty Request

@@ -113,6 +113,10 @@ const COP_RDD_WARN_BDAYS = 5;      // amber when the RDD is this many business d
 const COP_DUE_SOON_DAYS = 5;       // ETD / MARAD "coming due" window (calendar days)
 const COP_PLACARD_TYPE_ISO = "2026-10-21";   // ATLAS "Pallet Placard" attachment type added
 const COP_CHECK_ESTIMATE = false;            // "Estimate attached" check (Request Estimate List) — off for now
+// MARAD report due: working days after loading (Departure from Origin Act. Date),
+// per 46 CFR 381.3 — 20 for cargo from the US, 30 for cargo from abroad.
+const COP_MARAD_WORKDAYS_US = 20;
+const COP_MARAD_WORKDAYS_FOREIGN = 30;
 
 const COP_PREFS_KEY = "atlas.cop.prefs";
 const COP_TRACKER_KEY = "atlas.cop.tracker";
@@ -143,7 +147,7 @@ const COP_DOC_TYPES = {
    registered so the Tree's "Ignored" box names them properly. */
 const COP_ACK_LABELS = {
   "cop.status": "COP: problem status", "cop.redflag": "COP: Red Flag", "cop.stuck": "COP: time in lane",
-  "cop.rdd": "COP: RDD", "cop.tracker": "COP: on Ops Tracker", "cop.aesroute": "COP: AES class vs route",
+  "cop.rdd": "COP: RDD", "cop.tracker": "COP: on Ops Tracker",
   "cop.parties": "COP: addresses & POCs", "cop.invbasic": "COP: inventory basics", "cop.eccn": "COP: ECCN/USML",
   "cop.hts": "COP: Schedule B/HTS", "cop.coo": "COP: country of origin", "cop.shipfields": "COP: shipment fields",
   "cop.value": "COP: line values", "cop.wtdims": "COP: weights/dims", "cop.temphaz": "COP: temp/HAZMAT",
@@ -458,23 +462,32 @@ function copParseTrackerWorkbook(buf, fileName) {
     if (h) { active = { name, rows, h }; break; }
   }
   if (!active) return null;
-  const col = (alts) => { for (const a of alts) { const i = active.h.keys.indexOf(a); if (i !== -1) return i; } return -1; };
-  const cMtr = active.h.keys.indexOf("mtr");
-  const cols = {};
-  for (const k of Object.keys(COP_TRACKER_COLS)) cols[k] = col(COP_TRACKER_COLS[k]);
-  const dateKeys = new Set(["packed", "rfq", "etd", "maradDue", "maradSub"]);
+  // ITN too: the Closed tab records the date the ITN was filed instead of the number.
+  const dateKeys = new Set(["packed", "rfq", "etd", "maradDue", "maradSub", "itn"]);
+  /** One tracker tab -> { rows: {request#: {...}}, cols: [found keys] }. */
+  const readTab = (rows, h) => {
+    const col = (alts) => { for (const a of alts) { const i = h.keys.indexOf(a); if (i !== -1) return i; } return -1; };
+    const cMtr = h.keys.indexOf("mtr");
+    const cols = {};
+    for (const k of Object.keys(COP_TRACKER_COLS)) cols[k] = col(COP_TRACKER_COLS[k]);
+    const out = {};
+    for (let r = h.r + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      const mtr = norm(row[cMtr]);
+      if (!/^WMTR-/i.test(mtr)) continue;               // skip divider rows ("New MTRs as of…")
+      const o = { mtr };
+      for (const k of Object.keys(cols)) o[k] = cols[k] === -1 ? "" : copTrackerCell(row[cols[k]], dateKeys.has(k));
+      out[String(xtWmtrNumber(mtr))] = o;
+    }
+    return { rows: out, cols: Object.keys(cols).filter((k) => cols[k] !== -1) };
+  };
+  const act = readTab(active.rows, active.h);
 
-  const rows = {};
-  for (let r = active.h.r + 1; r < active.rows.length; r++) {
-    const row = active.rows[r] || [];
-    const mtr = norm(row[cMtr]);
-    if (!/^WMTR-/i.test(mtr)) continue;                 // skip divider rows ("New MTRs as of…")
-    const o = { mtr };
-    for (const k of Object.keys(cols)) o[k] = cols[k] === -1 ? "" : copTrackerCell(row[cols[k]], dateKeys.has(k));
-    rows[String(xtWmtrNumber(mtr))] = o;
-  }
-  // WMTRs on the Closed tab(s) — used to explain "not on the Active tab".
+  // Closed tab(s): their WMTRs explain "not on the Active tab", and a Closed MTR
+  // Tracker tab (same columns) supplies RFQ / pack / ITN / MARAD dates to the
+  // COP's Closed view.
   const closed = [];
+  let closedRows = {};
   for (const name of wb.SheetNames) {
     if (!/closed/i.test(name)) continue;
     const cr = copSheetRows(wb, name);
@@ -482,11 +495,13 @@ function copParseTrackerWorkbook(buf, fileName) {
       const s = norm(v);
       if (/^WMTR-/i.test(s)) { closed.push(String(xtWmtrNumber(s))); break; }
     }
+    const h = copHeaderIndex(cr, ["mtr"]);
+    if (h) closedRows = Object.assign(closedRows, readTab(cr, h).rows);
   }
   return {
     fileName: fileName || "", loadedAt: new Date().toISOString(), sheet: active.name,
-    rows, closed: Array.from(new Set(closed)),
-    hasCols: Object.keys(cols).filter((k) => cols[k] !== -1),
+    rows: act.rows, closedRows, closed: Array.from(new Set(closed)),
+    hasCols: act.cols,
   };
 }
 function copGetTracker() {
@@ -649,7 +664,9 @@ function copEvaluate(rec, ctx) {
     : li.closed ? COP_CLOSED_IDX : (li.lane ? COP_LANE_IDX[li.lane] : -1);
   const types = rec.att.map((a) => a.type);
   const hasDoc = (k) => copHasType(types, COP_DOC_TYPES[k]);
-  const trk = ctx.tracker ? (ctx.tracker.rows[String(rec.num)] || null) : null;
+  // Tracker row: the Active tab; a closed request may only be on the Closed tab.
+  const trk = ctx.tracker ? (ctx.tracker.rows[String(rec.num)]
+    || ((li.closed && ctx.tracker.closedRows) ? ctx.tracker.closedRows[String(rec.num)] : null) || null) : null;
   const ig = ctx.ignores[rec.reqNo] || [];
   const isAcked = (keys) => ig.indexOf("*") !== -1 || keys.some((k) => ig.indexOf(k) !== -1);
   const delivered = xtParseDate(f["delivery date"]);
@@ -805,22 +822,11 @@ function copEvaluate(rec, ctx) {
       add(m, "general", "req", m === "rti" ? "Ready to Invoice" : "Invoiced", { state: h.kind === "due" ? "due" : "warn", detail: h.label }, [m]);
   }
 
-  // Ops Tracker presence + AES class vs. ATLAS route.
-  if (ctx.tracker && !li.closed && laneIdx >= COP_LANE_IDX.qr) {
-    if (!trk) {
-      const onClosed = (ctx.tracker.closed || []).indexOf(String(rec.num)) !== -1;
-      add("tracker", "general", "rec", "On the Ops Tracker", { state: "warn",
-        detail: onClosed ? "Active in ATLAS, but the tracker has it on its Closed tab." : "Active in ATLAS, but not on the tracker's Active MTR tab." });
-    } else {
-      const cls = copLow(trk.aesClass);
-      const bad =
-        (sc.category === "EXPORT" && (cls === "f2f" || cls === "import")) ||
-        (sc.category === "IMPORT" && (cls === "yes" || cls === "f2f")) ||
-        (sc.category === "F2F" && (cls === "yes" || cls === "import")) ||
-        (sc.category === "DOMESTIC" && cls === "yes");
-      if (bad) add("aesroute", "general", "rec", "AES class matches the route", { state: "warn",
-        detail: `Tracker says "${trk.aesClass}", but ATLAS shows ${copShortCountry(sc.origin)} → ${copShortCountry(sc.dest)} (${sc.category.toLowerCase()}).` });
-    }
+  // Ops Tracker presence (while it still supplies RFQ / pack / ITN / MARAD dates).
+  if (ctx.tracker && !li.closed && laneIdx >= COP_LANE_IDX.qr && !trk) {
+    const onClosed = (ctx.tracker.closed || []).indexOf(String(rec.num)) !== -1;
+    add("tracker", "general", "rec", "On the Ops Tracker", { state: "warn",
+      detail: onClosed ? "Active in ATLAS, but the tracker has it on its Closed tab." : "Active in ATLAS, but not on the tracker's Active MTR tab." });
   }
 
   /* ===================== 2 · TTI QUALITY REVIEW ===================== */
@@ -925,6 +931,8 @@ function copEvaluate(rec, ctx) {
     if (!ctx.tracker) { add("rfq", "estimate", "req", label, { met: null, detail: `Due ${copFmt(due)}. Load the Ops Tracker to check the RFQ Sent date.` }); return; }
     if (!trk) { add("rfq", "estimate", "req", label, { met: null, detail: `Due ${copFmt(due)}. Not on the Ops Tracker.` }); return; }
     const sent = copIsoToDate(trk.rfq);
+    // Text instead of a date ("Hand Carry", "FEDEX", "N/A") = no RFQ for this one.
+    if (!sent && norm(trk.rfq)) { add("rfq", "estimate", "req", label, { met: "na", detail: `Tracker shows "${trk.rfq}" — no RFQ needed.` }); return; }
     if (sent) {
       add("rfq", "estimate", "req", label, sent.getTime() <= due.getTime()
         ? { state: "ok", detail: `Sent ${copFmt(sent)} (due ${copFmt(due)}).` }
@@ -1030,33 +1038,33 @@ function copEvaluate(rec, ctx) {
         detail: d ? `Packed ${copFmt(d)}.` : trk.packed ? `Tracker shows "${trk.packed}".` : "No Date Packed on the tracker." });
     }
   }
-  // AES / ITN — mirrors the tracker's AES Alert, plus a hard stop once the
-  // shipment has left without an ITN.
+  // AES / ITN. Required for every US export (origin US, destination abroad),
+  // hand carry excepted — decided from the ATLAS route, not a tracker class.
+  // The export date is ATLAS "Departure from Origin Est. Date"; once the
+  // shipment has actually departed (Act. Date, or status Picked Up or later)
+  // without an ITN it's a hard red. The ITN / NOEEI citation itself isn't in
+  // ATLAS yet, so it's read from the Ops Tracker until that field exists.
   (function () {
     const label = "AES filed / ITN before departure";
-    if (!ctx.tracker) { if (exportUs) add("itn", "ready", "req", label, { met: null, detail: "Load the Ops Tracker to check AES / ITN." }); return; }
-    if (!trk) { if (exportUs) add("itn", "ready", "req", label, { met: null, detail: "Not on the Ops Tracker." }); return; }
-    const cls = copLow(trk.aesClass);
-    const itn = norm(trk.itn);
-    const left = laneIdx >= COP_LANE_IDX.transit;
+    if (!exportUs) return;
+    if (sc.handCarry) { add("itn", "ready", "req", label, { met: "na", detail: "Hand carry — AES not checked." }); return; }
+    const depAct = xtParseDate(rec.ship["departure from origin act. date"]);
+    const etd = xtParseDate(rec.ship["departure from origin est. date"]) || (trk ? copIsoToDate(trk.etd) : null);
+    const left = !!depAct || laneIdx >= COP_LANE_IDX.transit;
     const notYet = laneIdx < COP_LANE_IDX.ready;
-    if (cls === "f2f" || cls === "import") { add("itn", "ready", "req", label, { met: "na", detail: `AES class "${trk.aesClass}" — no filing.` }); return; }
-    if (!cls) {
-      if (!exportUs) return;
-      add("itn", "ready", "req", label, notYet ? { state: "open", detail: "AES class not set on the tracker yet." }
-        : { state: "fail", detail: "US export with no AES class on the tracker — confirm AES." });
+    const itn = trk ? norm(trk.itn) : "";
+    if (itn) {
+      const filed = /^\d{4}-\d{2}-\d{2}$/.test(itn) ? copIsoToDate(itn) : null;
+      add("itn", "ready", "req", label, { state: "ok", detail: filed ? `ITN filed ${copFmt(filed)}.` : `${/^x\d/i.test(itn) ? "ITN" : "Exemption / citation"}: ${itn}.` });
       return;
     }
-    if (cls === "no") {
-      add("itn", "ready", "req", label, itn ? { state: "ok", detail: `Exemption documented: ${itn}.` }
-        : notYet ? { state: "open", detail: "AES class \"No\" — exemption citation still to add." }
-                 : { state: "fail", detail: "AES class \"No\" but no NOEEI exemption citation on the tracker." });
+    if (!ctx.tracker || !trk) {
+      const why = !ctx.tracker ? "Load the Ops Tracker to check the ITN" : "Not on the Ops Tracker, so the ITN can't be checked";
+      add("itn", "ready", "req", label, { met: null, detail: `US export — AES required. ${why}${etd ? ` (departs ${copFmt(etd)})` : ""}.` });
       return;
     }
-    if (itn) { add("itn", "ready", "req", label, { state: "ok", detail: `ITN ${itn}.` }); return; }
-    if (left) { add("itn", "ready", "req", label, { state: "fail", detail: `Departed without an ITN — status is "${li.status}" and the tracker has no ITN.` }); return; }
-    const etd = copIsoToDate(trk.etd);
-    if (!etd) { add("itn", "ready", "req", label, notYet ? { state: "open", detail: "AES required; ITN and export date still to come." } : { state: "warn", detail: "AES required, no ITN yet, and no Estimated Export Date on the tracker." }); return; }
+    if (left) { add("itn", "ready", "req", label, { state: "fail", detail: `Departed without an ITN — ${depAct ? `left origin ${copFmt(depAct)}` : `status is "${li.status}"`} and the tracker has no ITN or exemption citation.` }); return; }
+    if (!etd) { add("itn", "ready", "req", label, notYet ? { state: "open", detail: "US export — AES required; ITN and departure date still to come." } : { state: "warn", detail: "US export, no ITN yet, and no \"Departure from Origin Est. Date\" in ATLAS." }); return; }
     const d = copCalDays(today, etd);
     if (d < 0) add("itn", "ready", "req", label, { state: "fail", detail: `Estimated export date ${copFmt(etd)} has passed with no ITN.` });
     else if (d <= 3) add("itn", "ready", "req", label, { state: "fail", detail: `Exports ${copFmt(etd)} (${copPlural(d, "day")}) and there's no ITN yet.` });
@@ -1080,22 +1088,27 @@ function copEvaluate(rec, ctx) {
     }, ["cop.awb", "tracking"], { onEntry: true });
   }
   docRule("vat", "VAT Exemption attached", "transit", full, null, { onEntry: true });
+  // MARAD (sealift only). Due date is calculated from ATLAS "Departure from
+  // Origin Act. Date" (= loading): COP_MARAD_WORKDAYS_US working days for
+  // US-origin cargo, COP_MARAD_WORKDAYS_FOREIGN otherwise (46 CFR 381.3). The
+  // submitted date isn't in ATLAS yet — read from the Ops Tracker until it is.
   if (sc.ocean) {
-    const label = "MARAD (sealift)";
-    if (!ctx.tracker) add("marad", "transit", "req", label, { met: null, detail: "Load the Ops Tracker to check MARAD." });
-    else if (!trk) add("marad", "transit", "req", label, { met: null, detail: "Not on the Ops Tracker." });
+    const label = "MARAD report (sealift)";
+    const loaded = xtParseDate(rec.ship["departure from origin act. date"]);
+    const days = sc.originUs ? COP_MARAD_WORKDAYS_US : COP_MARAD_WORKDAYS_FOREIGN;
+    const due = loaded ? xtWorkday(loaded, days, true) : null;
+    const rule = `${days} working days after departure from origin`;
+    const sub = trk ? copIsoToDate(trk.maradSub) : null;
+    if (sub) add("marad", "transit", "req", label, { state: "ok", detail: `Submitted ${copFmt(sub)}${due ? ` (due ${copFmt(due)})` : ""}.` });
+    else if (trk && (/^n\/?a$/i.test(norm(trk.maradDue)) || /^n\/?a$/i.test(norm(trk.maradSub)))) add("marad", "transit", "req", label, { state: "na", detail: "Ops Tracker shows N/A (e.g. waiver)." });
+    else if (!loaded && li.closed) add("marad", "transit", "req", label, { met: null, detail: `No "Departure from Origin Act. Date" in ATLAS, so the due date (${rule}) can't be worked out.` });
+    else if (!loaded) add("marad", "transit", "req", label, { state: laneIdx < COP_LANE_IDX.transit ? "later" : "open", detail: `Due ${rule}; no "Departure from Origin Act. Date" in ATLAS yet.` });
+    else if (!ctx.tracker || !trk) add("marad", "transit", "req", label, { met: null, detail: `Due ${copFmt(due)} (${rule}). ${!ctx.tracker ? "Load the Ops Tracker" : "Not on the Ops Tracker"} to check whether it was submitted.` });
     else {
-      const sub = copIsoToDate(trk.maradSub), due = copIsoToDate(trk.maradDue);
-      if (sub) add("marad", "transit", "req", label, { state: "ok", detail: `Submitted ${copFmt(sub)}.` });
-      else if (/^n\/?a$/i.test(norm(trk.maradDue)) || /^n\/?a$/i.test(norm(trk.maradSub))) add("marad", "transit", "req", label, { state: "na", detail: "Tracker shows N/A." });
-      else if (laneIdx < COP_LANE_IDX.transit) add("marad", "transit", "req", label, { state: "later", detail: due ? `Due ${copFmt(due)}.` : "MARAD due date comes after loading." });
-      else if (!due) add("marad", "transit", "req", label, { state: "warn", detail: "Ocean shipment with no MARAD Due Date on the tracker." });
-      else {
-        const d = copCalDays(today, due);
-        add("marad", "transit", "req", label, d < 0 ? { state: "fail", detail: `Was due ${copFmt(due)}; not submitted.` }
-          : d <= COP_DUE_SOON_DAYS ? { state: "due", detail: `Due ${copFmt(due)} (${copPlural(d, "day")}).` }
-          : { state: "open", detail: `Due ${copFmt(due)}.` });
-      }
+      const d = copCalDays(today, due);
+      add("marad", "transit", "req", label, d < 0 ? { state: "fail", detail: `Was due ${copFmt(due)} (${rule}); not submitted.` }
+        : d <= COP_DUE_SOON_DAYS ? { state: "due", detail: `Due ${copFmt(due)} (${copPlural(d, "day")}).` }
+        : { state: "open", detail: `Due ${copFmt(due)} (${rule}).` });
     }
   }
 

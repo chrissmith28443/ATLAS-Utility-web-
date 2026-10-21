@@ -191,4 +191,6 @@ Arrived Warehouse or the warehouse actual date is filled.
   defs (copColDefs): header-click sort, per-column filter row, Columns picker (prefs.cols per
   view; Days in Step + reference fields optional). Board inner boxes with `optional` (CT >$100K,
   Delivery) hide when empty. Origin over Destination in one column.
-
+- v2.6.8: Board = exactly the table's rows (top filters, search, attention, RDD, column filters).
+  Mockup sheet: per-row Save (ATLAS times out on long sessions) + "Save all updates"; unsaved
+  typed text kept in CopUi.sheetText across re-renders.

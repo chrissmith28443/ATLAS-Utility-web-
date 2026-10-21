@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.8",
+    title: "COP: the board follows every filter",
+    notes: [
+      "The WMTR bubbles now show only what's in the table — driven by the filters up top, the search box, Needs attention, RDD, or any column filter in the table. Step counts and the missed / attention / on-track tallies follow.",
+      "Developer mockup (daily-update sheet): each WMTR row has its own Save button so updates can be saved one at a time (ATLAS can time out), plus Save all updates. Typed-but-unsaved updates stay put when another row is saved.",
+    ],
+  },
+  {
     version: "2.6.7",
     title: "COP: sortable / filterable table, column picker, cleaner board",
     notes: [

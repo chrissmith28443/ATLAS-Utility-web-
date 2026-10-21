@@ -1790,7 +1790,9 @@ function renderCopWorkspace(container) {
   root.appendChild(card);
   card.appendChild(copFilterPanel(built, all));
   if (isActive) {
-    card.appendChild(copBoard(base, rows));
+    // The board shows exactly what's in the table: top filters, search and
+    // table column filters all drive it (counts and tallies follow).
+    card.appendChild(copBoard(rows, rows));
     card.appendChild(el(`<div class="copx-legend">
       <span><i></i>On track</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
       <span><em>3</em>daily updates missing</span>
@@ -1802,7 +1804,7 @@ function renderCopWorkspace(container) {
   const sheet = edit && CopUi.updMode;
   const tcard = el(`<section class="copx-card">
     <div class="copx-hd"><h2>${sheet ? "Daily Status Updates" : isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
-      <span class="n">${sheet ? "Every shipment in view — type today's update for each, then Save" : isActive ? "Click a row for its checklist and daily updates · click a header to sort" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing) · click a header to sort"}</span>
+      <span class="n">${sheet ? "Every shipment in view — type an update and Save it, or Save all at the end" : isActive ? "Click a row for its checklist and daily updates · click a header to sort" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing) · click a header to sort"}</span>
       <div class="acts">${sheet ? "" : `<button class="copx-btn ${CopUi.colsOpen ? "blue" : ""}" id="copCols" type="button" aria-expanded="${!!CopUi.colsOpen}">Columns</button>`}
       ${edit ? `<button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button>` : ""}</div></div>
     <div class="copx-rule"></div>
@@ -2269,10 +2271,10 @@ function copUpdatesSheet(rows) {
       <label>Update date <input type="date" class="copx-in" id="copUpdDate" value="${esc(iso)}"></label>
       <span class="copx-pill ${done === rows.length ? "g" : "b"}">${done} of ${rows.length} updated</span>
       <span class="copx-msg">${CopUi.msg ? `<b>${esc(CopUi.msg)}</b>` : "Use the TTI POC filter above to show just your shipments."}</span>
-      <button class="copx-btn addb" type="button" data-usave style="margin-left:auto">Save daily updates</button>
+      <button class="copx-btn addb" type="button" data-usave style="margin-left:auto">Save all updates</button>
     </div>
     <div class="copx-tbl"><table><thead><tr><th>WMTR</th><th>Status</th><th>Last update</th><th style="min-width:320px">Update for ${esc(copFmt(xtParseDate(iso)))}</th><th></th></tr></thead><tbody></tbody></table></div>
-    <div class="copx-sheet-ft"><button class="copx-btn addb" type="button" data-usave>Save daily updates</button></div>
+    <div class="copx-sheet-ft"><button class="copx-btn addb" type="button" data-usave>Save all updates</button></div>
   </div>`);
   const tb = wrap.querySelector("tbody");
   sorted.forEach((r, i) => {
@@ -2284,8 +2286,9 @@ function copUpdatesSheet(rows) {
       <td class="st">${esc(r.status)}<small>${esc(r.dest || "")}</small></td>
       <td class="up">${last ? `<span class="d">${esc(copFmt(last.date))}${last.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(last.note)}</span>` : `<span class="d">No updates yet</span>`}</td>
       <td>${today ? `<div class="copx-donebox">✓ ${esc(today.note)}${today.pending ? ' <b class="copx-amber">(pending)</b>' : ""}</div>` : ""}
-        <textarea class="copx-in" data-unote data-i="${i}" rows="2" maxlength="1000" placeholder="${today ? "Add another update" : "Today's update"}"></textarea></td>
-      <td class="nw"><button class="copx-btn sm blue" type="button" data-usame>Same as last</button></td>
+        <textarea class="copx-in" data-unote data-i="${i}" rows="2" maxlength="1000" placeholder="${today ? "Add another update" : "Today's update"}">${esc((CopUi.sheetText || {})[r.wmtr] || "")}</textarea></td>
+      <td class="nw"><button class="copx-btn sm blue" type="button" data-usame>Same as last</button>
+        <button class="copx-btn sm addb" type="button" data-uone>Save</button></td>
     </tr>`));
   });
   if (!rows.length) tb.appendChild(el(`<tr><td colspan="5" class="copx-msg">No shipments in view.</td></tr>`));
@@ -2482,18 +2485,32 @@ function copWireUpdates(root, byW) {
   });
   const ud = root.querySelector("#copUpdDate");
   if (ud) ud.addEventListener("change", () => { CopUi.updDate = ud.value || ""; copRerender(); });
-  // Sheet: type updates for any rows, then one "Save daily updates" saves them all.
+  // Sheet: each row has its own Save (ATLAS can time out on a long session, so
+  // save as you go); "Save daily updates" saves every filled row at once.
+  // Unsaved text is kept across re-renders so saving one row never loses the others.
   const iso = CopUi.updDate || xtIso(copToday());
+  CopUi.sheetText = CopUi.sheetText || {};
   root.querySelectorAll(".copx-sheet tbody tr[data-w]").forEach((tr) => {
     const w = tr.dataset.w, ta = tr.querySelector("[data-unote]");
-    tr.querySelector("[data-usame]").addEventListener("click", () => { ta.value = latestNote(byW[w]); ta.focus(); });
+    const keep = () => { if (ta.value.trim()) CopUi.sheetText[w] = ta.value; else delete CopUi.sheetText[w]; };
+    ta.addEventListener("input", keep);
+    tr.querySelector("[data-usame]").addEventListener("click", () => { ta.value = latestNote(byW[w]); keep(); ta.focus(); });
+    tr.querySelector("[data-uone]").addEventListener("click", () => {
+      const note = ta.value.trim();
+      if (!note || !byW[w]) { ta.focus(); return; }
+      copSaveDailyUpdate(w, iso, note);
+      delete CopUi.sheetText[w];
+      CopUi.msg = `Saved ${byW[w].last5}'s update for ${copFmt(xtParseDate(iso))}.`;
+      CopUi.focusUpd = Number(ta.dataset.i);            // the next row to update moves into this slot
+      copRerender();
+    });
   });
   root.querySelectorAll(".copx-sheet [data-usave]").forEach((b) => b.addEventListener("click", () => {
     const filled = Array.from(root.querySelectorAll(".copx-sheet tbody tr[data-w]"))
       .map((tr) => ({ w: tr.dataset.w, note: tr.querySelector("[data-unote]").value.trim() }))
       .filter((x) => x.note && byW[x.w]);
     if (!filled.length) { CopUi.msg = "Nothing to save — type an update first."; copRerender(); return; }
-    for (const x of filled) copSaveDailyUpdate(x.w, iso, x.note);
+    for (const x of filled) { copSaveDailyUpdate(x.w, iso, x.note); delete CopUi.sheetText[x.w]; }
     CopUi.msg = `Saved ${copPlural(filled.length, "daily update")} for ${copFmt(xtParseDate(iso))}.`;
     copRerender();
   }));

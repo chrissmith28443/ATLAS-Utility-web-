@@ -174,4 +174,6 @@ Arrived Warehouse or the warehouse actual date is filled.
   (CopUi.role) = plain-language step, progress bar, latest update, POC contact; no checks.
   NEXT: standalone HTML COP mockup for TTI devs (no fetch/UDQ), top of each service dashboard,
   shipping first.
+- v2.6.4: Board sub-boxes for Review (program / compliance) and Estimate (TTI prep / DTRA estimate
+  review / CT > $100K) via COP_STEP_SUBS + r.sub (copStepInfo). Requestor view unchanged.
 

@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.4",
+    title: "COP: Program/Compliance and Estimate split by stage",
+    notes: [
+      "DTRA Program / Compliance Review is split into DTRA Program Review and DTRA Compliance Review boxes; Estimate into TTI Estimate Preparation, DTRA Estimate Review / cost approval, and CT Program > $100K Approval — the same inner boxes Execution already had.",
+    ],
+  },
+  {
     version: "2.6.3",
     title: "COP: daily updates from the board, request links, requestor view",
     notes: [

@@ -1215,6 +1215,24 @@ const COP_EXEC_PHASES = [
   { id: "delivery", label: "Delivery",                    statuses: ["out for delivery", "failed delivery attempt", "delivered - pending pod"] },
 ];
 const COP_PHASE_IDX = { pre: 0, booked: 1, transit: 2, customs: 3, delivery: 4 };
+/* Program/Compliance Review and Estimate, split by the exact ATLAS status. */
+const COP_STEP_SUBS = {
+  review: [
+    { id: "program",    label: "DTRA Program Review",                 statuses: ["dtra program review"] },
+    { id: "compliance", label: "DTRA Compliance Review",              statuses: ["dtra compliance review"] },
+  ],
+  estimate: [
+    { id: "tti",        label: "TTI Estimate Preparation",            statuses: ["tti estimate preparation"] },
+    { id: "dtra",       label: "DTRA Estimate Review / cost approval", statuses: ["dtra estimate review"] },
+    { id: "ct",         label: "CT Program > $100K Approval",         statuses: ["ct program > 100k approval"] },
+  ],
+};
+function copStepSubOf(step, low) {
+  const subs = COP_STEP_SUBS[step];
+  if (!subs) return null;
+  for (const p of subs) if (p.statuses.indexOf(low) !== -1) return p.id;
+  return subs[0].id;
+}
 function copExecPhaseOf(low) {
   for (const p of COP_EXEC_PHASES) if (p.statuses.indexOf(low) !== -1) return p.id;
   return null;
@@ -1244,12 +1262,13 @@ function copStepInfo(rec) {
   const problem = COP_PROBLEM_STATUSES.has(low);
   let step = copStepOfStatus(low);
   let phase = copExecPhaseOf(low);
+  let sub = copStepSubOf(step, low);
   if (!step && !closed && !draft) {
     for (const e of rec.wfl) {
       const b = copBaseStatus(e.status);
       if (copIsProblemOnly(b)) continue;
       const s = copStepOfStatus(b);
-      if (s) { step = s; phase = copExecPhaseOf(b); break; }
+      if (s) { step = s; phase = copExecPhaseOf(b); sub = copStepSubOf(s, b); break; }
     }
     if (!step && problem) { step = "exec"; phase = "pre"; }
   }
@@ -1268,7 +1287,7 @@ function copStepInfo(rec) {
       stuckSince = copRunSince(rec.wfl, (b) => b === "delivered - pending pod");
     } else { stuckKey = null; stuckSince = null; }    // moving: RDD + daily updates cover it
   }
-  return { status, low, draft, closed, problem, step, phase, stepIdx: step ? COP_STEP_IDX[step] : -1,
+  return { status, low, draft, closed, problem, step, phase, sub, stepIdx: step ? COP_STEP_IDX[step] : -1,
            unmapped: !step && !closed && !draft, stepSince, stuckKey, stuckSince };
 }
 
@@ -1607,7 +1626,7 @@ function copActiveEvaluate(rec, ctx) {
     rec, wmtr: rec.wmtr, reqNo: rec.reqNo, num: rec.num, last5: wmtrLast5(rec.wmtr) || String(rec.num),
     poc: f["tti poc name"] || "", title: f["request title"] || "", program: f["ctr program"] || "",
     pocEmail: f["tti poc email"] || "", pocPhone: f["tti poc phone number"] || "", requestor: f["requestor name"] || "",
-    status: si.status, step: si.step, stepIdx, phase: si.phase, problem: si.problem, unmapped: si.unmapped,
+    status: si.status, step: si.step, stepIdx, phase: si.phase, sub: si.sub, problem: si.problem, unmapped: si.unmapped,
     daysInStep: si.stepSince ? copBizDaysBetween(si.stepSince, today) : null, stuck: stuckState,
     rdd, rddDays: rdd && !delivered ? copCalDays(today, rdd) : null,
     dest: copShortCountry(f["country of destination"] || ""), origin: copShortCountry(f["country of origin"] || ""),
@@ -1723,6 +1742,7 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-col .tally .r{color:var(--ax-red)} .copx-col .tally .a{color:var(--ax-amber)} .copx-col .tally .g{color:var(--ax-green)}
 .copx-col .cb{padding:12px;display:flex;flex-wrap:wrap;gap:9px 7px;align-content:flex-start;flex:1}
 .copx-col.exec .cb{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.copx-col.review .cb,.copx-col.estimate .cb{display:flex;flex-direction:column;flex-wrap:nowrap;gap:10px}
 .copx-ph{background:var(--ax-card);border:1px solid var(--ax-line2);border-radius:8px;padding:8px 9px 10px}
 .copx-ph .pl{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ax-muted);margin-bottom:7px;display:flex;justify-content:space-between}
 .copx-ph .bb{display:flex;flex-wrap:wrap;gap:9px 7px}
@@ -1995,9 +2015,10 @@ function copBoard(base, rows) {
   for (const s of COP_STEPS) {
     const xs = base.filter((r) => r.step === s.id).sort(sortB);
     let body;
-    if (s.id === "exec") {
-      body = COP_EXEC_PHASES.map((p) => {
-        const ps = xs.filter((r) => r.phase === p.id);
+    if (s.id === "exec" || COP_STEP_SUBS[s.id]) {
+      const exec = s.id === "exec";
+      body = (exec ? COP_EXEC_PHASES : COP_STEP_SUBS[s.id]).map((p) => {
+        const ps = xs.filter((r) => (exec ? r.phase : r.sub) === p.id);
         return `<div class="copx-ph"><div class="pl"><span>${esc(p.label)}</span><span>${ps.length}</span></div>
           <div class="bb">${ps.length ? ps.map(tag).join("") : `<span class="copx-empty">None</span>`}</div></div>`;
       }).join("");

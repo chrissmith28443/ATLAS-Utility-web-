@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.99",
+    title: "Fetch from ATLAS now brings the Cost List, full shipping activity and estimates",
+    notes: [
+      "Fetching a UDQ from ATLAS now rebuilds everything the Excel export has that the tools read: the Cost List (with each line's attached quotes), all 50 Shipping Activity & History columns (warehouse, departure from origin, arrival, customs and delivery dates) and the Request Estimate List. Before, only carrier, AWB/BoL, INCOTERMS and tracking link came through.",
+      "So on fetched data the COP now runs its cost-list, vendor-quote, total-cost, ITN (departure dates) and MARAD checks instead of showing \"No data\" — the same results as dropping the .xlsx export.",
+    ],
+  },
+  {
     version: "2.5.98",
     title: "COP: AES and MARAD worked out from ATLAS",
     notes: [

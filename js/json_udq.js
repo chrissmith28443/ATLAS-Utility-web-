@@ -22,9 +22,10 @@
      - "Shipping" -> slice the single WMTR the user enters, build a one-block
                      grid (detects as "srf"), then all SRF document tools run.
 
-   Sections intentionally NOT rebuilt (no current tool reads them, keeps the
-   in-browser grid smaller): "Cost List". Workflow Logs ARE rebuilt (the
-   Christmas Tree and Record Audit read them).
+   Rebuilt sections: Request Estimate List, Inventory List, Attachment List,
+   Cost List (with each line's nested attachments), Shipping Activity & History
+   (all 50 columns) + Daily Status History, Activity Tracker List, Linked
+   Request List, Workflow Logs. Not rebuilt (no reader): Transshipments.
    ========================================================================= */
 
 /* -------------------------------------------------------------------------
@@ -330,11 +331,129 @@ const ATLAS_ATTACH_COLUMNS = [
 ];
 
 /* Shipping Activity & History header (start at col B). INCOTERMS + AWB/BoL live here. */
+/* All 50 export columns, verified Oct 2026 against the Metrics JSON + its Excel
+   export: JSON origin_Departure_* = "Warehouse Departure", departure_* =
+   "Departure from Origin", arrival_* = "Arrival at Destination", dest_Custom_* =
+   "Customs Clearance", dest_Delvry_* = "Destination Delivery". Dates use the
+   *_UDQ fields ("17-Mar-2026", as the export shows them); see atlasShipActRow. */
 const ATLAS_SHIPACT_COLUMNS = [
   ["carrierFreight", "Carrier / Freight Forwarder"],
   ["awlBol", "AWB/BoL"],
   ["incoterms", "INCOTERMS"],
   ["trackingLink", "Tracking Link"],
+  ["origin_FirstItem_EstDate_UDQ", "First Item Warehouse Est. Date"],
+  ["origin_FirstItem_ActDate_UDQ", "First Item Warehouse Act. Date"],
+  ["origin_FirstItem_CountryText", "First Item Warehouse Country"],
+  ["origin_FirstItem_CityText", "First Item Warehouse City"],
+  ["origin_FirstItem_Facility", "First Item Warehouse Facility"],
+  ["origin_FirstItem_Notes", "First Item Warehouse Notes"],
+  ["origin_LastItem_EstDate_UDQ", "Last Item Warehouse Est. Date"],
+  ["origin_LastItem_ActDate_UDQ", "Last Item Warehouse Act. Date"],
+  ["origin_LastItem_CountryText", "Last Item Warehouse Country"],
+  ["origin_LastItem_CityText", "Last Item Warehouse City"],
+  ["origin_LastItem_Facility", "Last Item Warehouse Facility"],
+  ["origin_LastItem_Notes", "Last Item Warehouse Notes"],
+  ["origin_Departure_EstDate_UDQ", "Warehouse Departure Est. Date"],
+  ["origin_Departure_ActDate_UDQ", "Warehouse Departure Act. Date"],
+  ["origin_Departure_CountryText", "Warehouse Departure Country"],
+  ["origin_Departure_CityText", "Warehouse Departure City"],
+  ["origin_Departure_Facility", "Warehouse Departure Facility"],
+  ["origin_Departure_Notes", "Warehouse Departure Notes"],
+  ["departure_EstDate_UDQ", "Departure from Origin Est. Date"],
+  ["departure_EstTime_UDQ", "Departure from Origin Est. Time"],
+  ["departure_ActDate_UDQ", "Departure from Origin Act. Date"],
+  ["departure_ActTime_UDQ", "Departure from Origin Act. Time"],
+  ["departure_CountryText", "Departure from Origin Country"],
+  ["departure_CityText", "Departure from Origin City"],
+  ["departure_Portcode", "Departure from Origin Portcode"],
+  ["departure_Notes", "Departure from Origin Notes"],
+  ["arrival_EstDate_UDQ", "Arrival at Destination Est. Date"],
+  ["arrival_EstTime_UDQ", "Arrival at Destination Est. Time"],
+  ["arrival_ActDate_UDQ", "Arrival at Destination Act. Date"],
+  ["arrival_ActTime_UDQ", "Arrival at Destination Act. Time"],
+  ["arrival_CountryText", "Arrival at Destination Country"],
+  ["arrival_CityText", "Arrival at Destination City"],
+  ["arrival_Portcode", "Arrival at Destination Portcode"],
+  ["arrival_Notes", "Arrival at Destination Notes"],
+  ["dest_Custom_EstDate_UDQ", "Customs Clearance Est. Date"],
+  ["dest_Custom_ActDate_UDQ", "Customs Clearance Act. Date"],
+  ["dest_Custom_CountryText", "Customs Clearance Country"],
+  ["dest_Custom_CityText", "Customs Clearance City"],
+  ["dest_Custom_PortCode", "Customs Clearance Port Code"],
+  ["dest_Custom_Notes", "Customs Clearance Notes"],
+  ["dest_Delvry_EstDate_UDQ", "Destination Delivery Est. Date"],
+  ["dest_Delvry_ActDate_UDQ", "Destination Delivery Act. Date"],
+  ["dest_Delvry_CountryText", "Destination Delivery Country"],
+  ["dest_Delvry_CityText", "Destination Delivery City"],
+  ["dest_Delvry_Facility", "Destination Delivery Facility"],
+  ["dest_Delvry_Notes", "Destination Delivery Notes"],
+];
+
+/* Cost List columns (start at col B), export order. Each cost line may carry its
+   own attachments (attachList) — written as a nested Attachment List in col C,
+   as the export does. The COP reads Rate Type, Burdened Rate, Total in USD and
+   the nested "Quotation" attachments. */
+const ATLAS_COST_COLUMNS = [
+  ["serialNumber", "Serial #"],
+  ["notes", "Notes"],
+  ["group", "Ship Group #"],
+  ["serviceDescription", "Service Description"],
+  ["fromCountryCity", "From Country/City"],
+  ["toCountryCity", "To Country/City"],
+  ["modeofTransportation", "Mode Of Transportation"],
+  ["vendorName", "Vendor Name"],
+  ["address", "Address"],
+  ["poc", "POC"],
+  ["pocContactInfo", "POC Contact Info"],
+  ["quantity", "Quantity"],
+  ["paymentTermsText", "Payment Terms"],
+  ["methodOfPaymentText", "Method of Payment"],
+  ["ttiCancellationTerms", "TTI Cancellation Terms"],
+  ["rateTypeText", "Rate Type"],
+  ["vendorCancellationTerms", "Vendor Cancellation Terms"],
+  ["unitText", "Unit of Measure"],
+  ["vendorRate", "Vendor Rate"],
+  ["vendorFees", "Vendor Fees"],
+  ["vendorTotal", "Vendor Total"],
+  ["currencyText", "Currency"],
+  ["rateinUSD", "Unburdened Rate(USD)"],
+  ["feesinUSD", "Unburdened Fees(USD)"],
+  ["multiplier", "Multiplier(%)"],
+  ["burdenedRate", "Burdened Rate(USD)"],
+  ["burdenedFees", "Burdened Fees(USD)"],
+  ["totalinUSD", "Total in USD"],
+  ["deliveryServiceDescription", "Delivery Service Description"],
+  ["dsdQuantity", "Quantity (Other Cost)"],
+  ["dsdUnitText", "Unit Of Measure (Other Cost)"],
+  ["dsdVendorRate", "Vendor Rate (Other Cost)"],
+  ["dsdVendorFees", "Vendor Fees (Other Cost)"],
+  ["dsdVendorTotal", "Vendor Total (Other Cost)"],
+  ["dsdCurrencyText", "Currency (Other Cost)"],
+  ["dsdFromCountryCity", "From Country/City (Other Cost)"],
+  ["dsdToCountryCity", "To Country/City (Other Cost)"],
+  ["dsdModeofTransportation", "Mode of Transportation (Other Cost)"],
+  ["oacRateinUSD", "Unburdened Rate(USD) (Other Cost)"],
+  ["oacFeesinUSD", "Unburdened Fees(USD) (Other Cost)"],
+  ["oacMultiplier", "Multiplier(%) (Other Cost)"],
+  ["oacBurdenedRate", "Burdened Rate(USD) (Other Cost)"],
+  ["oacBurdenedFees", "Burdened Fees(USD) (Other Cost)"],
+  ["oacTotalinUSD", "Total in USD (Other Cost)"],
+];
+const ATLAS_COST_ATTACH_COLUMNS = [
+  ["fileName", "File Name"],
+  ["typeDescription", "Type"],
+  ["createdDate", "Created At"],
+];
+
+/* Request Estimate List (start at col B) — directly under the record row. */
+const ATLAS_ESTIMATE_COLUMNS = [
+  ["revision", "Revision"],
+  ["requestFileName", "Request"],
+  ["requestDate", "Request Date"],
+  ["estimateFileName", "Estimate"],
+  ["estimateDate", "Estimate Date"],
+  ["layoutDate", "Layout Date"],
+  ["layoutFileName", "Layout"],
 ];
 
 /* Workflow Logs columns (start at col B), newest-first as ATLAS sends them.
@@ -628,6 +747,10 @@ function atlasRecordsToGrid(records) {
     // --- record row (col A = WMTR) ---
     grid.push(ATLAS_SCALAR_COLUMNS.map((p) => atlasCell(rec[p[0]])));
 
+    // --- Request Estimate List (directly under the record row, as in the export) ---
+    const est = Array.isArray(rec.RequestEstimateList) ? rec.RequestEstimateList : [];
+    if (est.length) atlasPushSection(grid, "Request Estimate List", 2, ATLAS_ESTIMATE_COLUMNS, 2, est);
+
     // --- Inventory List (always emit header so SRF required columns exist) ---
     const inv = Array.isArray(rec.ShipDeliveryInventory) ? rec.ShipDeliveryInventory : [];
     atlasPushSection(grid, "Inventory List", 2, ATLAS_INVENTORY_COLUMNS, 2, inv);
@@ -636,13 +759,26 @@ function atlasRecordsToGrid(records) {
     const att = Array.isArray(rec.ShipDeliveryAttach) ? rec.ShipDeliveryAttach : [];
     if (att.length) atlasPushSection(grid, "Attachment List", 2, ATLAS_ATTACH_COLUMNS, 2, att);
 
-    // --- Shipping Activity & History (INCOTERMS / AWB-BoL) + nested Daily Status History ---
+    // --- Cost List (COP estimate checks), each line followed by its own
+    //     attachments as a nested col-C Attachment List, like the export ---
+    const cost = Array.isArray(rec.CostList) ? rec.CostList : [];
+    if (cost.length) {
+      grid.push(atlasRow([[2, "Cost List"]]));
+      grid.push(atlasHeaderRow(ATLAS_COST_COLUMNS, 2));
+      for (const line of cost) {
+        grid.push(atlasValueRow(line, ATLAS_COST_COLUMNS, 2));
+        const la = Array.isArray(line.attachList) ? line.attachList : [];
+        if (la.length) atlasPushSection(grid, "Attachment List", 3, ATLAS_COST_ATTACH_COLUMNS, 3, la);
+      }
+    }
+
+    // --- Shipping Activity & History (all export columns) + nested Daily Status History ---
     const sah = Array.isArray(rec.ShippingActivityHistory) ? rec.ShippingActivityHistory : [];
     if (sah.length) {
       const first = sah[0];
       grid.push(atlasRow([[2, "Shipping Activity & History"]]));
       grid.push(atlasHeaderRow(ATLAS_SHIPACT_COLUMNS, 2));
-      grid.push(atlasValueRow(first, ATLAS_SHIPACT_COLUMNS, 2));
+      grid.push(atlasValueRow(atlasShipActRow(first), ATLAS_SHIPACT_COLUMNS, 2));
       // Daily Status History — title in col C, Date/Notes in cols C/D (PMR daily check)
       const daily = Array.isArray(first.dailyPOCList) ? first.dailyPOCList : [];
       if (daily.length) {
@@ -670,9 +806,20 @@ function atlasRecordsToGrid(records) {
       .map((w) => ({ ...w, totalCostDisplay: w.totalCostDisplay || null }));
     if (wfl.length) atlasPushSection(grid, "Workflow Logs", 2, ATLAS_WORKFLOW_COLUMNS, 2, wfl);
 
-    // NOTE: "Cost List" is intentionally not rebuilt — no current tool reads it.
   }
   return grid;
+}
+
+/** Shipping-activity record with every *_UDQ date/time filled: when ATLAS sends
+    only the raw ISO value, format that instead so the cell isn't left blank. */
+function atlasShipActRow(sa) {
+  const out = Object.assign({}, sa);
+  for (const [key] of ATLAS_SHIPACT_COLUMNS) {
+    if (!/_UDQ$/.test(key) || (out[key] !== null && out[key] !== undefined && out[key] !== "")) continue;
+    const raw = sa[key.slice(0, -4)];
+    if (raw !== null && raw !== undefined && raw !== "") out[key] = atlasCell(raw);
+  }
+  return out;
 }
 
 /**

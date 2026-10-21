@@ -132,9 +132,11 @@ Arrived Warehouse or the warehouse actual date is filled.
   ITN / NOEEI Citation, MARAD Submitted Date (+ optional Final Shipping / Warehouse Invoice
   Received dates). NOT needed: ETD (Departure from Origin Est. Date exists), AES class
   (derived from route), MARAD due (calculated), Reason for RDD change (in ATLAS / comments).
-- Fetch path builds only 4 Shipping Activity columns — departure dates missing on fetched
-  data until json_udq.js maps them (needs the Metrics JSON sample).
-- Not pushed: 2.5.95–2.5.98 — waiting on user's go-ahead.
+- v2.5.99: fetch path (json_udq.js) now rebuilds Cost List (+ nested line attachments),
+  all 50 Shipping Activity columns and the Request Estimate List, mapped from the Metrics
+  JSON sample (Downloads\cfb99354-...json, Oct 2026). Verified: cost lines sum to Total
+  Cost on 210/210 fetched records.
+- Not pushed: 2.5.95–2.5.99 — waiting on user's go-ahead.
 - Fetch path (json_udq.js) does NOT rebuild Cost List or Request Estimate List — COP shows
   "No data" for those checks on fetched data. Need a JSON sample to add them.
 - Open question for user: ~1/3 of requests past estimate review have an empty Request

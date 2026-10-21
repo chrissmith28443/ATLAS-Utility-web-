@@ -13,6 +13,18 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.2",
+    title: "COP: RDD optional per request, AES deadlines, cleaner filters and layout",
+    notes: [
+      "RDD: no longer policed by default. A passed RDD is amber only once the shipment is in Execution. For a request with a firm date (a training event, travellers), tick \"Monitor RDD for this request\" in its details — then it turns amber 5 business days out and red once passed. (The switch is saved in this browser.) New \"Past RDD\" choice in the RDD filter.",
+      "AES filed (ITN): now checked against the 15 CFR 30.4 filing deadline — sealift 24 hours before loading (the day before Departure from Origin Est. Date), air 2 hours before departure (8 for USML items), truck 1 hour before the border. Amber within 2 days of the deadline, red once it passes or if the shipment departs without an ITN.",
+      "Cost List check: a cost line with a total now counts (some lines carry only the total; ATLAS leaves the burdened rate blank).",
+      "Quality Review gaps after the request has moved on now say \"Incomplete\" instead of \"Late\" — they're complete-or-not, not a timing thing.",
+      "Daily updates (COP, Metrics, PMR, Christmas Tree) are required from 1 March 2026.",
+      "Layout: smaller oval WMTR tags; step headers without step numbers, with the WMTR count in a circle; TTI POC, Metric hits, Search and Needs attention always in view (TTI POC lists only the people with shipments in this view), RDD and the Ops Tracker / Day limits links under More filters; \"My shipments only\" removed. Hover shows which daily-update days are missing. Shipment details are three columns: request + last 10 daily updates, the steps in order, and the throughout checks.",
+    ],
+  },
+  {
     version: "2.6.1",
     title: "COP: the RFQ is the only timeline flagged by default",
     notes: [

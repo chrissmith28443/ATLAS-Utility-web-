@@ -175,6 +175,7 @@ const COP_STATES = {
   ok:      { word: "Done",         icon: "✓", cls: "good", rank: 8 },
   todo:    { word: "To do",        icon: "□", cls: "open", rank: 3 },
   late:    { word: "Late",         icon: "✕", cls: "na",   rank: 5 },
+  incomplete: { word: "Incomplete", icon: "✕", cls: "na",   rank: 5 },
 };
 
 /* -------------------------------------------------------------------------
@@ -1326,7 +1327,7 @@ function copActiveEvaluate(rec, ctx) {
     if (met === null) state = "unknown";
     else if (met === "na") state = "na";
     else if (met) state = "ok";
-    else if (overdue === "late") state = "late";     // missed earlier, nothing to act on now
+    else if (overdue === "incomplete") state = "incomplete";   // still not filled in; doesn't colour the bubble
     else if (overdue) state = "warn";
     else if (stepIdx >= COP_STEP_IDX[step]) state = "todo";
     else state = "later";
@@ -1363,19 +1364,25 @@ function copActiveEvaluate(rec, ctx) {
     else add("daily", "general", label, "ok", `Up to date. ${lastTxt}`, ["activity"]);
   })();
 
-  // RDD — until delivered.
+  // RDD. Requestors set it without validation and it's routinely moved to
+  // the delivery date afterwards, so it isn't policed by default: a passed RDD
+  // is amber only once the shipment is in Execution (after DTRA approval). A
+  // request with a firm date (training event, travellers) can be switched to
+  // RDD monitoring in its details — then it's amber 5 business days out and
+  // red once passed, at any step.
+  const rddWatch = !!(ctx.prefs.rddWatch && ctx.prefs.rddWatch[rec.reqNo]);
   if (!delivered && si.low !== "delivered - pending pod") {
-    if (!rdd) add("rdd", "general", "RDD", "unknown", "No NLT Completion Date (RDD) on the request.");
+    const tag = rddWatch ? "Monitored RDD" : "RDD";
+    if (!rdd) add("rdd", "general", tag, rddWatch ? "unknown" : "na", "No NLT Completion Date (RDD) on the request.");
     else if (rdd.getTime() < today.getTime()) {
-      add("rdd", "general", "RDD", hasType(COP_DOC_TYPES.rdd) ? "warn" : "fail",
-        hasType(COP_DOC_TYPES.rdd)
-          ? `RDD ${copFmt(rdd)} has passed; an Approval to Adjust RDD is attached — update the NLT date.`
-          : `RDD ${copFmt(rdd)} passed ${copPlural(copCalDays(rdd, today), "day")} ago with no Approval to Adjust RDD.`,
-        null, `RDD passed ${copFmt(rdd)}`);
+      const ago = copPlural(copCalDays(rdd, today), "day");
+      if (rddWatch) add("rdd", "general", tag, "fail", `RDD ${copFmt(rdd)} passed ${ago} ago.`, null, `RDD passed ${copFmt(rdd)} (monitored)`);
+      else if (si.step === "exec") add("rdd", "general", tag, "warn", `RDD ${copFmt(rdd)} passed ${ago} ago (not monitored — usually moved to the delivery date afterwards).`, null, `RDD passed ${copFmt(rdd)}`);
+      else add("rdd", "general", tag, "na", `RDD ${copFmt(rdd)} has passed — not flagged before Execution.`);
     } else {
       const bd = copBizDaysBetween(today, rdd);
-      add("rdd", "general", "RDD", bd <= COP_RDD_WARN_BDAYS ? "warn" : "ok",
-        bd <= COP_RDD_WARN_BDAYS ? `RDD ${copFmt(rdd)} is ${copPlural(bd, "business day")} away.` : `RDD ${copFmt(rdd)}.`,
+      add("rdd", "general", tag, rddWatch && bd <= COP_RDD_WARN_BDAYS ? "warn" : "ok",
+        `RDD ${copFmt(rdd)} (${copPlural(bd, "business day")} away)${rddWatch ? "" : " — not monitored"}.`,
         null, `RDD ${copFmt(rdd)} — ${copPlural(bd, "business day")} away`);
     }
   }
@@ -1415,9 +1422,9 @@ function copActiveEvaluate(rec, ctx) {
   }
 
   /* ---------- 1 · TTI Quality Review ----------
-     Once the request has moved on, a gap here is recorded ("Done late") but
-     doesn't colour the bubble — the Closed audit still counts it. */
-  const pastQr = stepIdx > COP_STEP_IDX.qr ? "late" : false;
+     Completeness, not timing: once the request has moved on, a gap here shows
+     as "Incomplete" but doesn't colour the bubble (the Closed audit counts it). */
+  const pastQr = stepIdx > COP_STEP_IDX.qr ? "incomplete" : false;
   const { items } = copInvLines(rec);
   (function () {
     const FIELDS = [
@@ -1512,8 +1519,10 @@ function copActiveEvaluate(rec, ctx) {
   (function () {
     const label = "Costs entered in the Cost List";
     if (!ctx.ds.hasCostList) { add("costlist", "estimate", label, "unknown", "This export doesn't include the Cost List."); return; }
-    const ok = rec.cost.some((c) => copLow(c["rate type"]) === "services" && toFloat(copInv(c, /^burdened rate/)) > 0);
-    gate("costlist", "estimate", label, ok, rec.cost.length ? "No line with Rate Type \"Services\" and a burdened rate." : "No cost lines yet.",
+    // Any cost line with a total. (ATLAS works out the burdened figures; some
+    // lines carry only the total, so the burdened-rate column can be blank.)
+    const ok = rec.cost.some((c) => toFloat(c["total in usd"]) > 0 || toFloat(c["total in usd (other cost)"]) > 0);
+    gate("costlist", "estimate", label, ok, rec.cost.length ? "Cost lines have no totals." : "No cost lines yet.",
       `${copPlural(rec.cost.length, "cost line")} · Total ${copMoney(toFloat(f["total cost in usd"])) || "—"}.`, pastPrep);
   })();
   const docsNa = sc.handCarry || sc.category === "DOMESTIC";
@@ -1532,25 +1541,35 @@ function copActiveEvaluate(rec, ctx) {
     gate("tracking", "exec", "Carrier and AWB/BoL # in Shipping Activity", !miss.length,
       `Missing ${miss.join(" and ")}.`, `${carrier} · ${awbNo}.`, moving, ["cop.tracking", "tracking"]);
   }
-  // ITN before departure — every US export except hand carry.
+  // AES filing (ITN) — every US export except hand carry. Filing deadlines
+  // (15 CFR 30.4): sealift 24 hours before the cargo is loaded; air 2 hours
+  // before departure (8 for USML items); truck 1 hour before reaching the
+  // border. At day level: sealift = the day before "Departure from Origin Est.
+  // Date", everything else = that date. The ITN itself still comes from the
+  // Ops Tracker until ATLAS has a field for it.
   if (sc.category === "EXPORT" && !sc.handCarry) (function () {
-    const label = "AES filed / ITN before departure";
+    const label = "AES filed (ITN)";
     const depAct = xtParseDate(rec.ship["departure from origin act. date"]);
     const etd = xtParseDate(rec.ship["departure from origin est. date"]) || (trk ? copIsoToDate(trk.etd) : null);
     const left = !!depAct || moving;
+    // USML lines: "USML …", "Cat XI(a)", "XI(a)(3)" in the ECCN/USML field.
+    const usml = items.some((r) => /usml|^\s*(cat(egory)?\.?\s*)?[ivx]+\s*\(/i.test(copInv(r, /^eccn/)));
+    const rule = sc.ocean ? "24 hours before the cargo is loaded" : /truck|ground/i.test(sc.as + " " + (f["requested mode of transit"] || ""))
+      ? `${usml ? "8 hours" : "1 hour"} before the truck reaches the border` : `${usml ? "8 hours" : "2 hours"} before departure`;
+    const deadline = etd ? (sc.ocean ? xtAddDays(etd, -1) : etd) : null;
     const itn = trk ? norm(trk.itn) : "";
     if (itn) {
       const filed = /^\d{4}-\d{2}-\d{2}$/.test(itn) ? copIsoToDate(itn) : null;
-      add("itn", "exec", label, "ok", filed ? `ITN filed ${copFmt(filed)}.` : `${/^x\d/i.test(itn) ? "ITN" : "Citation"}: ${itn}.`); return;
+      add("itn", "exec", label, "ok", filed ? `ITN filed ${copFmt(filed)}.` : `${/^x\d/i.test(itn) ? "ITN" : "Exemption / citation"}: ${itn}.`); return;
     }
-    if (!ctx.tracker || !trk) { add("itn", "exec", label, inExec ? "unknown" : "later", `US export — AES required. ${!ctx.tracker ? "Load the Ops Tracker" : "Not on the Ops Tracker"} to check the ITN${etd ? ` (departs ${copFmt(etd)})` : ""}.`); return; }
+    if (!ctx.tracker || !trk) { add("itn", "exec", label, inExec ? "unknown" : "later", `US export — AES must be filed ${rule}. ${!ctx.tracker ? "Load the Ops Tracker" : "Not on the Ops Tracker"} to check the ITN${deadline ? ` (file by ${copFmt(deadline)})` : ""}.`); return; }
     if (left) { add("itn", "exec", label, "fail", `Departed without an ITN${depAct ? ` (left origin ${copFmt(depAct)})` : ""}.`, null, "Departed without an ITN"); return; }
-    if (!inExec) { add("itn", "exec", label, "later", "US export — ITN needed before departure."); return; }
-    if (!etd) { add("itn", "exec", label, "todo", "US export — ITN needed before departure; no Departure from Origin Est. Date yet."); return; }
-    const d = copCalDays(today, etd);
-    if (d <= 3) add("itn", "exec", label, "fail", d < 0 ? `Estimated departure ${copFmt(etd)} has passed with no ITN.` : `Departs ${copFmt(etd)} (${copPlural(d, "day")}) with no ITN.`, null, `No ITN — departs ${copFmt(etd)}`);
-    else if (d <= COP_DUE_SOON_DAYS) add("itn", "exec", label, "warn", `Departs ${copFmt(etd)} (${copPlural(d, "day")}); ITN still needed.`, null, `No ITN yet — departs ${copFmt(etd)}`);
-    else add("itn", "exec", label, "todo", `ITN needed before ${copFmt(etd)}.`);
+    if (!inExec) { add("itn", "exec", label, "later", `US export — AES must be filed ${rule}.`); return; }
+    if (!deadline) { add("itn", "exec", label, "todo", `US export — AES must be filed ${rule}; no "Departure from Origin Est. Date" yet.`); return; }
+    const d = copCalDays(today, deadline);
+    if (d < 0) add("itn", "exec", label, "fail", `Filing deadline ${copFmt(deadline)} (${rule}) has passed with no ITN.`, null, `AES deadline passed (${copFmt(deadline)})`);
+    else if (d <= 2) add("itn", "exec", label, "warn", `File by ${copFmt(deadline)} (${rule}); no ITN yet.`, null, `AES due ${copFmt(deadline)}`);
+    else add("itn", "exec", label, "todo", `File by ${copFmt(deadline)} (${rule}).`);
   })();
   // MARAD — sealift, due after loading.
   if (sc.ocean) (function () {
@@ -1621,10 +1640,8 @@ function copBuildAll() {
    FILTERS
    ------------------------------------------------------------------------- */
 function copFilterRows(all) {
-  const prefs = copGetPrefs();
   let rows = all;
-  if (prefs.mineOnly && prefs.me) rows = rows.filter((r) => copLow(r.poc) === copLow(prefs.me));
-  else if (CopUi.poc) rows = rows.filter((r) => copLow(r.poc) === copLow(CopUi.poc));
+  if (CopUi.poc) rows = rows.filter((r) => copLow(r.poc) === copLow(CopUi.poc));
   if (CopUi.q) {
     const q = copLow(CopUi.q);
     rows = rows.filter((r) => copLow(r.wmtr + " " + r.title + " " + r.dest + " " + r.poc + " " + r.status).includes(q));
@@ -1632,7 +1649,8 @@ function copFilterRows(all) {
   const base = rows;                       // before attention / hit filters (board counts)
   if (CopUi.atRisk) rows = rows.filter((r) => r.counts.red || r.counts.amber);
   if (CopUi.hit) rows = rows.filter((r) => r.checks.some((c) => c.id === CopUi.hit && (c.state === "fail" || c.state === "warn" || c.state === "due")));
-  if (CopUi.rddDays) rows = rows.filter((r) => r.rddDays !== null && r.rddDays <= CopUi.rddDays);
+  if (CopUi.rddDays === -1) rows = rows.filter((r) => r.rddDays !== null && r.rddDays < 0);          // Past RDD
+  else if (CopUi.rddDays) rows = rows.filter((r) => r.rddDays !== null && r.rddDays >= 0 && r.rddDays <= CopUi.rddDays);
   return { base, rows };
 }
 
@@ -1665,8 +1683,11 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-btn.blue{background:var(--ax-reset)} .copx-btn.green{background:var(--ax-go)}
 .copx-btn.ghost{background:transparent;color:var(--ax-link);border:1.5px solid var(--ax-link)}
 .copx-btn:hover{filter:brightness(.95)}
+.copx-frow{display:grid;grid-template-columns:minmax(170px,1fr) minmax(220px,1.5fr) minmax(200px,1.3fr) auto auto;gap:12px;align-items:end;margin-bottom:12px}
+@media (max-width:1000px){.copx-frow{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.copx-frow{grid-template-columns:1fr}}
 .copx-filter{background:var(--ax-acc);border-radius:6px;margin-bottom:16px}
-.copx-filter>summary{list-style:none;cursor:pointer;padding:12px 18px;font-weight:600;color:var(--ax-link);display:flex;justify-content:space-between;align-items:center}
+.copx-filter>summary{list-style:none;cursor:pointer;padding:10px 18px;font-weight:600;color:var(--ax-link);display:flex;align-items:center}
 .copx-filter>summary::-webkit-details-marker{display:none}
 .copx-filter>summary .chev{transition:transform .15s}
 .copx-filter[open]>summary .chev{transform:rotate(180deg)}
@@ -1676,7 +1697,7 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-chk{display:flex;align-items:center;gap:7px;font-size:12.5px;min-height:38px;cursor:pointer}
 .copx-fbtns{display:flex;gap:8px;flex-wrap:wrap}
 .copx-sub{grid-column:1 / -1;display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--ax-ink2);border-top:1px solid #c8dcf0;padding-top:10px}
-.copx-sub .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
+.copx-sub .lnk,.copx-limits .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
 .copx-limits{grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:6px 18px;font-size:12px}
 .copx-limits input{width:56px;border:1px solid #c9d2de;border-radius:5px;padding:3px 6px;margin:0 4px;background:var(--ax-card);color:var(--ax-ink)}
 /* board */
@@ -1684,32 +1705,31 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 @media (max-width:1250px){.copx-board{grid-template-columns:1fr 1fr 1fr}.copx-col.exec{grid-column:1 / -1}}
 @media (max-width:760px){.copx-board{grid-template-columns:1fr}}
 .copx-col{border:1px solid var(--ax-line);border-radius:10px;background:var(--ax-soft);display:flex;flex-direction:column;min-width:0}
-.copx-col .ch{position:relative;background:var(--ax-blue);color:#fff;border-radius:9px 9px 0 0;padding:10px 12px 9px 46px;min-height:64px}
-.copx-col .ch .num{position:absolute;left:10px;top:12px;width:26px;height:26px;border-radius:50%;background:#fff;color:var(--ax-blue);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.copx-col .ch{position:relative;background:var(--ax-blue);color:#fff;border-radius:9px 9px 0 0;padding:10px 64px 10px 14px;min-height:62px;display:flex;flex-direction:column;justify-content:center}
 .copx-col .ch .t{font-weight:600;font-size:13.5px;line-height:1.25}
 .copx-col .ch .s{font-size:11px;opacity:.85}
-.copx-col .ch .cnt{position:absolute;right:10px;top:9px;font-size:22px;font-weight:700}
+.copx-col .ch .cnt{position:absolute;right:11px;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:#fff;color:var(--ax-blue);
+  font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
 .copx-col .tally{display:flex;gap:10px;flex-wrap:wrap;padding:7px 12px;font-size:11.5px;color:var(--ax-ink2);border-bottom:1px solid var(--ax-line2);background:var(--ax-card)}
 .copx-col .tally b{font-weight:700}
 .copx-col .tally .r{color:var(--ax-red)} .copx-col .tally .a{color:var(--ax-amber)} .copx-col .tally .g{color:var(--ax-green)}
-.copx-col .cb{padding:12px;display:flex;flex-wrap:wrap;gap:9px;align-content:flex-start;flex:1}
+.copx-col .cb{padding:12px;display:flex;flex-wrap:wrap;gap:9px 7px;align-content:flex-start;flex:1}
 .copx-col.exec .cb{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .copx-ph{background:var(--ax-card);border:1px solid var(--ax-line2);border-radius:8px;padding:8px 9px 10px}
 .copx-ph .pl{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ax-muted);margin-bottom:7px;display:flex;justify-content:space-between}
-.copx-ph .bb{display:flex;flex-wrap:wrap;gap:8px}
+.copx-ph .bb{display:flex;flex-wrap:wrap;gap:9px 7px}
 .copx-empty{font-size:12px;color:var(--ax-muted);font-style:italic}
-.copx-bub{width:52px;height:52px;border-radius:50%;border:3px solid var(--ax-green);background:var(--ax-green-soft);color:var(--ax-ink);
-  font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;padding:0;
+.copx-bub{height:26px;min-width:56px;padding:0 9px;border-radius:13px;border:2px solid var(--ax-green);background:var(--ax-green-soft);color:var(--ax-ink);
+  font-weight:600;font-size:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
   transition:transform .1s, box-shadow .1s}
-.copx-bub:hover,.copx-bub:focus-visible{transform:scale(1.08);box-shadow:0 0 0 4px rgba(30,90,168,.22);outline:none}
+.copx-bub:hover,.copx-bub:focus-visible{transform:scale(1.06);box-shadow:0 0 0 3px rgba(30,90,168,.22);outline:none}
 .copx-bub.amber{border-color:var(--ax-amber);background:var(--ax-amber-soft)}
 .copx-bub.red{border-color:var(--ax-red);background:var(--ax-red-soft);color:var(--ax-red)}
-.copx-bub.sel{box-shadow:0 0 0 4px var(--ax-blue)}
-.copx-bub .bang{position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;background:var(--ax-red);color:#fff;font-size:11px;line-height:18px;text-align:center}
-.copx-bub .nd{position:absolute;bottom:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:var(--ax-red);color:#fff;font-size:10px;line-height:18px;padding:0 4px;font-weight:600}
+.copx-bub.sel{box-shadow:0 0 0 3px var(--ax-blue)}
+.copx-bub .bang,.copx-bub .nd{position:absolute;top:-8px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:var(--ax-red);color:#fff;font-size:9.5px;line-height:16px;padding:0 4px;font-weight:700;text-align:center}
 .copx-legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--ax-ink2)}
 .copx-legend span{display:inline-flex;align-items:center;gap:6px}
-.copx-legend i{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--ax-green);background:var(--ax-green-soft);display:inline-block}
+.copx-legend i{width:24px;height:13px;border-radius:7px;border:2px solid var(--ax-green);background:var(--ax-green-soft);display:inline-block}
 .copx-legend i.a{border-color:var(--ax-amber);background:var(--ax-amber-soft)} .copx-legend i.r{border-color:var(--ax-red);background:var(--ax-red-soft)}
 .copx-legend em{font-style:normal;background:var(--ax-red);color:#fff;border-radius:9px;padding:0 5px;font-size:10px;font-weight:600}
 /* table */
@@ -1735,13 +1755,15 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-red{color:var(--ax-red);font-weight:600} .copx-amber{color:var(--ax-amber);font-weight:600}
 /* detail */
 tr.copx-det td{background:var(--ax-acc2);padding:14px 16px 18px}
-.copx-det-grid{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:18px}
-@media (max-width:900px){.copx-det-grid{grid-template-columns:1fr}}
+.copx-det-grid{display:grid;grid-template-columns:minmax(220px,290px) minmax(0,1fr) minmax(240px,330px);gap:16px;align-items:start}
+@media (max-width:1150px){.copx-det-grid{grid-template-columns:minmax(200px,260px) minmax(0,1fr)}.copx-det-grid>:last-child{grid-column:2}}
+@media (max-width:760px){.copx-det-grid{grid-template-columns:1fr}.copx-det-grid>:last-child{grid-column:auto}}
+.copx-watch{min-height:0;margin-top:4px;font-size:11.5px;align-items:flex-start}
 .copx-info{font-size:12px;display:flex;flex-direction:column;gap:8px}
 .copx-info .k{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ax-muted)}
 .copx-info .log div{padding:2px 0}
 .copx-info .log span{color:var(--ax-muted);margin-right:6px;font-size:11px}
-.copx-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.copx-steps{display:flex;flex-direction:column;gap:10px;min-width:0}
 .copx-stp{background:var(--ax-card);border:1px solid var(--ax-line);border-radius:8px;overflow:hidden}
 .copx-stp h4{margin:0;padding:8px 12px;font-size:12.5px;font-weight:600;background:var(--ax-acc);color:var(--ax-ink);display:flex;justify-content:space-between;gap:8px}
 .copx-stp.cur h4{background:var(--ax-blue);color:#fff}
@@ -1754,7 +1776,7 @@ tr.copx-det td{background:var(--ax-acc2);padding:14px 16px 18px}
 .copx-stp li.s-bad{background:var(--ax-red-soft)} .copx-stp li.s-bad .ic{color:var(--ax-red)}
 .copx-stp li.s-warn{background:var(--ax-amber-soft)} .copx-stp li.s-warn .ic{color:var(--ax-amber)}
 .copx-stp li.s-open .ic,.copx-stp li.s-todo .ic{color:var(--ax-blue)}
-.copx-stp li.s-late .ic{color:var(--ax-muted)} .copx-stp li.s-late .lb{color:var(--ax-ink2)}
+.copx-stp li.s-late .ic,.copx-stp li.s-incomplete .ic{color:var(--ax-muted)} .copx-stp li.s-late .lb,.copx-stp li.s-incomplete .lb{color:var(--ax-ink2)}
 .copx-stp li.s-na,.copx-stp li.s-ack{color:var(--ax-muted)} .copx-stp li.s-na .lb,.copx-stp li.s-ack .lb{font-weight:400}
 .copx-ack{border:1px solid var(--ax-line);background:var(--ax-card);color:var(--ax-muted);border-radius:12px;cursor:pointer;font-size:10.5px;padding:1px 8px;white-space:nowrap}
 .copx-ack:hover{border-color:var(--ax-link);color:var(--ax-link)}
@@ -1772,10 +1794,10 @@ tr.copx-det td{background:var(--ax-acc2);padding:14px 16px 18px}
 /* Display groups for a check's stage (active steps + the audit engine's lanes). */
 const COP_GROUPS = [
   { id: "general",  label: "Throughout",                        stages: ["general"] },
-  { id: "qr",       label: "1 · TTI Quality Review",            stages: ["qr", "draft"] },
-  { id: "review",   label: "2 · DTRA Program / Compliance Review", stages: ["review", "program", "compliance"] },
-  { id: "estimate", label: "3 · Estimate",                       stages: ["estimate"] },
-  { id: "exec",     label: "4 · Execution",                      stages: ["exec", "ready", "transit"] },
+  { id: "qr",       label: "TTI Quality Review",                stages: ["qr", "draft"] },
+  { id: "review",   label: "DTRA Program / Compliance Review",   stages: ["review", "program", "compliance"] },
+  { id: "estimate", label: "Estimate",                          stages: ["estimate"] },
+  { id: "exec",     label: "Execution",                         stages: ["exec", "ready", "transit"] },
   { id: "closeout", label: "Delivery & close-out",               stages: ["delivered"] },
 ];
 
@@ -1825,7 +1847,7 @@ function renderCopWorkspace(container) {
     card.appendChild(copBoard(base, rows));
     card.appendChild(el(`<div class="copx-legend">
       <span><i></i>On track</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
-      <span><em>3</em>business days without a daily update</span>
+      <span><em>3</em>daily updates missing</span>
       <span>Hover a bubble for the latest update · click it for details</span></div>`));
   }
 
@@ -1841,65 +1863,69 @@ function renderCopWorkspace(container) {
   copWire(root, built, rows, isActive);
 }
 
-/** The collapsible ATLAS "Filter" bar. */
+/** Filters: the main ones always in view; the collapsible ATLAS "Filter" bar
+    holds the rest (RDD for now) plus the Ops Tracker and Day limits links. */
 function copFilterPanel(built, all) {
   const prefs = copGetPrefs();
   const tracker = copGetTracker();
-  const pocs = Array.from(new Set(built.active.concat(built.closed).map((r) => r.poc).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  // TTI POC choices come from the shipments in this view only.
+  const pocs = Array.from(new Set(all.map((r) => r.poc).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  if (CopUi.poc && !pocs.some((p) => copLow(p) === copLow(CopUi.poc))) CopUi.poc = "";
   const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t)}</option>`;
   const hits = {};
   for (const r of all) for (const c of r.checks) {
     if (c.state !== "fail" && c.state !== "warn" && c.state !== "due") continue;
-    const h = hits[c.id] || (hits[c.id] = { label: c.label, red: 0, amber: 0 });
-    if (c.state === "fail") h.red++; else h.amber++;
+    const h = hits[c.id] || (hits[c.id] = { label: c.label, n: 0 });
+    h.n++;
   }
   if (CopUi.hit && !hits[CopUi.hit]) CopUi.hit = "";
-  const hitOpts = opt("", "All", !CopUi.hit) + Object.keys(hits)
-    .sort((a, b) => (hits[b].red - hits[a].red) || (hits[b].amber - hits[a].amber))
-    .map((id) => opt(id, `${hits[id].label} (${hits[id].red + hits[id].amber})`, CopUi.hit === id)).join("");
-  const mine = !!prefs.mineOnly;
+  const hitOpts = opt("", "All", !CopUi.hit) + Object.keys(hits).sort((a, b) => hits[b].n - hits[a].n)
+    .map((id) => opt(id, `${hits[id].label} (${hits[id].n})`, CopUi.hit === id)).join("");
   const stuckRows = Object.keys(COP_STUCK_DEFAULTS).map((k) => `<div>${esc(COP_STUCK_LABELS[k])}:
       amber<input type="number" min="1" max="200" data-k="${k}" data-i="0" value="${prefs.stuck[k][0]}">
       red<input type="number" min="1" max="200" data-k="${k}" data-i="1" value="${prefs.stuck[k][1]}"></div>`).join("");
-  const det = el(`<details class="copx-filter"${CopUi.filterOpen ? " open" : ""}>
-    <summary>Filter <span class="chev" aria-hidden="true">▾</span></summary>
-    <div class="fbody">
+  const more = (CopUi.rddDays ? 1 : 0);
+  return el(`<div>
+    <div class="copx-frow">
       <div class="copx-f"><label for="copPoc">TTI POC</label>
-        <select id="copPoc" ${mine && prefs.me ? "disabled" : ""}>${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select></div>
-      <div class="copx-f"><label class="copx-chk"><input type="checkbox" id="copMine" ${mine ? "checked" : ""}> My shipments only</label>
-        ${mine || !prefs.me ? `<select id="copMe" aria-label="Your name">${opt("", "— pick your name —", !prefs.me)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(prefs.me))).join("")}</select>` : ""}</div>
+        <select id="copPoc">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select></div>
       <div class="copx-f"><label for="copHit">Metric hits</label><select id="copHit">${hitOpts}</select></div>
-      <div class="copx-f"><label for="copRdd">RDD</label><select id="copRdd">
-        ${[[0, "Any"], [7, "Within 7 days"], [14, "Within 14 days"], [30, "Within 30 days"]].map(([v, t]) => opt(v, t, CopUi.rddDays === v)).join("")}</select></div>
-      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country" value="${esc(CopUi.q)}"></div>
-      <div class="copx-f"><label class="copx-chk"><input type="checkbox" id="copRisk" ${CopUi.atRisk ? "checked" : ""}> Needs attention only</label>
-        <div class="copx-fbtns"><button class="copx-btn blue" id="copReset" type="button">Reset</button></div></div>
-      <div class="copx-sub">
-        <span><b>Ops Tracker:</b> ${tracker ? `${esc(tracker.fileName)} · ${Object.keys(tracker.rows).length} active MTRs · loaded ${esc(new Date(tracker.loadedAt).toLocaleDateString())}`
-          : "not loaded — RFQ Sent, Date Packed, ITN and MARAD show “No data”"}</span>
-        <button class="lnk" id="copTrkLoad" type="button">${tracker ? "Load updated tracker" : "Load Ops Tracker"}</button>
-        ${tracker ? `<button class="lnk" id="copTrkClear" type="button">Clear</button>` : ""}
-        <button class="lnk" id="copLimits" type="button">${CopUi.settingsOpen ? "Hide day limits" : "Day limits"}</button>
-        <span class="copx-msg" id="copMsg">${esc(CopUi.msg)}</span>
-        <input type="file" id="copTrkFile" accept=".xlsx,.xlsm" class="hidden">
-      </div>
-      ${CopUi.settingsOpen ? `<div class="copx-limits"><label class="copx-chk" style="grid-column:1 / -1"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}>
-        Flag shipments that sit in a step longer than these limits (off by default — only the RFQ timeline is flagged)</label>${prefs.stuckOn ? stuckRows + `<div><button class="lnk" id="copStuckReset" type="button" style="border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;text-decoration:underline">Reset day limits</button></div>` : ""}</div>` : ""}
+      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country, status" value="${esc(CopUi.q)}"></div>
+      <label class="copx-chk"><input type="checkbox" id="copRisk" ${CopUi.atRisk ? "checked" : ""}> Needs attention only</label>
+      <div class="copx-fbtns"><button class="copx-btn blue" id="copReset" type="button">Reset</button></div>
     </div>
-  </details>`);
-  return det;
+    <details class="copx-filter"${CopUi.filterOpen ? " open" : ""}>
+      <summary>More filters${more ? ` <span class="copx-pill b" style="margin-left:8px">${more} on</span>` : ""}<span class="chev" aria-hidden="true" style="margin-left:auto">▾</span></summary>
+      <div class="fbody">
+        <div class="copx-f"><label for="copRdd">RDD</label><select id="copRdd">
+          ${[[0, "Any"], [-1, "Past RDD"], [7, "Within 7 days"], [14, "Within 14 days"], [30, "Within 30 days"]].map(([v, t]) => opt(v, t, CopUi.rddDays === v)).join("")}</select></div>
+        <div class="copx-sub">
+          <span><b>Ops Tracker:</b> ${tracker ? `${esc(tracker.fileName)} · ${Object.keys(tracker.rows).length} active MTRs · loaded ${esc(new Date(tracker.loadedAt).toLocaleDateString())}`
+            : "not loaded — RFQ Sent, Date Packed, ITN and MARAD show “No data”"}</span>
+          <button class="lnk" id="copTrkLoad" type="button">${tracker ? "Load updated tracker" : "Load Ops Tracker"}</button>
+          ${tracker ? `<button class="lnk" id="copTrkClear" type="button">Clear</button>` : ""}
+          <button class="lnk" id="copLimits" type="button">${CopUi.settingsOpen ? "Hide day limits" : "Day limits"}</button>
+          <span class="copx-msg" id="copMsg">${esc(CopUi.msg)}</span>
+          <input type="file" id="copTrkFile" accept=".xlsx,.xlsm" class="hidden">
+        </div>
+        ${CopUi.settingsOpen ? `<div class="copx-limits"><label class="copx-chk" style="grid-column:1 / -1"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}>
+          Flag shipments that sit in a step longer than these limits (off by default — only the RFQ timeline is flagged)</label>${prefs.stuckOn ? stuckRows + `<div><button class="lnk" id="copStuckReset" type="button">Reset day limits</button></div>` : ""}</div>` : ""}
+      </div>
+    </details>
+  </div>`);
 }
 
-/** The four-step board with a bubble per shipment. */
+/** The four-step board: an oval WMTR tag per shipment. */
 function copBoard(base, rows) {
   const shown = new Set(rows.map((r) => r.wmtr));
-  const bubble = (r) => {
+  const tag = (r) => {
     const nd = r.daily.missed.length;
     return `<button type="button" class="copx-bub ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""} ${CopUi.focus === r.wmtr ? "sel" : ""}"
-      data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr + " — " + r.status)}"${shown.has(r.wmtr) ? "" : ' style="opacity:.25"'}>${esc(r.last5)}
-      ${r.problem ? `<span class="bang" aria-hidden="true">!</span>` : nd ? `<span class="nd" title="${nd} business days without a daily update">${nd > 99 ? "99+" : nd}</span>` : ""}</button>`;
+      data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr + " — " + r.status)}"${shown.has(r.wmtr) ? "" : ' style="opacity:.25"'}>${esc(r.last5)}${
+      r.problem ? `<span class="bang" aria-hidden="true">!</span>` : nd ? `<span class="nd" aria-hidden="true">${nd > 99 ? "99+" : nd}</span>` : ""}</button>`;
   };
-  const sortB = (a, b) => ({ red: 0, amber: 1, green: 2 }[a.health] - { red: 0, amber: 1, green: 2 }[b.health]) || a.num - b.num;
+  const order = { red: 0, amber: 1, green: 2 };
+  const sortB = (a, b) => (order[a.health] - order[b.health]) || a.num - b.num;
   const tally = (xs) => {
     const r = xs.filter((x) => x.health === "red").length, a = xs.filter((x) => x.health === "amber").length;
     return `<span class="r"><b>${r}</b> missed</span><span class="a"><b>${a}</b> attention</span><span class="g"><b>${xs.length - r - a}</b> on track</span>`;
@@ -1912,11 +1938,12 @@ function copBoard(base, rows) {
       body = COP_EXEC_PHASES.map((p) => {
         const ps = xs.filter((r) => r.phase === p.id);
         return `<div class="copx-ph"><div class="pl"><span>${esc(p.label)}</span><span>${ps.length}</span></div>
-          <div class="bb">${ps.length ? ps.map(bubble).join("") : `<span class="copx-empty">None</span>`}</div></div>`;
+          <div class="bb">${ps.length ? ps.map(tag).join("") : `<span class="copx-empty">None</span>`}</div></div>`;
       }).join("");
-    } else body = xs.length ? xs.map(bubble).join("") : `<span class="copx-empty">None</span>`;
+    } else body = xs.length ? xs.map(tag).join("") : `<span class="copx-empty">None</span>`;
     board.appendChild(el(`<div class="copx-col ${s.id}">
-      <div class="ch"><span class="num">${s.n}</span><div class="t">${esc(s.label)}</div><div class="s">${esc(s.sub)}</div><span class="cnt">${xs.length}</span></div>
+      <div class="ch"><div class="t">${esc(s.label)}</div><div class="s">${esc(s.sub)}</div>
+        <span class="cnt" title="${xs.length} WMTR${xs.length === 1 ? "" : "s"} in this step">${xs.length}</span></div>
       <div class="tally">${tally(xs)}</div>
       <div class="cb">${body}</div></div>`));
   }
@@ -1978,10 +2005,10 @@ function copTable(rows, isActive, baseCount) {
   return wrap;
 }
 
-/** Expanded row: info + recent updates on the left, checklist by step on the right. */
+/** Expanded row: request + last 10 daily updates | steps in order | throughout. */
 function copDetailRow(r, ncol, isActive) {
   const curGroup = isActive && r.step ? r.step : "";
-  const cards = COP_GROUPS.map((g) => {
+  const card = (g) => {
     const cs = r.checks.filter((c) => g.stages.indexOf(c.stage) !== -1);
     if (!cs.length) return "";
     const items = cs.map((c) => {
@@ -1989,26 +2016,33 @@ function copDetailRow(r, ncol, isActive) {
       const btn = (c.state === "fail" || c.state === "warn" || c.state === "due")
         ? `<button class="copx-ack" type="button" data-ack="${esc(c.ackKey)}" data-req="${esc(r.reqNo)}" title="Reviewed — not a miss">Acknowledge</button>`
         : c.state === "ack" ? `<button class="copx-ack" type="button" data-unack="${esc(c.ackKey)}" data-req="${esc(r.reqNo)}">Undo</button>` : "<span></span>";
-      return `<li class="s-${c.state === "todo" ? "todo" : c.state === "late" ? "late" : s.cls}" title="${esc(s.word)}"><span class="ic">${s.icon}</span><span class="lb">${esc(c.label)}</span>${btn}<span class="dt">${esc(s.word)} — ${esc(c.detail)}</span></li>`;
+      const cls = ["todo", "late", "incomplete"].indexOf(c.state) !== -1 ? c.state : s.cls;
+      return `<li class="s-${cls}" title="${esc(s.word)}"><span class="ic">${s.icon}</span><span class="lb">${esc(c.label)}</span>${btn}<span class="dt">${esc(s.word)} — ${esc(c.detail)}</span></li>`;
     }).join("");
     return `<div class="copx-stp ${curGroup === g.id ? "cur" : ""}"><h4><span>${esc(g.label)}</span><span>${curGroup === g.id ? "current step" : ""}</span></h4><ul>${items}</ul></div>`;
-  }).join("");
-  const log = ((r.rec && r.rec.daily) || []).slice().sort((a, b) => b.date - a.date).slice(0, 5)
+  };
+  const steps = COP_GROUPS.filter((g) => g.id !== "general").map(card).join("");
+  const general = card(COP_GROUPS.find((g) => g.id === "general"));
+  const log = ((r.rec && r.rec.daily) || []).slice().sort((a, b) => b.date - a.date).slice(0, 10)
     .map((d) => `<div><span>${esc(copFmt(d.date))}</span>${esc(d.note)}</div>`).join("");
   const link = r.tracklink && /^https?:\/\//i.test(r.tracklink) ? ` · <a href="${esc(r.tracklink)}" target="_blank" rel="noopener">Track</a>` : "";
+  const watch = isActive ? !!(copGetPrefs().rddWatch || {})[r.reqNo] : false;
   return el(`<tr class="copx-det"><td colspan="${ncol}"><div class="copx-det-grid">
     <div class="copx-info">
       <div><div class="k">Request</div>${esc(r.wmtr)}<br>${esc(r.title || "")}</div>
       <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
       <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
+      ${r.rdd || isActive ? `<div><div class="k">RDD</div>${r.rdd ? esc(copFmt(r.rdd)) : "—"}
+        ${isActive ? `<label class="copx-chk copx-watch"><input type="checkbox" data-rddwatch="${esc(r.reqNo)}" ${watch ? "checked" : ""}> Monitor RDD for this request (firm date, e.g. a training event)</label>` : ""}</div>` : ""}
       ${r.consol && r.consol.length ? `<div><div class="k">Consolidated with</div>${esc(r.consol.join(", "))}</div>` : ""}
       <div class="log"><div class="k">Recent daily updates</div>${log || "<div>None yet.</div>"}</div>
     </div>
-    <div class="copx-steps">${cards}</div>
+    <div class="copx-steps">${steps}</div>
+    <div class="copx-steps">${general}</div>
   </div></td></tr>`);
 }
 
-/* ---- hover card: latest update, daily status, open items ---- */
+/* ---- hover card: latest update, daily status (with the missing days), open items ---- */
 function copHoverEl() {
   let h = document.getElementById("copHover");
   if (!h) { h = document.createElement("div"); h.id = "copHover"; document.body.appendChild(h); }
@@ -2017,9 +2051,10 @@ function copHoverEl() {
 function copHoverHtml(r) {
   const open = r.checks.filter((c) => c.state === "fail" || c.state === "warn")
     .sort((a, b) => copStateMeta(a.state).rank - copStateMeta(b.state).rank);
-  const nd = r.daily.missed.length;
-  const dailyLine = nd
-    ? `<div class="bad">⚠ Missing ${copPlural(nd, "daily update")}${r.daily.last ? ` — last ${esc(copFmt(r.daily.last))}` : ""}</div>`
+  const miss = r.daily.missed || [];
+  const shown = miss.slice(-8);
+  const dailyLine = miss.length
+    ? `<div class="bad">⚠ Missing ${copPlural(miss.length, "daily update")}: ${esc(xtFmtDayList(shown))}${miss.length > shown.length ? " (latest 8)" : ""}</div>`
     : r.daily.dueToday ? `<div>Today's daily update isn't in yet.</div>` : `<div class="ok">✓ Daily updates current</div>`;
   const others = open.filter((c) => c.id !== "daily");
   return `<div class="h">${esc(r.last5)} · ${esc(r.status || "—")}</div>
@@ -2027,8 +2062,9 @@ function copHoverHtml(r) {
     <div class="k">Latest update</div>
     <div>${r.latest ? `<b>${esc(copFmt(r.latest.date))}</b> — ${esc(r.latest.note)}` : "No daily updates yet."}</div>
     <div class="k">Daily update</div>${dailyLine}
-    ${others.length ? `<div class="k">Other open items</div><ul>${others.slice(0, 4).map((c) => `<li class="${c.state === "fail" ? "r" : "a"}">${esc(c.brief || c.label)}</li>`).join("")}</ul>${others.length > 4 ? `<div>…and ${others.length - 4} more</div>` : ""}`
-      : `<div class="k">Other open items</div><div class="ok">None</div>`}`;
+    <div class="k">Other open items</div>${others.length
+      ? `<ul>${others.slice(0, 4).map((c) => `<li class="${c.state === "fail" ? "r" : "a"}">${esc(c.brief || c.label)}</li>`).join("")}</ul>${others.length > 4 ? `<div>…and ${others.length - 4} more</div>` : ""}`
+      : `<div class="ok">None</div>`}`;
 }
 
 function copRerender() { if (AppState.activeTool === "cop") renderWorkspace(); }
@@ -2050,9 +2086,6 @@ function copWire(root, built, rows, isActive) {
   det.addEventListener("toggle", () => { CopUi.filterOpen = det.open; });
   const prefSet = (fn) => { const p = copGetPrefs(); fn(p); copSetPrefs(p); copRerender(); };
   $("#copPoc").addEventListener("change", (e) => { CopUi.poc = e.target.value; copRerender(); });
-  $("#copMine").addEventListener("change", (e) => prefSet((p) => { p.mineOnly = e.target.checked; }));
-  const me = $("#copMe");
-  if (me) me.addEventListener("change", () => prefSet((p) => { p.me = me.value; if (me.value) p.mineOnly = true; }));
   $("#copHit").addEventListener("change", (e) => { CopUi.hit = e.target.value; copRerender(); });
   $("#copRdd").addEventListener("change", (e) => { CopUi.rddDays = Number(e.target.value) || 0; copRerender(); });
   $("#copRisk").addEventListener("change", (e) => { CopUi.atRisk = e.target.checked; copRerender(); });
@@ -2068,7 +2101,6 @@ function copWire(root, built, rows, isActive) {
   });
   $("#copReset").addEventListener("click", () => {
     Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", focus: "" });
-    const p = copGetPrefs(); p.mineOnly = false; copSetPrefs(p);
     copRerender();
   });
   const fileIn = $("#copTrkFile");
@@ -2153,6 +2185,11 @@ function copWire(root, built, rows, isActive) {
       else openRow(r.wmtr, false);
     });
   });
+  // Per-request RDD monitoring (firm dates). Saved in this browser.
+  root.querySelectorAll("input[data-rddwatch]").forEach((cb) => cb.addEventListener("change", () => prefSet((p) => {
+    p.rddWatch = (p.rddWatch && typeof p.rddWatch === "object") ? p.rddWatch : {};
+    if (cb.checked) p.rddWatch[cb.dataset.rddwatch] = true; else delete p.rddWatch[cb.dataset.rddwatch];
+  })));
   root.querySelectorAll("button[data-ack]").forEach((b) => b.addEventListener("click", () => {
     if (typeof xtAddIgnore === "function") xtAddIgnore(b.dataset.req, b.dataset.ack);
     copRerender();

@@ -160,3 +160,10 @@ Arrived Warehouse or the warehouse actual date is filled.
   new external dependency; not done.
 - v2.6.1: time-in-step flags OFF by default (prefs.stuckOn); RFQ is the only default timeline.
   Toggle under Filter › Day limits for management.
+- v2.6.2: RDD off by default — passed RDD amber in Execution only; per-request "Monitor RDD"
+  (prefs.rddWatch, browser-only) makes it amber 5 BD out / red when passed. Candidate ATLAS
+  field: "Firm RDD" checkbox. AES deadline per 15 CFR 30.4 (ocean ETD-1 day; air/truck ETD).
+  Cost list = any line with a total. QR gaps after QR = "Incomplete". Daily updates required
+  from 2026-03-01 (PMR_DAILY_LOG_START_ISO). Filters: POC/hits/search/attention always shown;
+  RDD under More filters; My shipments removed. Detail = 3 columns, 10 updates.
+

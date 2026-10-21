@@ -160,11 +160,11 @@ function pmrRound2(x) {
    ========================================================================= */
 
 const PMR_DAILY_START_GRACE_BIZDAYS = 3;
-// ATLAS started recording Daily Status History on 23 Feb 2026 (two entries that
-// day; logging began in earnest on the 24th). No update can be required before
-// then — a request that left Draft earlier is counted from this date. Shared by
-// the Christmas Tree and the COP.
-const PMR_DAILY_LOG_START_ISO = "2026-02-24";
+// Daily updates are required from 1 Mar 2026 (ATLAS began recording Daily
+// Status History on 23-24 Feb 2026; the requirement starts the following
+// month). No update can be required before then — a request that left Draft
+// earlier is counted from this date. Shared by the Christmas Tree and the COP.
+const PMR_DAILY_LOG_START_ISO = "2026-03-01";
 const PMR_DAILY_SECTION_TITLE = "Daily Status History";
 
 // On-time / late scoring floor. TTI was relieved of the NLT Completion Date

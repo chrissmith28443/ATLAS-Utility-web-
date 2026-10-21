@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.10",
+    title: "COP: purple = today's update still due",
+    notes: [
+      "A shipment whose only gap is today's daily update is filled purple on the board, shows a purple \"Today's due\" in the table's Daily column, and says so in purple on hover — so you can see at a glance which requests still need today's update. (The border still shows its overall health; earlier missed days still show the red count.)",
+    ],
+  },
+  {
     version: "2.6.9",
     title: "COP: darker step headers, \"Estimate Preparation\"",
     notes: [

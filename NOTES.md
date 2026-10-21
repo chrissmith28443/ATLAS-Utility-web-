@@ -198,3 +198,5 @@ Arrived Warehouse or the warehouse actual date is filled.
 - PLAN (user, 2026-10-21): Phase 1 = COP in the Utility only (read-only, no update entry) — test
   thoroughly. Phase 2 = move to the ATLAS WMTR dashboard and add daily-update editing (the
   COP_MOCKUP.editUpdates code: per-row Save + Save all). The standalone dev mockup waits for Phase 2.
+- v2.6.10: copDueTodayOnly(r) (dueToday && no missed days) → bubble .due (purple fill, health border
+  kept), purple "Today's due" pill, purple hover line, legend entry.

@@ -1545,11 +1545,11 @@ function copFilterRows(all) {
 const COPX_CSS = `
 .copx{--ax-navy:#1e2a4a;--ax-ink:#1f2d3d;--ax-ink2:#3c4858;--ax-muted:#5a6778;--ax-line:#d6dde8;--ax-line2:#e3e8ef;
   --ax-card:#fff;--ax-soft:#f3f5f9;--ax-acc:#e3f0fc;--ax-acc2:#f0f7ff;--ax-link:#1565c0;--ax-blue:#1e5aa8;--ax-blue-soft:#e3edf9;
-  --ax-th:#6d9ad0;--ax-green:#2e7d32;--ax-green-soft:#eaf5ec;--ax-amber:#c65d00;--ax-amber-soft:#fff1e3;--ax-red:#c62828;--ax-red-soft:#fdecea;
+  --ax-th:#6d9ad0;--ax-green:#2e7d32;--ax-green-soft:#eaf5ec;--ax-amber:#c65d00;--ax-amber-soft:#fff1e3;--ax-red:#c62828;--ax-red-soft:#fdecea;--ax-purple:#6a3fb5;--ax-purple-soft:#e1d2fa;
   --ax-go:#22683a;--ax-reset:#4a7ab8;--ax-grey:#b5bcc6;
   font-family:Poppins,"Segoe UI",system-ui,sans-serif;color:var(--ax-ink);font-size:13px;display:flex;flex-direction:column;gap:16px}
 body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax-line:#33414f;--ax-line2:#2a3744;--ax-card:#17212c;
-  --ax-soft:#121a23;--ax-acc:#1d2c3d;--ax-acc2:#1a2736;--ax-link:#7fb2ef;--ax-blue-soft:#1d2c3d;--ax-green-soft:#16281b;--ax-amber-soft:#2e2112;--ax-red-soft:#2e1617}
+  --ax-soft:#121a23;--ax-acc:#1d2c3d;--ax-acc2:#1a2736;--ax-link:#7fb2ef;--ax-blue-soft:#1d2c3d;--ax-green-soft:#16281b;--ax-amber-soft:#2e2112;--ax-red-soft:#2e1617;--ax-purple:#b79cf0;--ax-purple-soft:#2c2142}
 .copx *{box-sizing:border-box}
 .copx button,.copx input,.copx select{font-family:inherit}
 .copx-tabs{display:flex;gap:4px;border-bottom:2px solid var(--ax-line);margin-top:-4px}
@@ -1609,12 +1609,13 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-bub:hover,.copx-bub:focus-visible{transform:scale(1.06);box-shadow:0 0 0 3px rgba(30,90,168,.22);outline:none}
 .copx-bub.amber{border-color:var(--ax-amber);background:var(--ax-amber-soft)}
 .copx-bub.red{border-color:var(--ax-red);background:var(--ax-red-soft);color:var(--ax-red)}
+.copx-bub.due{background:var(--ax-purple-soft);color:var(--ax-purple);font-weight:700}     /* only today's update outstanding */
 .copx-bub.sel{box-shadow:0 0 0 3px var(--ax-blue)}
 .copx-bub .bang,.copx-bub .nd{position:absolute;top:-8px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:var(--ax-red);color:#fff;font-size:9.5px;line-height:16px;padding:0 4px;font-weight:700;text-align:center}
 .copx-legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--ax-ink2)}
 .copx-legend span{display:inline-flex;align-items:center;gap:6px}
 .copx-legend i{width:24px;height:13px;border-radius:7px;border:2px solid var(--ax-green);background:var(--ax-green-soft);display:inline-block}
-.copx-legend i.a{border-color:var(--ax-amber);background:var(--ax-amber-soft)} .copx-legend i.r{border-color:var(--ax-red);background:var(--ax-red-soft)}
+.copx-legend i.p{border-color:var(--ax-green);background:var(--ax-purple-soft)} .copx-legend i.a{border-color:var(--ax-amber);background:var(--ax-amber-soft)} .copx-legend i.r{border-color:var(--ax-red);background:var(--ax-red-soft)}
 .copx-legend em{font-style:normal;background:var(--ax-red);color:#fff;border-radius:9px;padding:0 5px;font-size:10px;font-weight:600}
 /* table */
 .copx-tbl{overflow:auto;max-height:720px;border-radius:6px}
@@ -1645,7 +1646,7 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-dot.amber{background:var(--ax-amber)} .copx-dot.red{background:var(--ax-red)}
 .copx-pill{display:inline-block;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin:0 3px 2px 0}
 .copx-pill.r{background:var(--ax-red-soft);color:var(--ax-red)} .copx-pill.a{background:var(--ax-amber-soft);color:var(--ax-amber)}
-.copx-pill.g{background:var(--ax-green-soft);color:var(--ax-green)} .copx-pill.b{background:var(--ax-blue-soft);color:var(--ax-blue)}
+.copx-pill.g{background:var(--ax-green-soft);color:var(--ax-green)} .copx-pill.p{background:var(--ax-purple-soft);color:var(--ax-purple)} .copx-pill.b{background:var(--ax-blue-soft);color:var(--ax-blue)}
 .copx-red{color:var(--ax-red);font-weight:600} .copx-amber{color:var(--ax-amber);font-weight:600}
 /* detail */
 tr.copx-det td{background:var(--ax-acc2);padding:14px 16px 18px}
@@ -1795,6 +1796,7 @@ function renderCopWorkspace(container) {
     card.appendChild(copBoard(rows, rows));
     card.appendChild(el(`<div class="copx-legend">
       <span><i></i>On track</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
+      <span><i class="p"></i>Today's update still due</span>
       <span><em>3</em>daily updates missing</span>
       <span>Hover a bubble for the latest update · click it for details</span></div>`));
   }
@@ -1869,12 +1871,15 @@ function copFilterPanel(built, all) {
   </div>`);
 }
 
+/** Only today's daily update is still outstanding (no earlier days missed). */
+function copDueTodayOnly(r) { return !!(r.daily && r.daily.dueToday && !r.daily.missed.length); }
+
 /** The four-step board: an oval WMTR tag per shipment. */
 function copBoard(base, rows) {
   const shown = new Set(rows.map((r) => r.wmtr));
   const tag = (r) => {
     const nd = r.daily.missed.length;
-    return `<button type="button" class="copx-bub ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""} ${CopUi.focus === r.wmtr ? "sel" : ""}"
+    return `<button type="button" class="copx-bub ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""} ${copDueTodayOnly(r) ? "due" : ""} ${CopUi.focus === r.wmtr ? "sel" : ""}"
       data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr + " — " + r.status)}"${shown.has(r.wmtr) ? "" : ' style="opacity:.25"'}>${esc(r.last5)}${
       r.problem ? `<span class="bang" aria-hidden="true">!</span>` : nd ? `<span class="nd" aria-hidden="true">${nd > 99 ? "99+" : nd}</span>` : ""}</button>`;
   };
@@ -1974,7 +1979,7 @@ function copColDefs(isActive) {
     const daily = { id: "daily", label: "Daily",
       sort: (r) => r.daily.missed.length + (r.daily.dueToday ? 0.5 : 0),
       fv: (r) => r.daily.missed.length ? "Missed" : r.daily.dueToday ? "Today's due" : "Current",
-      td: (r) => `<td class="nw">${r.daily.missed.length ? `<span class="copx-red">${r.daily.missed.length} missed</span>` : r.daily.dueToday ? `<span class="d">Today's due</span>` : `<span class="copx-pill g">Current</span>`}</td>` };
+      td: (r) => `<td class="nw">${r.daily.missed.length ? `<span class="copx-red">${r.daily.missed.length} missed</span>` : r.daily.dueToday ? `<span class="copx-pill p">Today's due</span>` : `<span class="copx-pill g">Current</span>`}</td>` };
     const days = { id: "days", label: "Days in Step", opt: true, ft: "text",
       sort: (r) => r.daysInStep, fv: (r) => r.daysInStep === null ? "" : String(r.daysInStep),
       td: (r) => `<td class="nw ${r.stuck === "fail" ? "copx-red" : r.stuck === "warn" ? "copx-amber" : ""}">${r.daysInStep === null ? "—" : r.daysInStep}</td>` };
@@ -2165,7 +2170,7 @@ function copHoverHtml(r) {
   const shown = miss.slice(-8);
   const dailyLine = miss.length
     ? `<div class="bad">⚠ Missing ${copPlural(miss.length, "daily update")}: ${esc(xtFmtDayList(shown))}${miss.length > shown.length ? " (latest 8)" : ""}</div>`
-    : r.daily.dueToday ? `<div>Today's daily update isn't in yet.</div>` : `<div class="ok">✓ Daily updates current</div>`;
+    : r.daily.dueToday ? `<div style="color:var(--ax-purple,#7b4fc9);font-weight:600">● Today's daily update isn't in yet.</div>` : `<div class="ok">✓ Daily updates current</div>`;
   const others = open.filter((c) => c.id !== "daily");
   return `<div class="h">${esc(r.last5)} · ${esc(r.status || "—")}</div>
     <div class="s">${esc(r.wmtr)}${r.poc ? " · " + esc(r.poc) : ""}</div>

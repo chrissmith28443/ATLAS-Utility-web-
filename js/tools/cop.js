@@ -818,6 +818,9 @@ function copEvaluate(rec, ctx) {
     { state: "fail", detail: h.label + (xrow.reject_reason ? ` — reason: ${xrow.reject_reason}` : "") }, ["rejected"]);
   for (const h of xHit("manual")) add("manual", "general", "req", "Manually-entered metric flag", { state: "fail", detail: h.label }, ["manual"]);
   for (const m of ["variance_est", "variance_rev"]) for (const h of xHit(m)) {
+    // Undelivered: only once more than 10% over (delivered = the ≥10% estimate-vs-actual metric).
+    const appr = xrow.governing_amount, cur = xrow.current_total_cost;
+    if (!delivered && !(typeof appr === "number" && typeof cur === "number" && appr > 0 && cur > appr * 1.10)) continue;
     add("cost", "general", "req", "Cost vs. DTRA-approved amount",
       { state: li.closed || delivered ? "warn" : "fail",
         detail: `${h.label} (approved ${copMoney(xrow.governing_amount) || "—"}, current ${copMoney(xrow.current_total_cost) || "—"}).` }, [m]);
@@ -1288,10 +1291,13 @@ function copActiveEvaluate(rec, ctx) {
     }
   }
 
-  // Cost above the governing DTRA-approved amount (Christmas Tree rule).
+  // Cost above the governing DTRA-approved amount — only once it's more than
+  // 10% over (Christmas Tree rule + the 10% tolerance).
   for (const m of ["variance_est", "variance_rev"]) for (const h of xHit(m)) {
+    const appr = xrow.governing_amount, cur = xrow.current_total_cost;
+    if (!(typeof appr === "number" && typeof cur === "number" && appr > 0 && cur > appr * 1.10)) continue;
     add("cost", "general", "Cost vs. DTRA-approved amount", "warn",
-      `${h.label} (approved ${copMoney(xrow.governing_amount) || "—"}, current ${copMoney(xrow.current_total_cost) || "—"}).`, [m], "Cost is over the DTRA-approved amount");
+      `Cost is ${Math.round((cur / appr - 1) * 100)}% over the DTRA-approved amount (approved ${copMoney(appr)}, current ${copMoney(cur)}).`, [m], "Cost is over the DTRA-approved amount by more than 10%");
   }
 
   /* ---------- 1 · TTI Quality Review ----------
@@ -1355,11 +1361,7 @@ function copActiveEvaluate(rec, ctx) {
     const n = items.filter((r) => !norm(copInv(r, /^bis\/ddtc/))).length;
     dtraGate("auth", "BIS/DDTC authorization on every line", items.length ? n === 0 : false,
       items.length ? `${n} of ${copPlural(items.length, "line")} blank.` : "No inventory lines.", `All ${copPlural(items.length, "line")}.`);
-    const v = f["denied party screen result"];
-    const passed = oldestOf("dtra compliance review (approved)");
-    if (!v && passed && ctx.ds.dpsSince && passed.getTime() < ctx.ds.dpsSince.getTime())
-      add("dps", "review", "Denied Party Screen result", "na", "Approved before ATLAS recorded screen results.");
-    else dtraGate("dps", "Denied Party Screen result", !!v, "Blank.", `${v}.`);
+    // Denied Party Screen result isn't checked — the field isn't used.
   })();
 
   /* ---------- 3 · Estimate ---------- */
@@ -1405,8 +1407,6 @@ function copActiveEvaluate(rec, ctx) {
   /* ---------- 4 · Execution ---------- */
   const inExec = si.step === "exec";
   if (!sc.handCarry) {
-    gate("awbdoc", "exec", "Draft AWB / BoL uploaded before In Transit",
-      hasType(COP_DOC_TYPES.awb.concat(["Draft AWB/MBL"])), "No draft or final AWB/BoL attached.", "Attached.", moving, ["cop.awbdoc", "docs"]);
     const awbNo = norm(xrow.tracking_awb), carrier = norm(xrow.tracking_carrier);
     const miss = [!carrier && "carrier", !awbNo && "AWB/BoL #"].filter(Boolean);
     gate("tracking", "exec", "Carrier and AWB/BoL # in Shipping Activity", !miss.length,
@@ -1805,7 +1805,8 @@ function copFilterPanel(built, all) {
     const h = hits[c.id] || (hits[c.id] = { label: c.label, n: 0 });
     h.n++;
   }
-  if (CopUi.hit && !hits[CopUi.hit]) CopUi.hit = "";
+  const isActive = CopUi.view !== "closed";     // Active: "Needs attention only" covers it
+  if (isActive || (CopUi.hit && !hits[CopUi.hit])) CopUi.hit = "";
   const hitOpts = opt("", "All", !CopUi.hit) + Object.keys(hits).sort((a, b) => hits[b].n - hits[a].n)
     .map((id) => opt(id, `${hits[id].label} (${hits[id].n})`, CopUi.hit === id)).join("");
   const stuckRows = Object.keys(COP_STUCK_DEFAULTS).map((k) => `<div>${esc(COP_STUCK_LABELS[k])}:
@@ -1816,7 +1817,7 @@ function copFilterPanel(built, all) {
     <div class="copx-frow">
       <div class="copx-f"><label for="copPoc">TTI POC</label>
         <select id="copPoc">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select></div>
-      <div class="copx-f"><label for="copHit">Metric hits</label><select id="copHit">${hitOpts}</select></div>
+      ${isActive ? "" : `<div class="copx-f"><label for="copHit">Metric hits</label><select id="copHit">${hitOpts}</select></div>`}
       <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country, status" value="${esc(CopUi.q)}"></div>
       <label class="copx-chk"><input type="checkbox" id="copRisk" ${CopUi.atRisk ? "checked" : ""}> Needs attention only</label>
       <div class="copx-fbtns"><button class="copx-btn blue" id="copReset" type="button">Reset</button></div>
@@ -2335,7 +2336,7 @@ function copWire(root, built, rows, isActive) {
   det.addEventListener("toggle", () => { CopUi.filterOpen = det.open; });
   const prefSet = (fn) => { const p = copGetPrefs(); fn(p); copSetPrefs(p); copRerender(); };
   $("#copPoc").addEventListener("change", (e) => { CopUi.poc = e.target.value; copRerender(); });
-  $("#copHit").addEventListener("change", (e) => { CopUi.hit = e.target.value; copRerender(); });
+  if ($("#copHit")) $("#copHit").addEventListener("change", (e) => { CopUi.hit = e.target.value; copRerender(); });
   $("#copRdd").addEventListener("change", (e) => { CopUi.rddDays = Number(e.target.value) || 0; copRerender(); });
   $("#copRisk").addEventListener("change", (e) => { CopUi.atRisk = e.target.checked; copRerender(); });
   const q = $("#copQ");

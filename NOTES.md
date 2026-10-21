@@ -182,4 +182,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   date + 1 BD), daily, required docs = reqatt metric set (CIV, PKL, SLI, AES, VAT, POD, MCT) +
   AWB/carrier, ITN, MARAD, delivery date / late vs RDD, variance, rejected, manual, RTI/invoiced.
   User: placards/photos are an internal SOP check, vendor invoice lives on the cost line.
+- v2.6.6: Active tab: no Metric hits filter (Needs attention covers it); no DPS check (field unused);
+  no draft-AWB gate (always uploaded pre-transit). Cost over DTRA-approved flags only when >10%
+  over (COP only — Christmas Tree's own reapproval flag is unchanged).
 

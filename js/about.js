@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.6",
+    title: "COP: fewer flags on active shipments",
+    notes: [
+      "The Metric hits filter is now on the Closed tab only — on Active shipments, \"Needs attention only\" does the job.",
+      "Denied Party Screen result is no longer checked (the field isn't used).",
+      "\"Draft AWB / BoL uploaded before In Transit\" removed — it's always uploaded before then. Carrier and AWB/BoL # are still checked.",
+      "Cost over the DTRA-approved amount is flagged only when it's more than 10% over the approved cost.",
+    ],
+  },
+  {
     version: "2.6.5",
     title: "COP: Closed tab is metric hits only; RDD only when monitored",
     notes: [

@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.7",
+    title: "COP: sortable / filterable table, column picker, cleaner board",
+    notes: [
+      "Shipment table: click any column header to sort (again to reverse); a filter box or pick-list under each header narrows the list (the board fades what's filtered out). Reset clears them.",
+      "Columns button: add or remove columns. Days in Step is now optional, alongside Request Title, Requestor, CTR Program, Mode, Carrier, AWB/BoL #, Est. Departure, Total Cost and the Ops Tracker's Date Packed, RFQ Sent and ITN. Your choice is saved in this browser.",
+      "Origin now shows above Destination in the same column.",
+      "Board: Estimate reads TTI Estimate Preparation → CT Program > $100K Approval → DTRA Estimate Review; \"Pending Pre-clearance\" replaces Pre-clearance / green light. The $100K and Delivery boxes only appear when a shipment is in them.",
+      "Entering daily updates is removed from the Utility (it can't write to ATLAS) — it's kept for the developer mockup, now with a Save daily updates button. Shipment details link to the full update history.",
+    ],
+  },
+  {
     version: "2.6.6",
     title: "COP: fewer flags on active shipments",
     notes: [

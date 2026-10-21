@@ -201,6 +201,11 @@ const CopUi = {
   _parsed: null,        // { grid, data } — parse cache keyed by grid identity
 };
 
+/* Mockup / ATLAS-build features. The Utility can't write to ATLAS, so entering
+   and saving daily updates is off here; the developer mockup (and ATLAS)
+   switch it on. */
+const COP_MOCKUP = { editUpdates: false };
+
 /* ---- prefs (me + stuck limits) ---- */
 function copGetPrefs() {
   let p = {};
@@ -1025,7 +1030,7 @@ function copEvaluate(rec, ctx) {
     dest: copShortCountry(f["country of destination"] || ""), origin: copShortCountry(f["country of origin"] || ""),
     mode: sc.as || f["requested mode of transit"] || "",
     latest, daily: rec.daily, carrier: xrow.tracking_carrier, awb: xrow.tracking_awb, tracklink: xrow.tracking_link,
-    consol, checks, counts, stageWorst, onTracker: !!trk,
+    consol, checks, counts, stageWorst, onTracker: !!trk, trk, requestor: f["requestor name"] || "",
   };
 }
 
@@ -1062,11 +1067,11 @@ const COP_STATUS_STEP = {
 };
 /* Execution, split by where the shipment physically is. */
 const COP_EXEC_PHASES = [
-  { id: "pre",      label: "Pre-clearance / green light", statuses: ["dtra approved", "pending"] },
+  { id: "pre",      label: "Pending Pre-clearance",       statuses: ["dtra approved", "pending"] },
   { id: "booked",   label: "Booked / picked up",          statuses: ["scheduled", "picked up", "arrived warehouse", "departed warehouse"] },
   { id: "transit",  label: "In transit",                  statuses: ["in transit", "arrived pol", "departed pol", "arrived transshipment port", "departed transshipment port", "arrived pod", "departed pod"] },
   { id: "customs",  label: "Customs",                     statuses: ["awaiting customs clearance", "cleared customs"] },
-  { id: "delivery", label: "Delivery",                    statuses: ["out for delivery", "failed delivery attempt", "delivered - pending pod"] },
+  { id: "delivery", label: "Delivery",                    statuses: ["out for delivery", "failed delivery attempt", "delivered - pending pod"], optional: true },
 ];
 const COP_PHASE_IDX = { pre: 0, booked: 1, transit: 2, customs: 3, delivery: 4 };
 /* Program/Compliance Review and Estimate, split by the exact ATLAS status. */
@@ -1077,10 +1082,13 @@ const COP_STEP_SUBS = {
   ],
   estimate: [
     { id: "tti",        label: "TTI Estimate Preparation",            statuses: ["tti estimate preparation"] },
-    { id: "dtra",       label: "DTRA Estimate Review / cost approval", statuses: ["dtra estimate review"] },
-    { id: "ct",         label: "CT Program > $100K Approval",         statuses: ["ct program > 100k approval"] },
+    { id: "ct",         label: "CT Program > $100K Approval",         statuses: ["ct program > 100k approval"], optional: true },
+    { id: "dtra",       label: "DTRA Estimate Review",                statuses: ["dtra estimate review"] },
   ],
 };
+/* Inner boxes marked `optional` (rarely-used statuses) only show when a
+   shipment in view is in them — keeps the board clean. */
+function copShowSub(p, n) { return !p.optional || n > 0; }
 function copStepSubOf(step, low) {
   const subs = COP_STEP_SUBS[step];
   if (!subs) return null;
@@ -1477,7 +1485,7 @@ function copActiveEvaluate(rec, ctx) {
     rdd, rddDays: rdd && !delivered ? copCalDays(today, rdd) : null,
     dest: copShortCountry(f["country of destination"] || ""), origin: copShortCountry(f["country of origin"] || ""),
     mode: sc.as || f["requested mode of transit"] || "",
-    latest, daily, carrier: xrow.tracking_carrier, awb: xrow.tracking_awb, tracklink: xrow.tracking_link,
+    latest, daily, carrier: xrow.tracking_carrier, awb: xrow.tracking_awb, tracklink: xrow.tracking_link, trk,
     consol, checks, counts, health: counts.red ? "red" : counts.amber ? "amber" : "green",
   };
 }
@@ -1486,7 +1494,8 @@ function copActiveEvaluate(rec, ctx) {
 function copBuildAll() {
   const data = copData();
   if (!data) return null;
-  const drafts = copPruneDrafts(data.records);       // pending daily updates entered on the COP
+  // Pending daily updates entered on the COP (mockup only).
+  const drafts = COP_MOCKUP.editUpdates ? copPruneDrafts(data.records) : {};
   const ctx = {
     today: copToday(), tracker: copGetTracker(), prefs: copGetPrefs(), ds: data.ds,
     ignores: typeof xtGetIgnores === "function" ? xtGetIgnores() : {}, drafts,
@@ -1524,6 +1533,7 @@ function copFilterRows(all) {
   if (CopUi.hit) rows = rows.filter((r) => r.checks.some((c) => c.id === CopUi.hit && (c.state === "fail" || c.state === "warn" || c.state === "due")));
   if (CopUi.rddDays === -1) rows = rows.filter((r) => r.rddDays !== null && r.rddDays < 0);          // Past RDD
   else if (CopUi.rddDays) rows = rows.filter((r) => r.rddDays !== null && r.rddDays >= 0 && r.rddDays <= CopUi.rddDays);
+  rows = copApplyColFilters(rows, CopUi.view !== "closed");
   return { base, rows };
 }
 
@@ -1611,6 +1621,16 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-tbl table{width:100%;border-collapse:collapse;font-size:12.5px}
 .copx-tbl th{position:sticky;top:0;z-index:1;background:var(--ax-th);color:#fff;text-align:left;font-weight:600;padding:12px 12px;white-space:nowrap;border-right:1px solid rgba(255,255,255,.25)}
 .copx-tbl td{padding:10px 12px;border-bottom:1px solid var(--ax-line2);vertical-align:top}
+.copx-tbl th.srt{cursor:pointer;user-select:none}
+.copx-tbl th.srt:hover,.copx-tbl th.srt.on{background:var(--ax-blue)}
+.copx-tbl th .ar{font-size:9px;margin-left:3px}
+.copx-tbl tr.flt th{background:var(--ax-soft);padding:5px 6px;border-bottom:1px solid var(--ax-line);border-right:1px solid var(--ax-line2)}
+.copx-tbl .copx-cf{width:100%;min-width:70px;font:inherit;font-size:11.5px;font-weight:400;padding:4px 6px;border:1px solid var(--ax-line);border-radius:4px;background:var(--ax-card);color:var(--ax-ink)}
+.copx-colpick{display:flex;flex-wrap:wrap;gap:12px 32px;background:var(--ax-soft);border:1px solid var(--ax-line);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+.copx-colpick>div{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.copx-colpick .k{width:100%;font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ax-muted)}
+.copx-colpick .ft{width:100%}
+.copx-colpick .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
 .copx-tbl tr.row{cursor:pointer}
 .copx-tbl tr.row:hover td{background:var(--ax-acc2)}
 .copx-tbl tr.row.sel td{background:var(--ax-blue-soft)}
@@ -1668,7 +1688,7 @@ textarea.copx-in{resize:vertical;min-height:40px}
 .copx-uform .k.g{color:var(--ax-green);font-weight:600;text-transform:none;letter-spacing:0;font-size:12.5px}
 .copx-uform .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .copx-uform .row input[type=date]{width:auto;flex:1}
-.copx-uform .lnk,.copx-sheet .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
+.copx-uform .lnk,.copx-sheet .lnk,.copx-info .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
 a.copx-open{font-weight:600;font-size:12px;text-decoration:none;color:var(--ax-link);white-space:nowrap}
 a.copx-open:hover{text-decoration:underline}
 .copx-sheet-hd{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px}
@@ -1678,6 +1698,7 @@ a.copx-open:hover{text-decoration:underline}
 .copx-sheet td{vertical-align:top}
 .copx-sheet .copx-donebox{font-size:12px;color:var(--ax-green);margin-bottom:5px}
 .copx-sheet td .copx-btn{margin:0 4px 4px 0}
+.copx-sheet-ft{display:flex;justify-content:flex-end;padding-top:10px}
 .copx-modal-bg{position:fixed;inset:0;background:rgba(30,42,74,.55);display:flex;align-items:center;justify-content:center;padding:24px;z-index:10000}
 .copx-modal{background:var(--ax-card);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);width:min(1000px,100%);max-height:calc(100vh - 48px);display:flex;flex-direction:column;overflow:hidden;padding:14px}
 .copx-modal-hd{display:flex;justify-content:space-between;align-items:center;background:var(--ax-navy);color:#fff;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-weight:600;font-size:16px}
@@ -1777,15 +1798,18 @@ function renderCopWorkspace(container) {
   }
 
   /* ---- details table ---- */
-  const sheet = isActive && CopUi.updMode;
+  const edit = isActive && COP_MOCKUP.editUpdates;
+  const sheet = edit && CopUi.updMode;
   const tcard = el(`<section class="copx-card">
     <div class="copx-hd"><h2>${sheet ? "Daily Status Updates" : isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
-      <span class="n">${sheet ? "Every shipment in view — add today's update for each" : isActive ? "Click a row for its checklist and to add a daily update" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing)"}</span>
-      ${isActive ? `<div class="acts"><button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button></div>` : ""}</div>
+      <span class="n">${sheet ? "Every shipment in view — type today's update for each, then Save" : isActive ? "Click a row for its checklist and daily updates · click a header to sort" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing) · click a header to sort"}</span>
+      <div class="acts">${sheet ? "" : `<button class="copx-btn ${CopUi.colsOpen ? "blue" : ""}" id="copCols" type="button" aria-expanded="${!!CopUi.colsOpen}">Columns</button>`}
+      ${edit ? `<button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button>` : ""}</div></div>
     <div class="copx-rule"></div>
   </section>`);
   root.appendChild(tcard);
-  tcard.appendChild(sheet ? copUpdatesSheet(rows) : copTable(rows, isActive, base.length));
+  if (!sheet && CopUi.colsOpen) tcard.appendChild(copColumnPicker(isActive));
+  tcard.appendChild(sheet ? copUpdatesSheet(rows) : copTable(rows, isActive, base));
 
   copWire(root, built, rows, isActive);
 }
@@ -1866,6 +1890,7 @@ function copBoard(base, rows) {
       const exec = s.id === "exec";
       body = (exec ? COP_EXEC_PHASES : COP_STEP_SUBS[s.id]).map((p) => {
         const ps = xs.filter((r) => (exec ? r.phase : r.sub) === p.id);
+        if (!copShowSub(p, ps.length)) return "";
         return `<div class="copx-ph"><div class="pl"><span>${esc(p.label)}</span><span>${ps.length}</span></div>
           <div class="bb">${ps.length ? ps.map(tag).join("") : `<span class="copx-empty">None</span>`}</div></div>`;
       }).join("");
@@ -1881,58 +1906,210 @@ function copBoard(base, rows) {
   return board;
 }
 
+/* ---- table columns: sortable, filterable, and chosen per view (prefs.cols) ----
+   Each column: id, label, sort(r) → number|string|null, fv(r) → the value its
+   filter matches ("text" = contains box, otherwise a pick-list of the values
+   in view), td(r) → cell HTML, opt: true = off until picked under Columns,
+   fixed: true = always shown. */
+const COP_HEALTH_ORDER = { red: 0, amber: 1, green: 2 };
+function copTrkDate(v) { const d = copIsoToDate(v); return d ? d : null; }
+function copTrkText(v) { const d = copIsoToDate(v); return d ? copFmt(d) : norm(v || ""); }
+function copColDefs(isActive) {
+  const muted = (s) => `<small style="color:var(--ax-muted)">${s}</small>`;
+  const dateCol = (id, label, get, opt) => ({ id, label, opt, ft: "text",
+    sort: (r) => { const d = get(r); return d ? d.getTime() : null; },
+    fv: (r) => { const d = get(r); return d ? copFmt(d) : ""; },
+    td: (r) => { const d = get(r); return `<td class="nw">${d ? esc(copFmt(d)) : "—"}</td>`; } });
+  const textCol = (id, label, get, opt, ft) => ({ id, label, opt, ft,
+    sort: (r) => copLow(get(r)) || null, fv: (r) => get(r) || "",
+    td: (r) => `<td>${esc(get(r) || "—")}</td>` });
+  const health = { id: "health", label: "", fixed: true, title: "Health",
+    sort: (r) => COP_HEALTH_ORDER[r.health], td: (r) => `<td><span class="copx-dot ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""}"></span></td>` };
+  const wmtr = { id: "wmtr", label: "WMTR", fixed: true, ft: "text", sort: (r) => r.num, fv: (r) => r.wmtr,
+    td: (r) => `<td class="w">${esc(r.last5)} ${copOpenLink(r)}${isActive && r.consol.length ? ` <span class="copx-pill b" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>` };
+  const poc = textCol("poc", "TTI POC", (r) => r.poc);
+  poc.td = (r) => `<td class="nw">${esc(r.poc || "—")}</td>`;
+  const route = { id: "route", label: "Origin / Destination", ft: "text",
+    sort: (r) => copLow(r.dest) || null, fv: (r) => `${r.origin} → ${r.dest} ${r.mode}`,
+    td: (r) => `<td class="nw">${esc(r.origin || "—")}<br>→ ${esc(r.dest || "—")}${r.mode ? `<br>${muted(esc(r.mode))}` : ""}</td>` };
+  const items = { id: "items", label: isActive ? "Open Items" : "Audit",
+    sort: (r) => -(r.counts.red * 1000 + r.counts.amber),
+    fv: (r) => r.counts.red ? "Missed" : r.counts.amber ? "Needs attention" : "Clear",
+    td: (r) => `<td>${r.counts.red ? `<span class="copx-pill r">${r.counts.red} missed</span>` : ""}${r.counts.amber ? `<span class="copx-pill a">${r.counts.amber} attention</span>` : ""}${!r.counts.red && !r.counts.amber ? `<span class="copx-pill g">Clear</span>` : ""}</td>` };
+  const rddCat = (r) => !r.rdd ? "No RDD" : r.rddDays === null ? "Delivered" : r.rddDays < 0 ? "Past RDD" : r.rddDays <= 7 ? "Within 7 days" : r.rddDays <= 30 ? "8–30 days" : "More than 30 days";
+  const rdd = { id: "rdd", label: "RDD", opt: !isActive, sort: (r) => r.rdd ? r.rdd.getTime() : null, fv: rddCat,
+    td: (r) => {
+      const cls = !isActive || r.rddDays === null ? "" : r.rddDays < 0 ? "copx-red" : r.rddDays <= 7 ? "copx-amber" : "";
+      return `<td class="nw ${cls}">${r.rdd ? esc(copFmt(r.rdd)) : "—"}${isActive && r.rddDays !== null ? `<br><small class="d" style="color:var(--ax-muted)">${r.rddDays < 0 ? `${-r.rddDays}d past` : `${r.rddDays}d`}</small>` : ""}</td>`;
+    } };
+  // Reference fields — off by default, picked under Columns.
+  const extras = [
+    textCol("title", "Request Title", (r) => r.title, true, "text"),
+    textCol("requestor", "Requestor", (r) => r.requestor, true),
+    textCol("program", "CTR Program", (r) => r.program, true),
+    textCol("mode", "Mode", (r) => r.mode, true),
+    textCol("carrier", "Carrier", (r) => r.carrier, true),
+    textCol("awb", "AWB/BoL #", (r) => r.awb, true, "text"),
+    dateCol("etd", "Est. Departure", (r) => xtParseDate(r.rec.ship["departure from origin est. date"]), true),
+    { id: "cost", label: "Total Cost", opt: true, ft: "text",
+      sort: (r) => toFloat(r.rec.f["total cost in usd"]) || null, fv: (r) => copMoney(toFloat(r.rec.f["total cost in usd"])) || "",
+      td: (r) => `<td class="nw">${esc(copMoney(toFloat(r.rec.f["total cost in usd"])) || "—")}</td>` },
+  ];
+  // Ops Tracker fields (until they're in ATLAS).
+  const trkCol = (id, label, key, ft) => ({ id, label, opt: true, ft: ft || "text", title: "From the Ops Tracker",
+    sort: (r) => { const v = r.trk && r.trk[key]; const d = copTrkDate(v); return d ? d.getTime() : (norm(v || "") ? copLow(v) : null); },
+    fv: (r) => r.trk ? copTrkText(r.trk[key]) : "",
+    td: (r) => `<td class="nw">${r.trk && norm(r.trk[key] || "") ? esc(copTrkText(r.trk[key])) : "—"}</td>` });
+  if (isActive) {
+    const step = { id: "step", label: "Step / Status",
+      sort: (r) => `${r.stepIdx + 1}|${copLow(r.status)}`, fv: (r) => r.status || "",
+      td: (r) => `<td class="st">${esc(r.step ? COP_STEPS[COP_STEP_IDX[r.step]].label : "—")}<small>${r.problem ? `<span class="copx-red">${esc(r.status)}</span>` : esc(r.status)}</small></td>` };
+    const upd = { id: "update", label: "Latest Daily Update", ft: "text",
+      sort: (r) => { const u = copUpdatesFor(r)[0]; return u ? u.date.getTime() : null; },
+      fv: (r) => { const u = copUpdatesFor(r)[0]; return u ? copFmt(u.date) + " " + u.note : ""; },
+      td: (r) => { const lu = copUpdatesFor(r)[0];
+        return `<td class="up">${lu ? `<span class="d">${esc(copFmt(lu.date))}${lu.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(lu.note)}</span>` : `<span class="d">No updates yet</span>`}</td>`; } };
+    const daily = { id: "daily", label: "Daily",
+      sort: (r) => r.daily.missed.length + (r.daily.dueToday ? 0.5 : 0),
+      fv: (r) => r.daily.missed.length ? "Missed" : r.daily.dueToday ? "Today's due" : "Current",
+      td: (r) => `<td class="nw">${r.daily.missed.length ? `<span class="copx-red">${r.daily.missed.length} missed</span>` : r.daily.dueToday ? `<span class="d">Today's due</span>` : `<span class="copx-pill g">Current</span>`}</td>` };
+    const days = { id: "days", label: "Days in Step", opt: true, ft: "text",
+      sort: (r) => r.daysInStep, fv: (r) => r.daysInStep === null ? "" : String(r.daysInStep),
+      td: (r) => `<td class="nw ${r.stuck === "fail" ? "copx-red" : r.stuck === "warn" ? "copx-amber" : ""}">${r.daysInStep === null ? "—" : r.daysInStep}</td>` };
+    return [health, wmtr, step, poc, upd, daily, rdd, route, items, days].concat(extras,
+      [trkCol("packed", "Date Packed", "packed"), trkCol("rfq", "RFQ Sent", "rfq"), trkCol("itn", "ITN", "itn")]);
+  }
+  const status = textCol("status", "Status", (r) => r.status);
+  status.td = (r) => `<td class="st">${esc(r.status)}</td>`;
+  const delivered = dateCol("delivered", "Delivered", (r) => r.delivered);
+  return [health, wmtr, status, poc, delivered, route, items, rdd].concat(extras,
+    [trkCol("rfq", "RFQ Sent", "rfq"), trkCol("itn", "ITN", "itn")]);
+}
+/** Column ids shown in this view (prefs.cols, else the defaults). */
+function copVisibleCols(isActive) {
+  const defs = copColDefs(isActive);
+  const saved = (copGetPrefs().cols || {})[isActive ? "active" : "closed"];
+  const on = Array.isArray(saved) ? new Set(saved) : null;
+  return defs.filter((c) => c.fixed || (on ? on.has(c.id) : !c.opt));
+}
+function copTblState(isActive) {
+  CopUi.tbl = CopUi.tbl || {};
+  const k = isActive ? "active" : "closed";
+  return CopUi.tbl[k] || (CopUi.tbl[k] = { sort: "", dir: 1, f: {} });
+}
+/** Column filters (applied with the other filters, so the board fades too). */
+function copApplyColFilters(rows, isActive) {
+  const st = copTblState(isActive);
+  const cols = copVisibleCols(isActive);
+  for (const c of cols) {
+    const v = st.f[c.id];
+    if (!v || !c.fv) continue;
+    rows = c.ft === "text" ? rows.filter((r) => copLow(c.fv(r)).includes(copLow(v))) : rows.filter((r) => c.fv(r) === v);
+  }
+  return rows;
+}
+function copCmp(a, b) {
+  if (a === null || a === undefined || a === "") return (b === null || b === undefined || b === "") ? 0 : 1;   // blanks last
+  if (b === null || b === undefined || b === "") return -1;
+  return typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true });
+}
+
+/** Columns picker (the "Columns" button). */
+function copColumnPicker(isActive) {
+  const defs = copColDefs(isActive).filter((c) => !c.fixed);
+  const vis = new Set(copVisibleCols(isActive).map((c) => c.id));
+  const box = (c) => `<label class="copx-chk"><input type="checkbox" data-col="${esc(c.id)}" ${vis.has(c.id) ? "checked" : ""}> ${esc(c.label)}${c.title ? ` <small style="color:var(--ax-muted)">(${esc(c.title.replace(/^From the /, ""))})</small>` : ""}</label>`;
+  return el(`<div class="copx-colpick">
+    <div><div class="k">Default columns</div>${defs.filter((c) => !c.opt).map(box).join("")}</div>
+    <div><div class="k">More columns</div>${defs.filter((c) => c.opt).map(box).join("")}</div>
+    <div class="ft"><button class="lnk" type="button" id="copColsReset">Reset to default columns</button></div>
+  </div>`);
+}
+
 /** Details table (active) or audit table (closed). */
-function copTable(rows, isActive, baseCount) {
+function copTable(rows, isActive, base) {
   const wrap = el(`<div class="copx-tbl"></div>`);
-  if (!rows.length) {
-    wrap.appendChild(el(`<p class="copx-msg">${baseCount ? "No shipments match these filters." : isActive ? "No active shipments." : "No closed shipments in this UDQ."}</p>`));
+  if (!base.length) {
+    wrap.appendChild(el(`<p class="copx-msg">${isActive ? "No active shipments." : "No closed shipments in this UDQ."}</p>`));
     return wrap;
   }
-  const today = copToday();
-  const stepLabel = (r) => r.step ? COP_STEPS[COP_STEP_IDX[r.step]].label : "—";
-  const head = isActive
-    ? `<th></th><th>WMTR</th><th>Step / Status</th><th>TTI POC</th><th>Latest Daily Update</th><th>Daily</th><th>RDD</th><th>Days in Step</th><th>Destination</th><th>Open Items</th>`
-    : `<th></th><th>WMTR</th><th>Status</th><th>TTI POC</th><th>Delivered</th><th>Destination</th><th>Audit</th>`;
-  const ncol = isActive ? 10 : 7;
-  const table = el(`<table><thead><tr>${head}</tr></thead><tbody></tbody></table>`);
+  const cols = copVisibleCols(isActive);
+  const st = copTblState(isActive);
+  const ncol = cols.length;
+  const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t)}</option>`;
+  const head = cols.map((c) => {
+    const on = st.sort === c.id;
+    const arrow = on ? (st.dir > 0 ? "▲" : "▼") : "";
+    return `<th${c.sort ? ` class="srt${on ? " on" : ""}" data-sort="${esc(c.id)}" tabindex="0" aria-sort="${on ? (st.dir > 0 ? "ascending" : "descending") : "none"}"` : ""} title="${esc(c.title || (c.sort ? "Click to sort" : ""))}">${esc(c.label)}${arrow ? ` <span class="ar">${arrow}</span>` : ""}</th>`;
+  }).join("");
+  const fil = cols.map((c) => {
+    if (!c.fv) return "<th></th>";
+    const v = st.f[c.id] || "";
+    if (c.ft === "text") return `<th><input type="search" class="copx-cf" data-cf="${esc(c.id)}" value="${esc(v)}" placeholder="Filter" aria-label="Filter ${esc(c.label)}"></th>`;
+    const vals = Array.from(new Set(base.map((r) => c.fv(r)).filter(Boolean)));
+    if (v && vals.indexOf(v) === -1) vals.push(v);
+    vals.sort((a, b) => copCmp(a, b));
+    return `<th><select class="copx-cf" data-cf="${esc(c.id)}" aria-label="Filter ${esc(c.label)}">${opt("", "All", !v)}${vals.map((x) => opt(x, x, x === v)).join("")}</select></th>`;
+  }).join("");
+  const table = el(`<table><thead><tr class="hd">${head}</tr><tr class="flt">${fil}</tr></thead><tbody></tbody></table>`);
   const tb = table.querySelector("tbody");
-  const sorted = rows.slice().sort(isActive
-    ? (a, b) => (b.stepIdx - a.stepIdx) || ({ red: 0, amber: 1, green: 2 }[a.health] - { red: 0, amber: 1, green: 2 }[b.health]) || a.num - b.num
+  let sorted;
+  const sc = st.sort && cols.find((c) => c.id === st.sort);
+  if (sc) sorted = rows.slice().sort((a, b) => {
+    const va = sc.sort(a), vb = sc.sort(b);
+    const blank = (x) => x === null || x === undefined || x === "";
+    if (blank(va) || blank(vb)) return copCmp(va, vb) || a.num - b.num;     // blanks last either way
+    return st.dir * copCmp(va, vb) || a.num - b.num;
+  });
+  else sorted = rows.slice().sort(isActive
+    ? (a, b) => (b.stepIdx - a.stepIdx) || (COP_HEALTH_ORDER[a.health] - COP_HEALTH_ORDER[b.health]) || a.num - b.num
     : (a, b) => b.num - a.num);
   for (const r of sorted) {
-    const dot = `<span class="copx-dot ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""}"></span>`;
-    const pills = `${r.counts.red ? `<span class="copx-pill r">${r.counts.red} missed</span>` : ""}${r.counts.amber ? `<span class="copx-pill a">${r.counts.amber} attention</span>` : ""}${!r.counts.red && !r.counts.amber ? `<span class="copx-pill g">Clear</span>` : ""}`;
-    let cells;
-    if (isActive) {
-      const lu = copUpdatesFor(r)[0];
-      const upd = lu ? `<span class="d">${esc(copFmt(lu.date))}${lu.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(lu.note)}</span>` : `<span class="d">No updates yet</span>`;
-      const dly = r.daily.missed.length ? `<span class="copx-red">${r.daily.missed.length} missed</span>` : r.daily.dueToday ? `<span class="d">Today's due</span>` : `<span class="copx-pill g">Current</span>`;
-      const rddCls = r.rddDays === null ? "" : r.rddDays < 0 ? "copx-red" : r.rddDays <= 7 ? "copx-amber" : "";
-      cells = `<td>${dot}</td>
-        <td class="w">${esc(r.last5)} ${copOpenLink(r)}${r.consol.length ? ` <span class="copx-pill b" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>
-        <td class="st">${esc(stepLabel(r))}<small>${r.problem ? `<span class="copx-red">${esc(r.status)}</span>` : esc(r.status)}</small></td>
-        <td class="nw">${esc(r.poc || "—")}</td>
-        <td class="up">${upd}</td>
-        <td class="nw">${dly}</td>
-        <td class="nw ${rddCls}">${r.rdd ? esc(copFmt(r.rdd)) : "—"}${r.rddDays !== null ? `<br><small class="d" style="color:var(--ax-muted)">${r.rddDays < 0 ? `${-r.rddDays}d past` : `${r.rddDays}d`}</small>` : ""}</td>
-        <td class="nw ${r.stuck === "fail" ? "copx-red" : r.stuck === "warn" ? "copx-amber" : ""}">${r.daysInStep === null ? "—" : r.daysInStep}</td>
-        <td>${esc(r.dest || "—")}<br><small style="color:var(--ax-muted)">${esc(r.mode || "")}</small></td>
-        <td>${pills}</td>`;
-    } else {
-      cells = `<td>${dot}</td>
-        <td class="w">${esc(r.last5)} ${copOpenLink(r)}<small>${esc(r.wmtr)}</small></td>
-        <td class="st">${esc(r.status)}</td>
-        <td class="nw">${esc(r.poc || "—")}</td>
-        <td class="nw">${r.delivered ? esc(copFmt(r.delivered)) : "—"}</td>
-        <td>${esc(r.dest || "—")}</td>
-        <td>${pills}</td>`;
-    }
-    const tr = el(`<tr class="row ${CopUi.focus === r.wmtr ? "sel" : ""}" data-w="${esc(r.wmtr)}">${cells}</tr>`);
+    const tr = el(`<tr class="row ${CopUi.focus === r.wmtr ? "sel" : ""}" data-w="${esc(r.wmtr)}">${cols.map((c) => c.td(r)).join("")}</tr>`);
     tb.appendChild(tr);
     if (CopUi.expanded.has(r.wmtr)) tb.appendChild(copDetailRow(r, ncol, isActive));
   }
+  if (!rows.length) tb.appendChild(el(`<tr><td colspan="${ncol}" class="copx-msg">No shipments match these filters.</td></tr>`));
   wrap.appendChild(table);
   return wrap;
+}
+
+/** Sorting, column filters and the Columns picker. */
+function copWireTable(root, isActive) {
+  const st = copTblState(isActive);
+  const sortBy = (id) => { if (st.sort === id) st.dir = -st.dir; else { st.sort = id; st.dir = 1; } copRerender(); };
+  root.querySelectorAll(".copx-tbl th[data-sort]").forEach((th) => {
+    th.addEventListener("click", () => sortBy(th.dataset.sort));
+    th.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sortBy(th.dataset.sort); } });
+  });
+  let t = null;
+  root.querySelectorAll(".copx-cf").forEach((inp) => {
+    const id = inp.dataset.cf;
+    const apply = () => {
+      st.f[id] = inp.value; copRerender();
+      if (inp.tagName === "INPUT") {
+        const n = document.querySelector(`.copx-cf[data-cf="${CSS.escape(id)}"]`);
+        if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+      }
+    };
+    if (inp.tagName === "SELECT") inp.addEventListener("change", apply);
+    else inp.addEventListener("input", () => { clearTimeout(t); t = setTimeout(apply, 300); });
+  });
+  // keep the filter row pinned just under the header row
+  const hd = root.querySelector(".copx-tbl tr.hd");
+  if (hd) requestAnimationFrame(() => root.querySelectorAll(".copx-tbl tr.flt th").forEach((th) => { th.style.top = hd.offsetHeight + "px"; }));
+  const cb = root.querySelector("#copCols");
+  if (cb) cb.addEventListener("click", () => { CopUi.colsOpen = !CopUi.colsOpen; copRerender(); });
+  const k = isActive ? "active" : "closed";
+  root.querySelectorAll(".copx-colpick input[data-col]").forEach((c) => c.addEventListener("change", () => {
+    const p = copGetPrefs();
+    p.cols = (p.cols && typeof p.cols === "object") ? p.cols : {};
+    p.cols[k] = Array.from(root.querySelectorAll(".copx-colpick input[data-col]")).filter((x) => x.checked).map((x) => x.dataset.col);
+    if (!c.checked) { delete st.f[c.dataset.col]; if (st.sort === c.dataset.col) st.sort = ""; }
+    copSetPrefs(p); copRerender();
+  }));
+  const cr = root.querySelector("#copColsReset");
+  if (cr) cr.addEventListener("click", () => { const p = copGetPrefs(); if (p.cols) delete p.cols[k]; copSetPrefs(p); st.f = {}; st.sort = ""; copRerender(); });
 }
 
 /** Expanded row: request + last 10 daily updates | steps in order | throughout. */
@@ -1959,14 +2136,14 @@ function copDetailRow(r, ncol, isActive) {
   const watch = isActive ? !!(copGetPrefs().rddWatch || {})[r.reqNo] : false;
   return el(`<tr class="copx-det"><td colspan="${ncol}"><div class="copx-det-grid">
     <div class="copx-info">
-      ${isActive ? copUpdateForm(r) : ""}
+      ${isActive && COP_MOCKUP.editUpdates ? copUpdateForm(r) : ""}
       <div><div class="k">Request</div>${esc(r.wmtr)} ${copOpenLink(r, "Open in ATLAS")}<br>${esc(r.title || "")}</div>
       <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
       <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
       ${r.rdd || isActive ? `<div><div class="k">RDD</div>${r.rdd ? esc(copFmt(r.rdd)) : "—"}
         ${isActive ? `<label class="copx-chk copx-watch"><input type="checkbox" data-rddwatch="${esc(r.reqNo)}" ${watch ? "checked" : ""}> Monitor RDD for this request (firm date, e.g. a training event)</label>` : ""}</div>` : ""}
       ${r.consol && r.consol.length ? `<div><div class="k">Consolidated with</div>${esc(r.consol.join(", "))}</div>` : ""}
-      <div class="log"><div class="k">Recent daily updates</div>${log || "<div>None yet.</div>"}</div>
+      <div class="log"><div class="k">Recent daily updates${copUpdatesFor(r).length > 10 ? ` <button class="lnk" type="button" data-hist="${esc(r.wmtr)}">All ${copUpdatesFor(r).length}</button>` : ""}</div>${log || "<div>None yet.</div>"}</div>
     </div>
     <div class="copx-steps">${steps}</div>
     <div class="copx-steps">${general}</div>
@@ -2077,7 +2254,7 @@ function copUpdateForm(r) {
     <div class="row"><input type="date" class="copx-in" data-udate value="${esc(xtIso(copToday()))}" aria-label="Update date">
       <button class="copx-btn sm blue" type="button" data-usame title="Copy the last update into the box">Same as last</button></div>
     <textarea class="copx-in" data-unote rows="2" maxlength="1000" placeholder="Where is it today / what's next"></textarea>
-    <div class="row"><button class="copx-btn sm addb" type="button" data-uadd>+ Add</button>
+    <div class="row"><button class="copx-btn sm addb" type="button" data-uadd>Save update</button>
       <button class="lnk" type="button" data-uhist>History (${n})</button></div>
   </div>`;
 }
@@ -2091,9 +2268,11 @@ function copUpdatesSheet(rows) {
     <div class="copx-sheet-hd">
       <label>Update date <input type="date" class="copx-in" id="copUpdDate" value="${esc(iso)}"></label>
       <span class="copx-pill ${done === rows.length ? "g" : "b"}">${done} of ${rows.length} updated</span>
-      <span class="copx-msg">Use the TTI POC filter above to show just your shipments. Updates you add here are saved as <b>pending</b> until the COP is built into ATLAS.</span>
+      <span class="copx-msg">${CopUi.msg ? `<b>${esc(CopUi.msg)}</b>` : "Use the TTI POC filter above to show just your shipments."}</span>
+      <button class="copx-btn addb" type="button" data-usave style="margin-left:auto">Save daily updates</button>
     </div>
     <div class="copx-tbl"><table><thead><tr><th>WMTR</th><th>Status</th><th>Last update</th><th style="min-width:320px">Update for ${esc(copFmt(xtParseDate(iso)))}</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="copx-sheet-ft"><button class="copx-btn addb" type="button" data-usave>Save daily updates</button></div>
   </div>`);
   const tb = wrap.querySelector("tbody");
   sorted.forEach((r, i) => {
@@ -2106,8 +2285,7 @@ function copUpdatesSheet(rows) {
       <td class="up">${last ? `<span class="d">${esc(copFmt(last.date))}${last.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(last.note)}</span>` : `<span class="d">No updates yet</span>`}</td>
       <td>${today ? `<div class="copx-donebox">✓ ${esc(today.note)}${today.pending ? ' <b class="copx-amber">(pending)</b>' : ""}</div>` : ""}
         <textarea class="copx-in" data-unote data-i="${i}" rows="2" maxlength="1000" placeholder="${today ? "Add another update" : "Today's update"}"></textarea></td>
-      <td class="nw"><button class="copx-btn sm blue" type="button" data-usame>Same as last</button>
-        <button class="copx-btn sm addb" type="button" data-uadd>+ Add</button></td>
+      <td class="nw"><button class="copx-btn sm blue" type="button" data-usame>Same as last</button></td>
     </tr>`));
   });
   if (!rows.length) tb.appendChild(el(`<tr><td colspan="5" class="copx-msg">No shipments in view.</td></tr>`));
@@ -2199,6 +2377,7 @@ function copRenderRequestor(root, built) {
     const xs = rows.filter((r) => r.step === s.id).sort((a, b) => a.num - b.num);
     const body = s.id === "exec"
       ? COP_EXEC_PHASES.map((p) => { const ps = xs.filter((r) => r.phase === p.id);
+          if (!copShowSub(p, ps.length)) return "";
           return `<div class="copx-ph"><div class="pl"><span>${esc(COP_REQ_PHASE_TEXT[p.id].split(" — ")[0])}</span><span>${ps.length}</span></div><div class="bb">${ps.length ? ps.map(tag).join("") : `<span class="copx-empty">None</span>`}</div></div>`; }).join("")
       : (xs.length ? xs.map(tag).join("") : `<span class="copx-empty">None</span>`);
     board.appendChild(el(`<div class="copx-col ${s.id}"><div class="ch"><div class="t">${esc(s.label)}</div><div class="s">${esc(subs[s.id])}</div><span class="cnt">${xs.length}</span></div><div class="cb">${body}</div></div>`));
@@ -2291,7 +2470,7 @@ function copWireUpdates(root, byW) {
     const r = byW[w]; const note = ta.value.trim();
     if (!r || !note) { ta.focus(); return; }
     copSaveDailyUpdate(w, dateIso, note);
-    CopUi.msg = `Update added for ${r.last5} (pending until it's in ATLAS).`;
+    CopUi.msg = `Update saved for ${r.last5}.`;
     CopUi.focusUpd = focusIdx;
     copRerender();
   };
@@ -2303,13 +2482,21 @@ function copWireUpdates(root, byW) {
   });
   const ud = root.querySelector("#copUpdDate");
   if (ud) ud.addEventListener("change", () => { CopUi.updDate = ud.value || ""; copRerender(); });
+  // Sheet: type updates for any rows, then one "Save daily updates" saves them all.
+  const iso = CopUi.updDate || xtIso(copToday());
   root.querySelectorAll(".copx-sheet tbody tr[data-w]").forEach((tr) => {
     const w = tr.dataset.w, ta = tr.querySelector("[data-unote]");
-    const iso = CopUi.updDate || xtIso(copToday());
     tr.querySelector("[data-usame]").addEventListener("click", () => { ta.value = latestNote(byW[w]); ta.focus(); });
-    tr.querySelector("[data-uadd]").addEventListener("click", () => add(w, iso, ta, Number(ta.dataset.i)));
-    ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(w, iso, ta, Number(ta.dataset.i)); } });
   });
+  root.querySelectorAll(".copx-sheet [data-usave]").forEach((b) => b.addEventListener("click", () => {
+    const filled = Array.from(root.querySelectorAll(".copx-sheet tbody tr[data-w]"))
+      .map((tr) => ({ w: tr.dataset.w, note: tr.querySelector("[data-unote]").value.trim() }))
+      .filter((x) => x.note && byW[x.w]);
+    if (!filled.length) { CopUi.msg = "Nothing to save — type an update first."; copRerender(); return; }
+    for (const x of filled) copSaveDailyUpdate(x.w, iso, x.note);
+    CopUi.msg = `Saved ${copPlural(filled.length, "daily update")} for ${copFmt(xtParseDate(iso))}.`;
+    copRerender();
+  }));
   if (CopUi.focusUpd != null) {
     const next = root.querySelector(`.copx-sheet textarea[data-i="${CopUi.focusUpd}"]`) || root.querySelector(".copx-sheet textarea");
     CopUi.focusUpd = null;
@@ -2351,6 +2538,7 @@ function copWire(root, built, rows, isActive) {
   });
   $("#copReset").addEventListener("click", () => {
     Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", focus: "" });
+    const st = copTblState(isActive); st.f = {}; st.sort = "";
     copRerender();
   });
   const fileIn = $("#copTrkFile");
@@ -2387,6 +2575,8 @@ function copWire(root, built, rows, isActive) {
 
   copWireOpenLinks(root);
   copWireUpdates(root, byW);
+  copWireTable(root, isActive);
+  root.querySelectorAll("button[data-hist]").forEach((b) => b.addEventListener("click", () => { if (byW[b.dataset.hist]) copShowHistory(byW[b.dataset.hist]); }));
   const um = $("#copUpdMode");
   if (um) um.addEventListener("click", () => { CopUi.updMode = !CopUi.updMode; CopUi.msg = ""; copRerender(); });
 

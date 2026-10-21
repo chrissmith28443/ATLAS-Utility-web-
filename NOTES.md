@@ -185,4 +185,10 @@ Arrived Warehouse or the warehouse actual date is filled.
 - v2.6.6: Active tab: no Metric hits filter (Needs attention covers it); no DPS check (field unused);
   no draft-AWB gate (always uploaded pre-transit). Cost over DTRA-approved flags only when >10%
   over (COP only — Christmas Tree's own reapproval flag is unchanged).
+- v2.6.7: Daily-update entry is MOCKUP-ONLY: COP_MOCKUP.editUpdates = false in the Utility (no
+  form, no sheet, drafts ignored). The mockup sets it true; its sheet has one "Save daily updates"
+  button (top + bottom) that saves every filled row via copSaveDailyUpdate. Table = COP column
+  defs (copColDefs): header-click sort, per-column filter row, Columns picker (prefs.cols per
+  view; Days in Step + reference fields optional). Board inner boxes with `optional` (CT >$100K,
+  Delivery) hide when empty. Origin over Destination in one column.
 

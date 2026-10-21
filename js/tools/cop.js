@@ -1361,9 +1361,12 @@ function copActiveEvaluate(rec, ctx) {
 
   /* ---------- 2 · DTRA Program / Compliance Review (DTRA fills these) ---------- */
   const pastReview = stepIdx > COP_STEP_IDX.review;
+  // Flagged (amber) during Estimate Preparation, while it can still be fixed;
+  // once in Execution it's only noted ("Incomplete") — too late to change in ATLAS.
   const dtraGate = (id, label, met, missDetail, okDetail) => {
     if (!pastReview && met !== true) { add(id, "review", label, "later", "Entered by DTRA during Compliance Review."); return; }
-    gate(id, "review", label, met, missDetail, okDetail, pastReview);
+    const late = stepIdx >= COP_STEP_IDX.exec;
+    gate(id, "review", label, met, late ? missDetail + " Noted only — past Estimate Preparation." : missDetail, okDetail, late ? "incomplete" : pastReview);
   };
   (function () {
     const n = items.filter((r) => !norm(copInv(r, /^bis\/ddtc/))).length;
@@ -2752,11 +2755,11 @@ function copHubSelect(id) {
 }
 function copRailButton() {
   const btn = el(`
-    <button class="rail-cop ${copHubActive() ? "active" : ""}" type="button" title="Common Operational Picture — pipeline, metrics, PMR, Christmas Tree">
+    <button class="rail-cop ${copHubActive() ? "active" : ""}" type="button" title="Dashboard — Common Operational Picture (COP): shipments, metrics, PMR, Christmas Tree">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="10" rx="1"/><rect x="17" y="4" width="4" height="6" rx="1"/>
       </svg>
-      <span><span class="t">COP</span><span class="s">Common Operational Picture</span></span>
+      <span><span class="t">Dashboard</span><span class="s">Common Operational Picture (COP)</span></span>
     </button>`);
   btn.addEventListener("click", () => { copHubSelect("cop"); copAutoFetch(); });
   return btn;

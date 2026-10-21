@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.13",
+    title: "\"Dashboard\" button; BIS/DDTC noted only in Execution",
+    notes: [
+      "The orange rail button now reads \"Dashboard\" with \"Common Operational Picture (COP)\" underneath.",
+      "COP: a blank BIS/DDTC authorization is still amber during Estimate Preparation (while it can be fixed), but once the shipment is in Execution it's only noted as Incomplete — no flag.",
+    ],
+  },
+  {
     version: "2.6.12",
     title: "COP: \"Open in ATLAS\" links removed",
     notes: [

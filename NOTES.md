@@ -207,3 +207,8 @@ Arrived Warehouse or the warehouse actual date is filled.
 - v2.6.12: COP_MOCKUP.links (false in the Utility): copWmtrLink(r, text) makes the WMTR number the
   link to the request (copRequestUrl needs the ATLAS request ID); plain text in the Utility.
   "Open in ATLAS" / ↗ links removed.
+- v2.6.13: Rail button = "Dashboard" / "Common Operational Picture (COP)". BIS/DDTC auth gap:
+  amber through Estimate Preparation, "Incomplete" (no flag) in Execution.
+  User decision: "Monitor RDD" stays a per-user (browser) setting — NOT an ATLAS field.
+  ATLAS fields to retire the Ops Tracker: RFQ Sent Date, Date Packed, ITN / NOEEI Citation,
+  MARAD Submitted Date (optional: Final Shipping / Warehouse Invoice Received dates).

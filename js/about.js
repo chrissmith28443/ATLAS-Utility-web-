@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.11",
+    title: "COP: clicking COP pulls the latest data from ATLAS",
+    notes: [
+      "Clicking the COP button pulls the latest Metrics UDQ from ATLAS first (the COP opens on it), then loads the four Christmas Tree UDQs (SRF, PR, PMCT, WS) in the background so that tab is ready when you get to it. Clicking COP again within 10 minutes doesn't re-pull; Fetch / UDQ still refreshes on demand.",
+      "Fetching only works when the Utility runs inside ATLAS. Elsewhere (atlas-utility.net) COP says it couldn't pull and keeps the UDQ you dropped in.",
+    ],
+  },
+  {
     version: "2.6.10",
     title: "COP: purple = today's update still due",
     notes: [

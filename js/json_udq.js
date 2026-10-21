@@ -1127,15 +1127,24 @@ async function loadFromAtlasUdq(opts) {
     }
 
     // dataset === "metrics"
-    atlasSetStatus("Fetching Metrics UDQ from ATLAS…");
-    const recs = await atlasFetchUdqJson(id);
-    const usable = recs.filter((r) => r && String(r.GMTRNumber || "").trim());
-    if (!usable.length) { atlasSetStatus("ATLAS returned no usable records.", true); return; }
-    await atlasLoadGridAsFile(atlasRecordsToGrid(usable), `ATLAS API — Metrics (${usable.length} records)`);
+    await atlasLoadMetrics();
   } catch (e) {
     console.error(e);
     atlasSetStatus(e.message || String(e), true);
   }
+}
+
+/** Pull the whole Metrics UDQ and load it. Throws on failure (the COP's
+    auto-pull needs to know); returns the record count. */
+async function atlasLoadMetrics() {
+  const id = atlasIds().metrics;
+  if (!id) throw new Error(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Metrics UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`);
+  atlasSetStatus("Fetching Metrics UDQ from ATLAS…");
+  const recs = await atlasFetchUdqJson(id);
+  const usable = recs.filter((r) => r && String(r.GMTRNumber || "").trim());
+  if (!usable.length) throw new Error("ATLAS returned no usable records.");
+  await atlasLoadGridAsFile(atlasRecordsToGrid(usable), `ATLAS API — Metrics (${usable.length} records)`);
+  return usable.length;
 }
 
 /* -------------------------------------------------------------------------
@@ -1186,8 +1195,11 @@ async function loadFromAtlasXmasTree(opts) {
   }
   if (ok) {
     status(`Fetched ${ok} service UDQ${ok === 1 ? "" : "s"} from ATLAS.`, false);
-    if (typeof renderWorkspace === "function") renderWorkspace();
+    // opts.quiet (the COP's background pull): only redraw if the Christmas Tree is on screen.
+    const quiet = opts && opts.quiet && AppState.activeTool !== "xmastree";
+    if (!quiet && typeof renderWorkspace === "function") renderWorkspace();
   }
+  return ok;
 }
 
 /* -------------------------------------------------------------------------

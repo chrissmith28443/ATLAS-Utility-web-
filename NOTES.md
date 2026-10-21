@@ -200,3 +200,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   COP_MOCKUP.editUpdates code: per-row Save + Save all). The standalone dev mockup waits for Phase 2.
 - v2.6.10: copDueTodayOnly(r) (dueToday && no missed days) → bubble .due (purple fill, health border
   kept), purple "Today's due" pill, purple hover line, legend entry.
+- v2.6.11: COP rail click → copAutoFetch(): atlasLoadMetrics() (new, throws) then
+  loadFromAtlasXmasTree({ quiet: true }) in the background (no redraw unless Christmas Tree tab
+  is open). No re-pull within COP_AUTO_PULL_MIN (10) min. Keeps the current hub tab. Only works
+  inside ATLAS; on atlas-utility.net it shows "couldn't pull" and keeps the dropped UDQ.

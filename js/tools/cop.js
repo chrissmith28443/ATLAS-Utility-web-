@@ -2755,8 +2755,39 @@ function copRailButton() {
       </svg>
       <span><span class="t">COP</span><span class="s">Common Operational Picture</span></span>
     </button>`);
-  btn.addEventListener("click", () => copHubSelect("cop"));
+  btn.addEventListener("click", () => { copHubSelect("cop"); copAutoFetch(); });
   return btn;
+}
+
+/* Clicking COP pulls the latest Metrics UDQ from ATLAS (the COP's data), then
+   the four Christmas Tree UDQs in the background. Fetch only works when the
+   Utility runs inside ATLAS; elsewhere it says so and keeps what's loaded.
+   A pull within the last COP_AUTO_PULL_MIN minutes isn't repeated. */
+const COP_AUTO_PULL_MIN = 10;
+const CopPull = { busy: false, at: 0 };
+async function copAutoFetch() {
+  if (CopPull.busy || typeof atlasLoadMetrics !== "function") return;
+  if (AppState.udqType === "metrics" && Date.now() - CopPull.at < COP_AUTO_PULL_MIN * 60000) return;
+  CopPull.busy = true;
+  CopPull.at = Date.now();
+  try {
+    const keep = AppState.activeTool;                  // the hub tab you're on stays put
+    await atlasLoadMetrics();
+    if (keep && keep !== AppState.activeTool && copIsHubTool(keep)) {
+      AppState.activeTool = keep; renderRail(); renderDashboard(); renderWorkspace();
+    }
+  } catch (e) {
+    console.error(e);
+    atlasSetStatus(`Couldn't pull the Metrics UDQ from ATLAS — ${e.message || e}` +
+      (AppState.udqType === "metrics" ? " Showing the UDQ already loaded." : " Fetching only works inside ATLAS; drop a Metrics UDQ export instead."), true);
+    CopPull.busy = false;
+    return;                                          // no ATLAS → don't try the Christmas Tree either
+  }
+  CopPull.busy = false;
+  // Christmas Tree UDQs (SRF, PR, PMCT, WS) — background, no redraw unless that tab is open.
+  if (typeof loadFromAtlasXmasTree === "function") {
+    try { await loadFromAtlasXmasTree({ quiet: true }); } catch (e) { console.error(e); }
+  }
 }
 function copHubTabs() {
   const hasMetrics = AppState.udqType === "metrics";

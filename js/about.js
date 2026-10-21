@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.14",
+    title: "COP: consols named on hover",
+    notes: [
+      "Hovering a consolidated shipment (bubble or table row) now says it's a consol and lists the WMTRs it's consolidated with (from the request's Linked Request List). The requestor view shows it too.",
+    ],
+  },
+  {
     version: "2.6.13",
     title: "\"Dashboard\" button; BIS/DDTC noted only in Execution",
     notes: [

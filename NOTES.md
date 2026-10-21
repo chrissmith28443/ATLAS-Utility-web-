@@ -212,3 +212,5 @@ Arrived Warehouse or the warehouse actual date is filled.
   User decision: "Monitor RDD" stays a per-user (browser) setting — NOT an ATLAS field.
   ATLAS fields to retire the Ops Tracker: RFQ Sent Date, Date Packed, ITN / NOEEI Citation,
   MARAD Submitted Date (optional: Final Shipping / Warehouse Invoice Received dates).
+- v2.6.14: Hover (TTI + requestor) names consol partners (r.consol, from Linked Request List
+  "Consol" linkage).

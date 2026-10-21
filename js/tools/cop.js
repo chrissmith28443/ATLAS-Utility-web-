@@ -2177,6 +2177,7 @@ function copHoverHtml(r) {
   const others = open.filter((c) => c.id !== "daily");
   return `<div class="h">${esc(r.last5)} · ${esc(r.status || "—")}</div>
     <div class="s">${esc(r.wmtr)}${r.poc ? " · " + esc(r.poc) : ""}</div>
+    ${r.consol && r.consol.length ? `<div class="k">Consol</div><div><b>Consolidated with ${esc(r.consol.join(", "))}</b></div>` : ""}
     <div class="k">Latest update</div>
     <div>${r.latest ? `<b>${esc(copFmt(r.latest.date))}</b> — ${esc(r.latest.note)}` : "No daily updates yet."}</div>
     <div class="k">Daily update</div>${dailyLine}
@@ -2450,6 +2451,7 @@ function copRenderRequestor(root, built) {
     b.addEventListener("mouseenter", (e) => {
       const last = copUpdatesFor(r).find((x) => !x.pending);
       hover.innerHTML = `<div class="h">${esc(r.last5)} · ${esc(copReqStatusText(r))}</div><div class="s">${esc(r.title)}</div>
+        ${r.consol && r.consol.length ? `<div class="k">Consol</div><div>Shipping together with ${esc(r.consol.join(", "))}</div>` : ""}
         <div class="k">Latest update</div><div>${last ? `<b>${esc(copFmt(last.date))}</b> — ${esc(last.note)}` : "No updates yet."}</div>
         <div class="k">Destination</div><div>${esc(r.dest || "—")}${r.rdd ? ` · RDD ${esc(copFmt(r.rdd))}` : ""}</div>`;
       hover.style.display = "block"; move(e); });

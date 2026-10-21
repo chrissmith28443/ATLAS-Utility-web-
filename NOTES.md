@@ -176,4 +176,10 @@ Arrived Warehouse or the warehouse actual date is filled.
   shipping first.
 - v2.6.4: Board sub-boxes for Review (program / compliance) and Estimate (TTI prep / DTRA estimate
   review / CT > $100K) via COP_STEP_SUBS + r.sub (copStepInfo). Requestor view unchanged.
+- v2.6.5: Unmonitored RDD = no check at all. Active cost gate = Total Cost > 0 before DTRA
+  Estimate Review (Total Cost is auto-calc'd; no cost-list or cost-sum checks anywhere).
+  Closed audit (copEvaluate) trimmed to metric hits: RFQ (later of compliance approval / pack
+  date + 1 BD), daily, required docs = reqatt metric set (CIV, PKL, SLI, AES, VAT, POD, MCT) +
+  AWB/carrier, ITN, MARAD, delivery date / late vs RDD, variance, rejected, manual, RTI/invoiced.
+  User: placards/photos are an internal SOP check, vendor invoice lives on the cost line.
 

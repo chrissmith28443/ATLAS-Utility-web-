@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.5",
+    title: "COP: Closed tab is metric hits only; RDD only when monitored",
+    notes: [
+      "RDD isn't checked or flagged at all unless \"Monitor RDD for this request\" is ticked (then amber 5 business days out, red once passed). The Past RDD filter still works.",
+      "Active shipments: the Cost List check is replaced by \"Total Cost above $0 before DTRA Estimate Review\" (Total Cost is auto-calculated from the Cost List).",
+      "Closed tab (post-shipment audit) now checks metric hits only: RFQ sent on time (1 business day after the later of Compliance approval and the pack date), daily updates, shipping documents (Commercial Invoice, Packing List, SLI/AES for US exports, VAT exemption, POD, MCT for US imports), AWB/BoL + carrier, AES/ITN and MARAD filing, Delivery Date / delivered vs RDD, cost variance, rejections, manual metric flags and invoicing.",
+      "Removed from Closed: addresses/POCs, inventory fields, weights and dims, temp control / HAZMAT, Ship Group, Identify As, Denied Party Screen, BIS/DDTC, cost list, Total Cost, cost-list match, $100K approval, vendor quotes and invoice, RFQ email, Purchase Order, photo, pallet placard, warehouse receipt, Dangerous Goods Declaration, pack date and Red Flag.",
+    ],
+  },
+  {
     version: "2.6.4",
     title: "COP: Program/Compliance and Estimate split by stage",
     notes: [

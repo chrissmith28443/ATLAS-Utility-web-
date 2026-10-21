@@ -739,10 +739,6 @@ function copEvaluate(rec, ctx) {
   } else if (li.unmapped) {
     add("status", "general", "req", "Shipment status", { state: "warn", detail: `"${li.status || "(blank)"}" isn't a status the COP recognises, so the shipment can't be placed in a lane.` }, ["cop.status"]);
   }
-  if (xrow.red_flag || /^true$/i.test(f["red flag"] || "")) {
-    add("redflag", "general", "req", "Red Flag", { state: "fail", detail: xrow.red_flag || "Red Flag is set on the request." }, ["cop.redflag"]);
-  }
-
   // Daily status updates: every business day from the business day after the
   // request left Draft (its oldest non-Draft Workflow Logs stamp — "Date Submitted" is
   // user-entered and can predate the real submission by months — or its first
@@ -838,107 +834,24 @@ function copEvaluate(rec, ctx) {
       detail: onClosed ? "Active in ATLAS, but the tracker has it on its Closed tab." : "Active in ATLAS, but not on the tracker's Active MTR tab." });
   }
 
-  /* ===================== 2 · TTI QUALITY REVIEW ===================== */
-  const { items, parents } = copInvLines(rec);
-  (function () {
-    const PARTIES = [
-      ["Pickup Location Organization", "Pickup"], ["Shipment Origin Organization", "Origin"],
-      ["Delivery Destination Organization", "Destination"], ["Ultimate Consignee Organization", "Ultimate Consignee"],
-      ["End-User Organization", "End-User"],
-    ];
-    const gaps = [];
-    for (const [p, nm] of PARTIES) {
-      const g = (s) => f[(p + (s ? " " + s : "")).toLowerCase()] || "";
-      const miss = [];
-      if (!g("")) miss.push("name");
-      if (!g("Address")) miss.push("address");
-      if (!g("City")) miss.push("city");
-      if (!g("Country")) miss.push("country");
-      if (!g("POC Name")) miss.push("POC");
-      if (!g("Email") && !g("Cell")) miss.push("POC email/phone");
-      if (miss.length) gaps.push(`${nm} (${miss.join(", ")})`);
-    }
-    add("parties", "qr", "req", "Addresses & POCs filled (except Intermediate Consignee)",
-      { met: !gaps.length, detail: gaps.length ? "Missing: " + gaps.join("; ") + "." : "All five parties complete." });
-  })();
-
-  const lineGap = (label, id, test, level, emptyOk) => {
-    if (!items.length) { add(id, "qr", level, label, { met: emptyOk ? "na" : false, detail: "No inventory lines on the request." }); return; }
-    const bad = items.filter((r) => !test(r)).length;
-    add(id, "qr", level, label, { met: bad === 0, detail: bad ? `${bad} of ${copPlural(items.length, "line")} missing it.` : `All ${copPlural(items.length, "line")}.` });
-  };
-  lineGap("Inventory: description, model, qty, U/M, unit of issue", "invbasic", (r) =>
-    !!(r["description"] && r["model/catalog number"] && r["quantity"] && r["unit of measure"] && r["unit of issue"]), "req");
-  lineGap("ECCN / USML on every line", "eccn", (r) => !!copInv(r, /^eccn/), "req");
-  lineGap("Schedule B / HTS on every line", "hts", (r) => !!copInv(r, /schedule b|hts/), "req");
-  lineGap("Manufacturer country of origin on every line", "coo", (r) => !!copInv(r, /country of origin/), "req");
-  (function () {
-    const miss = ["identify shipment as", "requested mode of transit", "requested shipment tracing options", "shipment type"]
-      .filter((k) => !f[k]);
-    add("shipfields", "qr", "rec", "Identify As / mode / tracing / shipment type",
-      { met: !miss.length, detail: miss.length ? "Blank: " + miss.join(", ") + "." : "All filled." });
-  })();
-  lineGap("Value (USD) on every line", "value", (r) => toFloat(copInv(r, /^value/)) > 0, "rec");
-  (function () {
-    const units = parents.length ? parents : items;
-    const label = "Weights & dimensions";
-    if (!units.length) { add("wtdims", "qr", "rec", label, { met: false, detail: "No inventory lines on the request." }); return; }
-    const ok = (r) => {
-      const wt = toFloat(copInv(r, /^estimated weight\(lbs/)) || toFloat(copInv(r, /^estimated weight\(kg/)) ||
-                 toFloat(copInv(r, /^final weight\(lbs/)) || toFloat(copInv(r, /^final weight\(kg/));
-      const dims = /\d/.test(copInv(r, /^estimated dim/)) || /\d/.test(copInv(r, /^final dim/));
-      return wt > 0 && dims;
-    };
-    const bad = units.filter((r) => !ok(r)).length;
-    const what = parents.length ? "package" : "line";
-    add("wtdims", "qr", "rec", label, { met: bad === 0,
-      detail: bad ? `${bad} of ${copPlural(units.length, what)} without a weight and dimensions.` : `Every ${what} has a weight and dimensions.` });
-  })();
-  lineGap("Temp control + HAZMAT filled (N/A or TBD is fine)", "temphaz", (r) =>
-    !!(copInv(r, /temperature/) && copInv(r, /^hazmat/)), "rec");
-  lineGap("Ship Group # on every line", "shipgroup", (r) => !!r["ship group #"], "rec");
-  if (li.lane === "qr" || li.lane === "draft") {
-    const civ = hasDoc("civAny");
-    add("civearly", "qr", "rec", "No Commercial Invoice uploaded yet", civ
-      ? { state: "warn", detail: "A CIV is already attached — it can't be final before Compliance Review." }
-      : { state: "ok", detail: "None attached yet (correct at this step)." });
-  }
-
-  /* ===================== 4 · DTRA COMPLIANCE REVIEW (DTRA) ===================== */
-  (function () {
-    const label = "Denied Party Screen result (DTRA)";
-    const v = f["denied party screen result"];
-    const passed = oldestOf("dtra compliance review (approved)");
-    if (v) {
-      const d = xtParseDate(f["denied party screen result date"]);
-      add("dps", "compliance", "req", label, { met: true, detail: `${v}${d ? " — " + copFmt(d) : ""}.` });
-    } else if (passed && (!ctx.ds.dpsSince || passed.getTime() < ctx.ds.dpsSince.getTime())) {
-      add("dps", "compliance", "req", label, { met: null, detail: `Blank — Compliance was approved ${copFmt(passed)}, before ATLAS recorded screen results${ctx.ds.dpsSince ? ` (first seen ${copFmt(ctx.ds.dpsSince)})` : ""}.` });
-    } else {
-      add("dps", "compliance", "req", label, { met: false, detail: "Blank." });
-    }
-  })();
-  lineGap0("BIS/DDTC authorization or exception on every line", "auth", "compliance",
-    (r) => !!copInv(r, /^bis\/ddtc/));
-  function lineGap0(label, id, stage, test) {
-    if (!items.length) { add(id, stage, "req", label, { met: false, detail: "No inventory lines on the request." }); return; }
-    const bad = items.filter((r) => !test(r)).length;
-    add(id, stage, "req", label, { met: bad === 0, detail: bad ? `${bad} of ${copPlural(items.length, "line")} blank.` : `All ${copPlural(items.length, "line")}.` });
-  }
+  /* Closed = post-shipment audit: metric hits only. The step-by-step quality
+     checks (addresses, inventory fields, weights/dims, cost list, DPS…) only
+     matter while the request moves between steps — see copActiveEvaluate. */
 
   /* ===================== 5 · ESTIMATE ===================== */
   const compApproved = oldestOf("dtra compliance review (approved)");
   (function () {
-    const label = "RFQ sent within 1 business day of Compliance approval";
+    const label = "RFQ sent within 1 business day of Compliance approval and the pack date";
     if (!compApproved) {
       add("rfq", "estimate", "req", label, laneIdx > COP_LANE_IDX.compliance
         ? { met: null, detail: "No \"DTRA Compliance Review (Approved)\" stamp in the Workflow Logs." }
         : { state: laneIdx < 0 ? "na" : "later", detail: "Clock starts when Compliance Review is approved." });
       return;
     }
-    const due = xtWorkday(compApproved, 1, true);
-    if (!ctx.tracker) { add("rfq", "estimate", "req", label, { met: null, detail: `Due ${copFmt(due)}. Load the Ops Tracker to check the RFQ Sent date.` }); return; }
-    if (!trk) { add("rfq", "estimate", "req", label, { met: null, detail: `Due ${copFmt(due)}. Not on the Ops Tracker.` }); return; }
+    if (!ctx.tracker) { add("rfq", "estimate", "req", label, { met: null, detail: "Load the Ops Tracker to check the RFQ Sent and Date Packed dates." }); return; }
+    if (!trk) { add("rfq", "estimate", "req", label, { met: null, detail: "Not on the Ops Tracker." }); return; }
+    const packed = copIsoToDate(trk.packed);
+    const due = xtWorkday(packed && packed.getTime() > compApproved.getTime() ? packed : compApproved, 1, true);
     const sent = copIsoToDate(trk.rfq);
     // Text instead of a date ("Hand Carry", "FEDEX", "N/A") = no RFQ for this one.
     if (!sent && norm(trk.rfq)) { add("rfq", "estimate", "req", label, { met: "na", detail: `Tracker shows "${trk.rfq}" — no RFQ needed.` }); return; }
@@ -952,18 +865,6 @@ function copEvaluate(rec, ctx) {
       add("rfq", "estimate", "req", label, { state: "due", detail: `Due ${copFmt(due)}.` });
     }
   })();
-  (function () {
-    const label = "Cost List: a Services line with a burdened rate";
-    if (!ctx.ds.hasCostList) { add("costlist", "estimate", "req", label, { met: null, detail: "This export doesn't include the Cost List (fetched data leaves it out — drop the .xlsx export instead)." }); return; }
-    const okLine = rec.cost.some((c) => copLow(c["rate type"]) === "services" && toFloat(copInv(c, /^burdened rate/)) > 0);
-    add("costlist", "estimate", "req", label, { met: okLine,
-      detail: okLine ? `${copPlural(rec.cost.length, "cost line")}.` : rec.cost.length ? "No line with Rate Type \"Services\" and a burdened rate." : "No cost lines." });
-  })();
-  const total = toFloat(f["total cost in usd"]);
-  add("totalcost", "estimate", "req", "Total Cost in USD above $0", { met: total > 0, detail: total > 0 ? copMoney(total) + "." : "Total Cost is $0 or blank." });
-  if (!sc.handCarry && !sc.courier && sc.category !== "DOMESTIC") {
-    add("doc.civAny", "estimate", "req", "Commercial Invoice attached", { met: hasDoc("civAny"), detail: hasDoc("civAny") ? "Attached." : "No Commercial/Proforma Invoice or Draft CIV attached." }, ["cop.doc.civAny", "docs"]);
-  }
   // Placeholder — switched off (COP_CHECK_ESTIMATE): not every POC fills the
   // Request Estimate List yet. The approved amount is always in the Workflow
   // Logs, and POCs upload the estimate as an attachment.
@@ -981,23 +882,6 @@ function copEvaluate(rec, ctx) {
     }
     add("estimate", "estimate", "req", label, { met: false, detail: "Request Estimate List is empty and no estimate PDF is attached." });
   })();
-  if (total > 100000) {
-    const ok = anyOf(/^ct program > 100k approval \(approved\)$/);
-    add("100k", "estimate", "req", "CT Program > $100K approval", { met: ok, detail: ok ? "Approved." : `Total ${copMoney(total)} is over $100K and there's no "CT Program > 100K Approval (Approved)" stamp.` });
-  }
-  (function () {
-    const ok = hasDoc("bid") || copHasType(rec.costAttachTypes, ["Quotation"]);
-    add("bid", "estimate", "rec", "Vendor quotes attached", { met: ok, detail: ok ? "Vendor Bid / Quotation on file." : "No Vendor Bid attachment or Quotation on a cost line." });
-  })();
-  add("rfqdoc", "estimate", "rec", "RFQ email / RFQ attachment uploaded", { met: hasDoc("rfq"), detail: hasDoc("rfq") ? "Uploaded." : "No RFQ Email or RFQ Attachment." });
-  if (ctx.ds.hasCostList && rec.cost.length) {
-    let sum = 0;
-    for (const c of rec.cost) sum += toFloat(c["total in usd"]) + toFloat(c["total in usd (other cost)"]);
-    const okSum = Math.abs(sum - total) <= Math.max(1, total * 0.005);
-    add("costsum", "estimate", "rec", "Total Cost matches the Cost List", { met: okSum,
-      detail: okSum ? `${copMoney(sum)}.` : `Cost List adds to ${copMoney(sum)}; Total Cost shows ${copMoney(total)}.` });
-  }
-
   /* ===================== 6 · READY TO SHIP (due by Picked Up) ===================== */
   const docRule = (key, label, stage, applies, extraOk, opt) => {
     if (sc.handCarry) return;
@@ -1011,42 +895,10 @@ function copEvaluate(rec, ctx) {
   };
   const full = !sc.courier && sc.category !== "DOMESTIC";   // couriers / domestic: AWB + POD only
   const exportUs = sc.category === "EXPORT";
-  const viaWarehouse = anyOf(/^arrived warehouse$/) || !!copInv(rec.ship, /^first item warehouse act/) || !!copInv(rec.ship, /^last item warehouse act/);
-  // A real HAZMAT class or UN number ("Not DG per IATA SP A26", "None", "N_A" don't count).
-  const isHaz = (v) => hasRealValue(v) && !/^(no|none|not\b|non[- ]?(dg|haz))/i.test(norm(v));
-  const hazLines = items.filter((r) => isHaz(copInv(r, /^hazmat/)) || isHaz(copInv(r, /^un code/)));
-  docRule("po", "Purchase Order attached", "ready", !sc.courier);
-  docRule("civ", "Final Commercial Invoice attached", "ready", full);
+  docRule("civ", "Commercial Invoice attached", "ready", full);
   docRule("pkl", "Packing List attached", "ready", full, () => !sc.originUs && copHasType(types, ["IPC"]));
   docRule("sli", "SLI attached (US export)", "ready", full && exportUs && !copHasType(types, ["MFR_NO AES"]));
   docRule("aes", "AES record or MFR_NO AES attached (US export)", "ready", full && exportUs);
-  docRule("photo", "Photo with label attached", "ready", !sc.courier);
-  // The "Pallet Placard" type was added in ATLAS on 21 Oct 2026; before that
-  // placards were filed as "Other". A placard-named file counts; otherwise an
-  // older "Other" attachment might be it, so that's "can't tell", not a miss.
-  if (!sc.handCarry && !sc.courier) {
-    const label = "Pallet placard / label attached";
-    if (hasDoc("placard") || rec.att.some((a) => /placard|pallet label/i.test(a.file + " " + a.notes))) {
-      add("doc.placard", "ready", "req", label, { met: true, detail: "Attached." }, ["cop.doc.placard", "docs"]);
-    } else if (rec.att.some((a) => (!a.type || copLow(a.type) === "other") && a.at && xtIso(a.at) < COP_PLACARD_TYPE_ISO)) {
-      add("doc.placard", "ready", "req", label, { met: null, detail: "No Pallet Placard attachment. Placards were filed as \"Other\" before 21 Oct 2026, so one of those may be it." }, ["cop.doc.placard", "docs"]);
-    } else {
-      add("doc.placard", "ready", "req", label, { met: false, detail: "Not attached." }, ["cop.doc.placard", "docs"]);
-    }
-  }
-  docRule("rc", "Warehouse receipt (RC) attached", "ready", !sc.courier && viaWarehouse);
-  docRule("dgd", "Dangerous Goods Declaration attached", "ready", hazLines.length > 0);
-  if (!sc.handCarry) {
-    const label = "Pack date (Ops Tracker)";
-    if (!ctx.tracker) add("packed", "ready", "req", label, { met: null, detail: "Load the Ops Tracker to check Date Packed." });
-    else if (!trk) add("packed", "ready", "req", label, { met: null, detail: "Not on the Ops Tracker." });
-    else {
-      const d = copIsoToDate(trk.packed);
-      const na = /^n\/?a$/i.test(norm(trk.packed));
-      add("packed", "ready", "req", label, { met: d ? true : na ? "na" : false,
-        detail: d ? `Packed ${copFmt(d)}.` : trk.packed ? `Tracker shows "${trk.packed}".` : "No Date Packed on the tracker." });
-    }
-  }
   // AES / ITN. Required for every US export (origin US, destination abroad),
   // hand carry excepted — decided from the ATLAS route, not a tracker class.
   // The export date is ATLAS "Departure from Origin Est. Date"; once the
@@ -1127,7 +979,6 @@ function copEvaluate(rec, ctx) {
   }
   docRule("pod", "Proof of Delivery attached", "delivered", true);
   docRule("mct", "MCT attached (US import)", "delivered", full && sc.category === "IMPORT");
-  docRule("vinv", "Vendor Invoice attached", "delivered", !sc.courier);
   if (copLow(li.status) === "delivered - pending pod" && hasDoc("pod")) {
     add("podstatus", "delivered", "rec", "Status updated to POD Received", { state: "warn", detail: "POD is attached but the status is still \"Delivered - Pending POD\"." });
   }
@@ -1390,24 +1241,21 @@ function copActiveEvaluate(rec, ctx) {
   })();
 
   // RDD. Requestors set it without validation and it's routinely moved to
-  // the delivery date afterwards, so it isn't policed by default: a passed RDD
-  // is amber only once the shipment is in Execution (after DTRA approval). A
-  // request with a firm date (training event, travellers) can be switched to
-  // RDD monitoring in its details — then it's amber 5 business days out and
-  // red once passed, at any step.
+  // the delivery date afterwards, so it isn't checked at all unless a request
+  // with a firm date (training event, travellers) is switched to RDD
+  // monitoring in its details — then it's amber 5 business days out and red
+  // once passed, at any step.
   const rddWatch = !!(ctx.prefs.rddWatch && ctx.prefs.rddWatch[rec.reqNo]);
-  if (!delivered && si.low !== "delivered - pending pod") {
-    const tag = rddWatch ? "Monitored RDD" : "RDD";
-    if (!rdd) add("rdd", "general", tag, rddWatch ? "unknown" : "na", "No NLT Completion Date (RDD) on the request.");
+  if (rddWatch && !delivered && si.low !== "delivered - pending pod") {
+    const tag = "Monitored RDD";
+    if (!rdd) add("rdd", "general", tag, "unknown", "No NLT Completion Date (RDD) on the request.");
     else if (rdd.getTime() < today.getTime()) {
       const ago = copPlural(copCalDays(rdd, today), "day");
-      if (rddWatch) add("rdd", "general", tag, "fail", `RDD ${copFmt(rdd)} passed ${ago} ago.`, null, `RDD passed ${copFmt(rdd)} (monitored)`);
-      else if (si.step === "exec") add("rdd", "general", tag, "warn", `RDD ${copFmt(rdd)} passed ${ago} ago (not monitored — usually moved to the delivery date afterwards).`, null, `RDD passed ${copFmt(rdd)}`);
-      else add("rdd", "general", tag, "na", `RDD ${copFmt(rdd)} has passed — not flagged before Execution.`);
+      add("rdd", "general", tag, "fail", `RDD ${copFmt(rdd)} passed ${ago} ago.`, null, `RDD passed ${copFmt(rdd)} (monitored)`);
     } else {
       const bd = copBizDaysBetween(today, rdd);
-      add("rdd", "general", tag, rddWatch && bd <= COP_RDD_WARN_BDAYS ? "warn" : "ok",
-        `RDD ${copFmt(rdd)} (${copPlural(bd, "business day")} away)${rddWatch ? "" : " — not monitored"}.`,
+      add("rdd", "general", tag, bd <= COP_RDD_WARN_BDAYS ? "warn" : "ok",
+        `RDD ${copFmt(rdd)} (${copPlural(bd, "business day")} away).`,
         null, `RDD ${copFmt(rdd)} — ${copPlural(bd, "business day")} away`);
     }
   }
@@ -1541,14 +1389,12 @@ function copActiveEvaluate(rec, ctx) {
       add("rfq", "estimate", label, stepIdx === COP_STEP_IDX.estimate ? "todo" : "later", `Due ${copFmt(due)}.`);
     }
   })();
+  // Total Cost (auto-calculated from the Cost List) above $0 before DTRA
+  // Estimate Review — $0 means something was probably missed in the Cost List.
   (function () {
-    const label = "Costs entered in the Cost List";
-    if (!ctx.ds.hasCostList) { add("costlist", "estimate", label, "unknown", "This export doesn't include the Cost List."); return; }
-    // Any cost line with a total. (ATLAS works out the burdened figures; some
-    // lines carry only the total, so the burdened-rate column can be blank.)
-    const ok = rec.cost.some((c) => toFloat(c["total in usd"]) > 0 || toFloat(c["total in usd (other cost)"]) > 0);
-    gate("costlist", "estimate", label, ok, rec.cost.length ? "Cost lines have no totals." : "No cost lines yet.",
-      `${copPlural(rec.cost.length, "cost line")} · Total ${copMoney(toFloat(f["total cost in usd"])) || "—"}.`, pastPrep);
+    const total = toFloat(f["total cost in usd"]);
+    gate("totalcost", "estimate", "Total Cost above $0 before DTRA Estimate Review", total > 0,
+      "Total Cost is $0 or blank — something is probably missing from the Cost List.", `Total ${copMoney(total)}.`, pastPrep);
   })();
   const docsNa = sc.handCarry || sc.category === "DOMESTIC";
   gate("civ", "estimate", "Draft CIV uploaded", docsNa ? "na" : hasType(COP_DOC_TYPES.civAny),
@@ -1934,7 +1780,7 @@ function renderCopWorkspace(container) {
   const sheet = isActive && CopUi.updMode;
   const tcard = el(`<section class="copx-card">
     <div class="copx-hd"><h2>${sheet ? "Daily Status Updates" : isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
-      <span class="n">${sheet ? "Every shipment in view — add today's update for each" : isActive ? "Click a row for its checklist and to add a daily update" : "Every closed shipment, checked against the full requirement list (documents, metrics, close-out)"}</span>
+      <span class="n">${sheet ? "Every shipment in view — add today's update for each" : isActive ? "Click a row for its checklist and to add a daily update" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing)"}</span>
       ${isActive ? `<div class="acts"><button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button></div>` : ""}</div>
     <div class="copx-rule"></div>
   </section>`);

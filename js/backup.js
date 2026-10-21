@@ -35,7 +35,8 @@ const ATLAS_BACKUP_SPEC = [
   { key: "atlas.xmastree.ignores", kind: "json", label: "Acknowledged / ignored metrics (Christmas Tree & COP)" },
   { key: "atlas.xmastree.holidays", kind: "json", label: "Holiday list" },
   { key: "atlas.pmr_metrics.ignores", kind: "json", label: "PMR / Metrics ignore list" },
-  { key: "atlas.cop.prefs", kind: "json", label: "COP settings (your name, day limits)" },
+  { key: "atlas.cop.prefs", kind: "json", label: "COP settings (day limits, monitored RDDs)" },
+  { key: "atlas.cop.dailydrafts", kind: "json", label: "COP daily updates not yet in ATLAS" },
   { key: "atlas.theme",    kind: "string", label: "Appearance" },
 ];
 
@@ -214,7 +215,7 @@ function atlasApplyBackup(obj, mode) {
       writeJson("atlas.shipdetails", Object.assign({}, cur, data["atlas.shipdetails"]));
     }
     // Per-WMTR maps (splits, ignore lists): imported entries win on conflict.
-    for (const key of ["atlas.itemsplits", "atlas.xmastree.ignores", "atlas.pmr_metrics.ignores"]) {
+    for (const key of ["atlas.itemsplits", "atlas.xmastree.ignores", "atlas.pmr_metrics.ignores", "atlas.cop.dailydrafts"]) {
       if (!data[key] || typeof data[key] !== "object" || Array.isArray(data[key])) continue;
       let cur = {};
       try { cur = JSON.parse(_bkGet(key) || "{}") || {}; } catch (e) { cur = {}; }

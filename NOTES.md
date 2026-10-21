@@ -166,4 +166,12 @@ Arrived Warehouse or the warehouse actual date is filled.
   Cost list = any line with a total. QR gaps after QR = "Incomplete". Daily updates required
   from 2026-03-01 (PMR_DAILY_LOG_START_ISO). Filters: POC/hits/search/attention always shown;
   RDD under More filters; My shipments removed. Detail = 3 columns, 10 updates.
+- v2.6.3: Daily updates entered on the COP (detail form + "Enter daily updates" sheet + History
+  modal). Saved to localStorage atlas.cop.dailydrafts (in Backup) as "pending"; pruned when the
+  same WMTR/date appears in ATLAS data. ONE write hook: copSaveDailyUpdate(wmtr, dateIso, note)
+  — in ATLAS this becomes the POST to Daily Status. Request link: copRequestUrl(r) returns null
+  until the data carries the ATLAS request ID (devs fill in the URL pattern). Requestor view
+  (CopUi.role) = plain-language step, progress bar, latest update, POC contact; no checks.
+  NEXT: standalone HTML COP mockup for TTI devs (no fetch/UDQ), top of each service dashboard,
+  shipping first.
 

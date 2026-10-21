@@ -192,6 +192,11 @@ const CopUi = {
   expanded: new Set(),  // WMTRs with the checklist open
   filterOpen: false,
   settingsOpen: false,
+  role: "tti",          // "tti" | "requestor" (ATLAS: from the signed-in user)
+  reqName: "",          // requestor view: whose requests (stands in for sign-in)
+  updMode: false,       // Shipment Details shows the "Enter daily updates" sheet
+  updDate: "",          // date for the sheet ("" = today)
+  focusUpd: null,       // sheet row to focus after an add
   msg: "",
   _parsed: null,        // { grid, data } — parse cache keyed by grid identity
 };
@@ -1354,7 +1359,8 @@ function copActiveEvaluate(rec, ctx) {
     if (!start) { add("daily", "general", label, "unknown", "No Workflow Logs stamp or daily entry to count from.", ["activity"]); return; }
     daily.start = start;
     const end = delivered || (si.low === "delivered - pending pod" ? si.stuckSince : null);
-    const g = copDailyGaps(rec.daily.map((x) => x.date), start, end);
+    const pend = ((ctx.drafts && ctx.drafts[rec.wmtr]) || []).map((x) => xtParseDate(x.date)).filter(Boolean);
+    const g = copDailyGaps(rec.daily.map((x) => x.date).concat(pend), start, end);
     daily.missed = g.missed; daily.dueToday = g.dueToday;
     if (g.missed.length) {
       const shown = g.missed.slice(-5);
@@ -1600,6 +1606,7 @@ function copActiveEvaluate(rec, ctx) {
   return {
     rec, wmtr: rec.wmtr, reqNo: rec.reqNo, num: rec.num, last5: wmtrLast5(rec.wmtr) || String(rec.num),
     poc: f["tti poc name"] || "", title: f["request title"] || "", program: f["ctr program"] || "",
+    pocEmail: f["tti poc email"] || "", pocPhone: f["tti poc phone number"] || "", requestor: f["requestor name"] || "",
     status: si.status, step: si.step, stepIdx, phase: si.phase, problem: si.problem, unmapped: si.unmapped,
     daysInStep: si.stepSince ? copBizDaysBetween(si.stepSince, today) : null, stuck: stuckState,
     rdd, rddDays: rdd && !delivered ? copCalDays(today, rdd) : null,
@@ -1614,9 +1621,10 @@ function copActiveEvaluate(rec, ctx) {
 function copBuildAll() {
   const data = copData();
   if (!data) return null;
+  const drafts = copPruneDrafts(data.records);       // pending daily updates entered on the COP
   const ctx = {
     today: copToday(), tracker: copGetTracker(), prefs: copGetPrefs(), ds: data.ds,
-    ignores: typeof xtGetIgnores === "function" ? xtGetIgnores() : {},
+    ignores: typeof xtGetIgnores === "function" ? xtGetIgnores() : {}, drafts,
   };
   const active = [], closed = [];
   for (const rec of data.records) {
@@ -1629,7 +1637,7 @@ function copBuildAll() {
         closed.push(r);
       } else {
         const r = copActiveEvaluate(rec, ctx);
-        if (r) active.push(r);
+        if (r) { r.pending = drafts[rec.wmtr] || []; active.push(r); }
       }
     } catch (e) { console.error("COP: couldn't evaluate", rec.wmtr, e); }
   }
@@ -1781,6 +1789,45 @@ tr.copx-det td{background:var(--ax-acc2);padding:14px 16px 18px}
 .copx-ack{border:1px solid var(--ax-line);background:var(--ax-card);color:var(--ax-muted);border-radius:12px;cursor:pointer;font-size:10.5px;padding:1px 8px;white-space:nowrap}
 .copx-ack:hover{border-color:var(--ax-link);color:var(--ax-link)}
 .copx-msg{font-size:12px;color:var(--ax-ink2)}
+.copx-tabs{align-items:flex-end}
+.copx-role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ax-muted);padding-bottom:6px}
+.copx-seg{display:inline-flex;border:1px solid var(--ax-line);border-radius:8px;overflow:hidden;background:var(--ax-card)}
+.copx-seg button{border:0;background:transparent;color:var(--ax-ink2);padding:6px 12px;font-weight:600;font-size:12px;cursor:pointer}
+.copx-seg button.on{background:var(--ax-navy);color:#fff}
+.copx-btn.sm{padding:5px 12px;min-height:30px;font-size:12px}
+.copx-btn.addb{background:#1e88e5}
+.copx-in{width:100%;border:1px solid #c9d2de;border-radius:6px;padding:7px 9px;background:var(--ax-card);color:var(--ax-ink);font:inherit;font-size:12.5px}
+textarea.copx-in{resize:vertical;min-height:40px}
+.copx-uform{background:var(--ax-card);border:1px solid var(--ax-line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:7px}
+.copx-uform .k.g{color:var(--ax-green);font-weight:600;text-transform:none;letter-spacing:0;font-size:12.5px}
+.copx-uform .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.copx-uform .row input[type=date]{width:auto;flex:1}
+.copx-uform .lnk,.copx-sheet .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
+a.copx-open{font-weight:600;font-size:12px;text-decoration:none;color:var(--ax-link);white-space:nowrap}
+a.copx-open:hover{text-decoration:underline}
+.copx-sheet-hd{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px}
+.copx-sheet-hd label{display:flex;align-items:center;gap:8px;font-weight:600}
+.copx-sheet-hd input{width:auto}
+.copx-sheet tr.done td{background:var(--ax-green-soft)}
+.copx-sheet td{vertical-align:top}
+.copx-sheet .copx-donebox{font-size:12px;color:var(--ax-green);margin-bottom:5px}
+.copx-sheet td .copx-btn{margin:0 4px 4px 0}
+.copx-modal-bg{position:fixed;inset:0;background:rgba(30,42,74,.55);display:flex;align-items:center;justify-content:center;padding:24px;z-index:10000}
+.copx-modal{background:var(--ax-card);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);width:min(1000px,100%);max-height:calc(100vh - 48px);display:flex;flex-direction:column;overflow:hidden;padding:14px}
+.copx-modal-hd{display:flex;justify-content:space-between;align-items:center;background:var(--ax-navy);color:#fff;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-weight:600;font-size:16px}
+.copx-modal-hd .x{border:0;background:transparent;color:#fff;font-size:22px;cursor:pointer;line-height:1}
+.copx-bub.neutral{border-color:var(--ax-blue);background:var(--ax-blue-soft);color:var(--ax-blue)}
+.copx-frow.req{grid-template-columns:minmax(200px,1fr) minmax(220px,1.4fr) 2fr}
+.copx-det-grid.req{grid-template-columns:minmax(240px,340px) minmax(0,1fr)}
+.copx-prog{display:flex;flex-wrap:wrap;gap:0;margin:6px 0 12px}
+.copx-prog .ps{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1 1 70px;position:relative;font-size:11px;color:var(--ax-muted);text-align:center}
+.copx-prog .ps i{width:16px;height:16px;border-radius:50%;background:var(--ax-card);border:2px solid #b8c2cf;z-index:1}
+.copx-prog .ps::before{content:"";position:absolute;top:7px;left:-50%;width:100%;height:3px;background:#d3dae3}
+.copx-prog .ps:first-child::before{display:none}
+.copx-prog .ps.done i{background:var(--ax-blue);border-color:var(--ax-blue)}
+.copx-prog .ps.done::before,.copx-prog .ps.cur::before{background:var(--ax-blue)}
+.copx-prog .ps.cur i{border:3px solid var(--ax-blue);box-shadow:0 0 0 4px rgba(30,90,168,.18)}
+.copx-prog .ps.cur span{color:var(--ax-blue);font-weight:700}
 #copHover{position:fixed;z-index:9999;width:340px;max-width:calc(100vw - 16px);background:#fff;color:#1f2d3d;border:1px solid #d6dde8;border-radius:10px;
   box-shadow:0 10px 28px rgba(20,30,60,.22);padding:12px 14px;font:12px/1.45 Poppins,"Segoe UI",system-ui,sans-serif;pointer-events:none;display:none}
 #copHover .h{font-weight:700;font-size:13px}
@@ -1823,15 +1870,27 @@ function renderCopWorkspace(container) {
     return;
   }
 
+  /* ---- who's looking: TTI POC (full picture) or requestor (their requests) ---- */
+  const roleBar = el(`<div class="copx-role"><span>View as</span>
+    <div class="copx-seg"><button type="button" data-role="tti" class="${CopUi.role !== "requestor" ? "on" : ""}">TTI POC</button>
+    <button type="button" data-role="requestor" class="${CopUi.role === "requestor" ? "on" : ""}">Requestor</button></div></div>`);
+  roleBar.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    if (CopUi.role === b.dataset.role) return;
+    CopUi.role = b.dataset.role; CopUi.focus = ""; CopUi.expanded = new Set(); CopUi.q = ""; copRerender();
+  }));
+  if (CopUi.role === "requestor") { root.appendChild(roleBar); copRenderRequestor(root, built); return; }
+
   const isActive = CopUi.view !== "closed";
   const all = isActive ? built.active : built.closed;
   const { base, rows } = copFilterRows(all);
 
-  /* ---- Active / Closed tabs (ATLAS navy tab bar) ---- */
-  root.appendChild(el(`<div class="copx-tabs" role="tablist">
+  /* ---- Active / Closed tabs ---- */
+  const tabs = el(`<div class="copx-tabs" role="tablist">
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active shipments (${built.active.length})</button>
     <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed · post-shipment audit (${built.closed.length})</button>
-  </div>`));
+  </div>`);
+  tabs.appendChild(roleBar);
+  root.appendChild(tabs);
 
   /* ---- main card ---- */
   const card = el(`<section class="copx-card">
@@ -1852,13 +1911,15 @@ function renderCopWorkspace(container) {
   }
 
   /* ---- details table ---- */
+  const sheet = isActive && CopUi.updMode;
   const tcard = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>${isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
-      <span class="n">${isActive ? "Click a row for its step-by-step checklist" : "Every closed shipment, checked against the full requirement list (documents, metrics, close-out)"}</span></div>
+    <div class="copx-hd"><h2>${sheet ? "Daily Status Updates" : isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
+      <span class="n">${sheet ? "Every shipment in view — add today's update for each" : isActive ? "Click a row for its checklist and to add a daily update" : "Every closed shipment, checked against the full requirement list (documents, metrics, close-out)"}</span>
+      ${isActive ? `<div class="acts"><button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button></div>` : ""}</div>
     <div class="copx-rule"></div>
   </section>`);
   root.appendChild(tcard);
-  tcard.appendChild(copTable(rows, isActive, base.length));
+  tcard.appendChild(sheet ? copUpdatesSheet(rows) : copTable(rows, isActive, base.length));
 
   copWire(root, built, rows, isActive);
 }
@@ -1975,11 +2036,12 @@ function copTable(rows, isActive, baseCount) {
     const pills = `${r.counts.red ? `<span class="copx-pill r">${r.counts.red} missed</span>` : ""}${r.counts.amber ? `<span class="copx-pill a">${r.counts.amber} attention</span>` : ""}${!r.counts.red && !r.counts.amber ? `<span class="copx-pill g">Clear</span>` : ""}`;
     let cells;
     if (isActive) {
-      const upd = r.latest ? `<span class="d">${esc(copFmt(r.latest.date))}</span><span class="x">${esc(r.latest.note)}</span>` : `<span class="d">No updates yet</span>`;
+      const lu = copUpdatesFor(r)[0];
+      const upd = lu ? `<span class="d">${esc(copFmt(lu.date))}${lu.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(lu.note)}</span>` : `<span class="d">No updates yet</span>`;
       const dly = r.daily.missed.length ? `<span class="copx-red">${r.daily.missed.length} missed</span>` : r.daily.dueToday ? `<span class="d">Today's due</span>` : `<span class="copx-pill g">Current</span>`;
       const rddCls = r.rddDays === null ? "" : r.rddDays < 0 ? "copx-red" : r.rddDays <= 7 ? "copx-amber" : "";
       cells = `<td>${dot}</td>
-        <td class="w">${esc(r.last5)}${r.consol.length ? ` <span class="copx-pill b" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>
+        <td class="w">${esc(r.last5)} ${copOpenLink(r)}${r.consol.length ? ` <span class="copx-pill b" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>
         <td class="st">${esc(stepLabel(r))}<small>${r.problem ? `<span class="copx-red">${esc(r.status)}</span>` : esc(r.status)}</small></td>
         <td class="nw">${esc(r.poc || "—")}</td>
         <td class="up">${upd}</td>
@@ -1990,7 +2052,7 @@ function copTable(rows, isActive, baseCount) {
         <td>${pills}</td>`;
     } else {
       cells = `<td>${dot}</td>
-        <td class="w">${esc(r.last5)}<small>${esc(r.wmtr)}</small></td>
+        <td class="w">${esc(r.last5)} ${copOpenLink(r)}<small>${esc(r.wmtr)}</small></td>
         <td class="st">${esc(r.status)}</td>
         <td class="nw">${esc(r.poc || "—")}</td>
         <td class="nw">${r.delivered ? esc(copFmt(r.delivered)) : "—"}</td>
@@ -2023,13 +2085,14 @@ function copDetailRow(r, ncol, isActive) {
   };
   const steps = COP_GROUPS.filter((g) => g.id !== "general").map(card).join("");
   const general = card(COP_GROUPS.find((g) => g.id === "general"));
-  const log = ((r.rec && r.rec.daily) || []).slice().sort((a, b) => b.date - a.date).slice(0, 10)
-    .map((d) => `<div><span>${esc(copFmt(d.date))}</span>${esc(d.note)}</div>`).join("");
+  const log = copUpdatesFor(r).slice(0, 10)
+    .map((d) => `<div><span>${esc(copFmt(d.date))}</span>${d.pending ? '<b class="copx-amber">pending · </b>' : ""}${esc(d.note)}</div>`).join("");
   const link = r.tracklink && /^https?:\/\//i.test(r.tracklink) ? ` · <a href="${esc(r.tracklink)}" target="_blank" rel="noopener">Track</a>` : "";
   const watch = isActive ? !!(copGetPrefs().rddWatch || {})[r.reqNo] : false;
   return el(`<tr class="copx-det"><td colspan="${ncol}"><div class="copx-det-grid">
     <div class="copx-info">
-      <div><div class="k">Request</div>${esc(r.wmtr)}<br>${esc(r.title || "")}</div>
+      ${isActive ? copUpdateForm(r) : ""}
+      <div><div class="k">Request</div>${esc(r.wmtr)} ${copOpenLink(r, "Open in ATLAS")}<br>${esc(r.title || "")}</div>
       <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
       <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
       ${r.rdd || isActive ? `<div><div class="k">RDD</div>${r.rdd ? esc(copFmt(r.rdd)) : "—"}
@@ -2062,9 +2125,328 @@ function copHoverHtml(r) {
     <div class="k">Latest update</div>
     <div>${r.latest ? `<b>${esc(copFmt(r.latest.date))}</b> — ${esc(r.latest.note)}` : "No daily updates yet."}</div>
     <div class="k">Daily update</div>${dailyLine}
+    ${(r.pending || []).length ? `<div class="s" style="margin:4px 0 0">${copPlural(r.pending.length, "update")} entered here, pending until in ATLAS</div>` : ""}
     <div class="k">Other open items</div>${others.length
       ? `<ul>${others.slice(0, 4).map((c) => `<li class="${c.state === "fail" ? "r" : "a"}">${esc(c.brief || c.label)}</li>`).join("")}</ul>${others.length > 4 ? `<div>…and ${others.length - 4} more</div>` : ""}`
       : `<div class="ok">None</div>`}`;
+}
+
+/* =========================================================================
+   DAILY UPDATES FROM THE COP (2.6.3)
+   The TTI POC can enter the day's status updates without leaving the COP:
+   per shipment in its details, or for every shipment in view on the
+   "Enter daily updates" sheet. copSaveDailyUpdate is the ONE place an update
+   is written. In ATLAS it becomes the call that adds the entry to the
+   request's Daily Status History (same as the "+ Add" button on the request
+   page). The utility can't write to ATLAS, so here the entry is kept in this
+   browser as "pending" and shown alongside the ATLAS history until the same
+   date + note turns up in a later UDQ (then it's dropped automatically).
+   Pending entries do NOT count toward the daily-update check — only ATLAS does.
+   ========================================================================= */
+const COP_DRAFTS_KEY = "atlas.cop.dailydrafts";
+function copGetDrafts() {
+  try { const o = JSON.parse(localStorage.getItem(COP_DRAFTS_KEY) || "{}"); return (o && typeof o === "object") ? o : {}; }
+  catch (e) { return {}; }
+}
+function copSetDrafts(o) {
+  try { localStorage.setItem(COP_DRAFTS_KEY, JSON.stringify(o)); } catch (e) { /* storage off */ }
+}
+/** Write one daily status update. ATLAS: POST to the request's Daily Status
+    History (date, notes). Utility: keep it as a pending entry in this browser. */
+function copSaveDailyUpdate(wmtr, dateIso, note) {
+  const d = copGetDrafts();
+  (d[wmtr] = d[wmtr] || []).push({ date: dateIso, note: String(note).trim(), at: new Date().toISOString() });
+  copSetDrafts(d);
+}
+function copDeleteDraft(wmtr, at) {
+  const d = copGetDrafts();
+  if (!d[wmtr]) return;
+  d[wmtr] = d[wmtr].filter((x) => x.at !== at);
+  if (!d[wmtr].length) delete d[wmtr];
+  copSetDrafts(d);
+}
+/** Drop pending entries that have since shown up in ATLAS (same date + note). */
+function copPruneDrafts(records) {
+  const d = copGetDrafts();
+  let changed = false;
+  const key = (iso, note) => iso + "|" + copLow(note);
+  for (const rec of records) {
+    const list = d[rec.wmtr];
+    if (!list) continue;
+    const have = new Set(rec.daily.map((x) => key(xtIso(x.date), x.note)));
+    const keep = list.filter((x) => !have.has(key(x.date, x.note)));
+    if (keep.length !== list.length) { changed = true; if (keep.length) d[rec.wmtr] = keep; else delete d[rec.wmtr]; }
+  }
+  if (changed) copSetDrafts(d);
+  return d;
+}
+/** Every update for a row, newest first: ATLAS entries + pending ones. */
+function copUpdatesFor(r) {
+  const atlas = ((r.rec && r.rec.daily) || []).map((x) => ({ date: x.date, note: x.note, pending: false }));
+  const pend = (r.pending || []).map((x) => ({ date: xtParseDate(x.date), note: x.note, pending: true, at: x.at }));
+  return atlas.concat(pend).filter((x) => x.date).sort((a, b) => (b.date - a.date) || (a.pending === b.pending ? 0 : a.pending ? -1 : 1));
+}
+function copUpdatedOn(r, iso) { return copUpdatesFor(r).some((x) => xtIso(x.date) === iso); }
+
+/** Link to the request in ATLAS. The UDQ doesn't carry the request's internal
+    ID (the address is /wmtr/request/edit/<request id>/SRF), so this is null in
+    the utility; the ATLAS build has the ID and links straight to the page. */
+function copRequestUrl(r) {
+  const id = r && r.rec && (r.rec.f["request id"] || r.rec.f["requestid"] || r.rec.f["id"]);
+  return id ? `/wmtr/request/edit/${encodeURIComponent(id)}/SRF` : null;
+}
+function copOpenLink(r, text) {
+  const url = copRequestUrl(r);
+  return `<a class="copx-open" href="${url ? esc(url) : "#"}" ${url ? 'target="_blank" rel="noopener"' : `data-noid="1"`}
+    title="Open ${esc(r.wmtr)} in ATLAS">${text ? esc(text) + " " : ""}<span aria-hidden="true">↗</span></a>`;
+}
+
+/** The daily-update form + history link (shipment details, TTI view). */
+function copUpdateForm(r) {
+  const n = copUpdatesFor(r).length;
+  return `<div class="copx-uform" data-w="${esc(r.wmtr)}">
+    <div class="k g">Daily Status Update</div>
+    <div class="row"><input type="date" class="copx-in" data-udate value="${esc(xtIso(copToday()))}" aria-label="Update date">
+      <button class="copx-btn sm blue" type="button" data-usame title="Copy the last update into the box">Same as last</button></div>
+    <textarea class="copx-in" data-unote rows="2" maxlength="1000" placeholder="Where is it today / what's next"></textarea>
+    <div class="row"><button class="copx-btn sm addb" type="button" data-uadd>+ Add</button>
+      <button class="lnk" type="button" data-uhist>History (${n})</button></div>
+  </div>`;
+}
+
+/** "Enter daily updates" sheet: every shipment in view, today's update in one place. */
+function copUpdatesSheet(rows) {
+  const iso = CopUi.updDate || xtIso(copToday());
+  const done = rows.filter((r) => copUpdatedOn(r, iso)).length;
+  const sorted = rows.slice().sort((a, b) => (copUpdatedOn(a, iso) - copUpdatedOn(b, iso)) || a.num - b.num);
+  const wrap = el(`<div class="copx-sheet">
+    <div class="copx-sheet-hd">
+      <label>Update date <input type="date" class="copx-in" id="copUpdDate" value="${esc(iso)}"></label>
+      <span class="copx-pill ${done === rows.length ? "g" : "b"}">${done} of ${rows.length} updated</span>
+      <span class="copx-msg">Use the TTI POC filter above to show just your shipments. Updates you add here are saved as <b>pending</b> until the COP is built into ATLAS.</span>
+    </div>
+    <div class="copx-tbl"><table><thead><tr><th>WMTR</th><th>Status</th><th>Last update</th><th style="min-width:320px">Update for ${esc(copFmt(xtParseDate(iso)))}</th><th></th></tr></thead><tbody></tbody></table></div>
+  </div>`);
+  const tb = wrap.querySelector("tbody");
+  sorted.forEach((r, i) => {
+    const ups = copUpdatesFor(r);
+    const last = ups[0];
+    const today = ups.find((x) => xtIso(x.date) === iso);
+    tb.appendChild(el(`<tr class="${today ? "done" : ""}" data-w="${esc(r.wmtr)}">
+      <td class="w">${esc(r.last5)} ${copOpenLink(r)}<small>${esc(r.poc || "")}</small></td>
+      <td class="st">${esc(r.status)}<small>${esc(r.dest || "")}</small></td>
+      <td class="up">${last ? `<span class="d">${esc(copFmt(last.date))}${last.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(last.note)}</span>` : `<span class="d">No updates yet</span>`}</td>
+      <td>${today ? `<div class="copx-donebox">✓ ${esc(today.note)}${today.pending ? ' <b class="copx-amber">(pending)</b>' : ""}</div>` : ""}
+        <textarea class="copx-in" data-unote data-i="${i}" rows="2" maxlength="1000" placeholder="${today ? "Add another update" : "Today's update"}"></textarea></td>
+      <td class="nw"><button class="copx-btn sm blue" type="button" data-usame>Same as last</button>
+        <button class="copx-btn sm addb" type="button" data-uadd>+ Add</button></td>
+    </tr>`));
+  });
+  if (!rows.length) tb.appendChild(el(`<tr><td colspan="5" class="copx-msg">No shipments in view.</td></tr>`));
+  return wrap;
+}
+
+/** ATLAS-style "Daily Status Activity" history pop-up. */
+function copShowHistory(r) {
+  const ups = copUpdatesFor(r);
+  const old = document.getElementById("copHist");
+  if (old) old.remove();
+  const m = el(`<div id="copHist" class="copx copx-modal-bg" role="dialog" aria-modal="true" aria-label="Daily Status Activity">
+    <style>${COPX_CSS}</style>
+    <div class="copx-modal">
+      <div class="copx-modal-hd"><span>Daily Status Activity — ${esc(r.wmtr)}</span><button type="button" class="x" aria-label="Close">×</button></div>
+      <div class="copx-tbl" style="max-height:70vh"><table><thead><tr><th>Date</th><th>Notes</th><th>Source</th><th></th></tr></thead><tbody>
+        ${ups.length ? ups.map((x) => `<tr><td class="nw">${esc(copFmt(x.date))}</td><td>${esc(x.note)}</td>
+          <td class="nw">${x.pending ? '<span class="copx-pill a">Pending — not in ATLAS yet</span>' : '<span class="copx-pill g">ATLAS</span>'}</td>
+          <td>${x.pending ? `<button class="copx-ack" type="button" data-del="${esc(x.at)}">Delete</button>` : ""}</td></tr>`).join("")
+          : `<tr><td colspan="4" class="copx-msg">No updates yet.</td></tr>`}
+      </tbody></table></div>
+    </div></div>`);
+  document.body.appendChild(m);
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  m.querySelector(".x").addEventListener("click", close);
+  m.querySelector(".x").focus();
+  m.querySelectorAll("button[data-del]").forEach((b) => b.addEventListener("click", () => {
+    copDeleteDraft(r.wmtr, b.dataset.del);
+    r.pending = (copGetDrafts()[r.wmtr]) || [];
+    close(); copShowHistory(r); copRerender();
+  }));
+}
+
+/* =========================================================================
+   REQUESTOR VIEW (2.6.3) — what a requestor sees: their active requests,
+   where each one is, the latest update and who their TTI POC is. No flags,
+   metrics or internal checks. In ATLAS it's the signed-in requestor's
+   requests; here a Requestor picker stands in for the sign-in.
+   ========================================================================= */
+const COP_REQ_STEP_TEXT = {
+  qr: "TTI is reviewing your request",
+  review: "DTRA program & compliance review",
+  estimate: "Cost estimate in preparation / DTRA estimate review",
+};
+const COP_REQ_PHASE_TEXT = {
+  pre: "Approved — clearances and permits being arranged",
+  booked: "Booked / picked up",
+  transit: "In transit",
+  customs: "At destination customs",
+  delivery: "Out for delivery / delivered — confirming receipt",
+};
+function copReqStatusText(r) {
+  if (r.step === "exec") return COP_REQ_PHASE_TEXT[r.phase] || "In progress";
+  return COP_REQ_STEP_TEXT[r.step] || r.status || "—";
+}
+function copReqProgress(r) {
+  const steps = [["qr", "TTI review"], ["review", "DTRA review"], ["estimate", "Estimate"], ["pre", "Clearance"], ["booked", "Picked up"], ["transit", "In transit"], ["customs", "Customs"], ["delivery", "Delivery"]];
+  const cur = r.step === "exec" ? 3 + (COP_PHASE_IDX[r.phase] || 0) : COP_STEP_IDX[r.step] ?? -1;
+  return `<div class="copx-prog">${steps.map(([, t], i) => `<div class="ps ${i < cur ? "done" : i === cur ? "cur" : ""}"><i></i><span>${esc(t)}</span></div>`).join("")}</div>`;
+}
+
+function copRenderRequestor(root, built) {
+  const all = built.active;
+  const names = Array.from(new Set(all.map((r) => r.requestor).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  if (CopUi.reqName && names.indexOf(CopUi.reqName) === -1) CopUi.reqName = "";
+  const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t)}</option>`;
+  let rows = CopUi.reqName ? all.filter((r) => r.requestor === CopUi.reqName) : all;
+  if (CopUi.q) { const q = copLow(CopUi.q); rows = rows.filter((r) => copLow(r.wmtr + " " + r.title + " " + r.dest + " " + r.status).includes(q)); }
+
+  const card = el(`<section class="copx-card">
+    <div class="copx-hd"><h2>My Requests</h2><span class="n">${copPlural(rows.length, "active request")}</span></div>
+    <div class="copx-rule"></div>
+    <div class="copx-frow req">
+      <div class="copx-f"><label for="copReqName">Requestor</label><select id="copReqName">${opt("", "All requestors (preview)", !CopUi.reqName)}${names.map((n) => opt(n, n, n === CopUi.reqName)).join("")}</select></div>
+      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country" value="${esc(CopUi.q)}"></div>
+      <span class="copx-msg">In ATLAS this shows the signed-in requestor's requests; the picker stands in for that here.</span>
+    </div>
+  </section>`);
+  root.appendChild(card);
+
+  // board — same four steps, neutral tags
+  const board = el(`<div class="copx-board"></div>`);
+  const tag = (r) => `<button type="button" class="copx-bub neutral ${CopUi.focus === r.wmtr ? "sel" : ""}" data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr)}">${esc(r.last5)}</button>`;
+  const subs = { qr: "TTI checks the request details", review: "DTRA program & export compliance", estimate: "Quotes, costs and DTRA approval", exec: "Clearance → pickup → delivery" };
+  for (const s of COP_STEPS) {
+    const xs = rows.filter((r) => r.step === s.id).sort((a, b) => a.num - b.num);
+    const body = s.id === "exec"
+      ? COP_EXEC_PHASES.map((p) => { const ps = xs.filter((r) => r.phase === p.id);
+          return `<div class="copx-ph"><div class="pl"><span>${esc(COP_REQ_PHASE_TEXT[p.id].split(" — ")[0])}</span><span>${ps.length}</span></div><div class="bb">${ps.length ? ps.map(tag).join("") : `<span class="copx-empty">None</span>`}</div></div>`; }).join("")
+      : (xs.length ? xs.map(tag).join("") : `<span class="copx-empty">None</span>`);
+    board.appendChild(el(`<div class="copx-col ${s.id}"><div class="ch"><div class="t">${esc(s.label)}</div><div class="s">${esc(subs[s.id])}</div><span class="cnt">${xs.length}</span></div><div class="cb">${body}</div></div>`));
+  }
+  card.appendChild(board);
+
+  // table
+  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2>Request Details</h2><span class="n">Click a request for its progress and update history</span></div><div class="copx-rule"></div></section>`);
+  root.appendChild(tcard);
+  const wrap = el(`<div class="copx-tbl"></div>`);
+  if (!rows.length) wrap.appendChild(el(`<p class="copx-msg">No active requests.</p>`));
+  else {
+    const table = el(`<table><thead><tr><th>Request</th><th>Title</th><th>Where it is</th><th>Latest Update</th><th>Destination</th><th>RDD</th><th>TTI POC</th></tr></thead><tbody></tbody></table>`);
+    const tb = table.querySelector("tbody");
+    for (const r of rows.slice().sort((a, b) => (b.stepIdx - a.stepIdx) || a.num - b.num)) {
+      const last = copUpdatesFor(r).find((x) => !x.pending);
+      tb.appendChild(el(`<tr class="row ${CopUi.focus === r.wmtr ? "sel" : ""}" data-w="${esc(r.wmtr)}">
+        <td class="w">${esc(r.last5)} ${copOpenLink(r)}<small>${esc(r.wmtr)}</small></td>
+        <td style="max-width:260px">${esc(r.title)}</td>
+        <td class="st">${esc(copReqStatusText(r))}<small>${esc(r.status)}</small></td>
+        <td class="up">${last ? `<span class="d">${esc(copFmt(last.date))}</span><span class="x">${esc(last.note)}</span>` : `<span class="d">No updates yet</span>`}</td>
+        <td>${esc(r.dest || "—")}<br><small style="color:var(--ax-muted)">${esc(r.mode || "")}</small></td>
+        <td class="nw">${r.rdd ? esc(copFmt(r.rdd)) : "—"}</td>
+        <td class="nw">${esc(r.poc || "—")}${r.pocEmail ? `<br><a href="mailto:${esc(r.pocEmail)}">${esc(r.pocEmail)}</a>` : ""}</td></tr>`));
+      if (CopUi.expanded.has(r.wmtr)) {
+        const log = copUpdatesFor(r).filter((x) => !x.pending).slice(0, 10).map((d) => `<div><span>${esc(copFmt(d.date))}</span>${esc(d.note)}</div>`).join("");
+        const link = r.tracklink && /^https?:\/\//i.test(r.tracklink) ? ` · <a href="${esc(r.tracklink)}" target="_blank" rel="noopener">Track shipment</a>` : "";
+        tb.appendChild(el(`<tr class="copx-det"><td colspan="7"><div class="copx-det-grid req">
+          <div class="copx-info">
+            <div><div class="k">Request</div>${esc(r.wmtr)} ${copOpenLink(r, "Open")}<br>${esc(r.title)}</div>
+            <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
+            <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
+            <div><div class="k">Your TTI POC</div>${esc(r.poc || "—")}${r.pocEmail ? ` · <a href="mailto:${esc(r.pocEmail)}">${esc(r.pocEmail)}</a>` : ""}${r.pocPhone ? ` · ${esc(r.pocPhone)}` : ""}</div>
+          </div>
+          <div class="copx-info"><div class="k">Progress</div>${copReqProgress(r)}
+            <div class="log"><div class="k">Status updates</div>${log || "<div>None yet.</div>"}</div></div>
+        </div></td></tr>`));
+      }
+    }
+    wrap.appendChild(table);
+  }
+  tcard.appendChild(wrap);
+
+  // wiring
+  const $ = (s) => root.querySelector(s);
+  $("#copReqName").addEventListener("change", (e) => { CopUi.reqName = e.target.value; copRerender(); });
+  const q = $("#copQ"); let qt = null;
+  q.addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(() => { CopUi.q = q.value; copRerender(); const nq = document.getElementById("copQ"); if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); } }, 250); });
+  const byW = {}; for (const r of all) byW[r.wmtr] = r;
+  const hover = copHoverEl();
+  const move = (e) => { const pad = 16, w = hover.offsetWidth, h = hover.offsetHeight; let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = Math.max(8, e.clientX - w - pad); if (y + h > window.innerHeight - 8) y = Math.max(8, e.clientY - h - pad);
+    hover.style.left = x + "px"; hover.style.top = y + "px"; };
+  root.querySelectorAll(".copx-bub").forEach((b) => {
+    const r = byW[b.dataset.w]; if (!r) return;
+    b.addEventListener("mouseenter", (e) => {
+      const last = copUpdatesFor(r).find((x) => !x.pending);
+      hover.innerHTML = `<div class="h">${esc(r.last5)} · ${esc(copReqStatusText(r))}</div><div class="s">${esc(r.title)}</div>
+        <div class="k">Latest update</div><div>${last ? `<b>${esc(copFmt(last.date))}</b> — ${esc(last.note)}` : "No updates yet."}</div>
+        <div class="k">Destination</div><div>${esc(r.dest || "—")}${r.rdd ? ` · RDD ${esc(copFmt(r.rdd))}` : ""}</div>`;
+      hover.style.display = "block"; move(e); });
+    b.addEventListener("mousemove", move);
+    b.addEventListener("mouseleave", () => { hover.style.display = "none"; });
+    b.addEventListener("click", () => { hover.style.display = "none"; CopUi.focus = r.wmtr; CopUi.expanded.add(r.wmtr); copRerender();
+      requestAnimationFrame(() => { const tr = document.querySelector(`.copx-tbl tr.row[data-w="${CSS.escape(r.wmtr)}"]`); if (tr) tr.scrollIntoView({ behavior: "smooth", block: "center" }); }); });
+  });
+  root.querySelectorAll(".copx-tbl tr.row").forEach((tr) => tr.addEventListener("click", (e) => {
+    if (e.target.closest("a,button")) return;
+    const w = tr.dataset.w;
+    if (CopUi.expanded.has(w)) CopUi.expanded.delete(w); else { CopUi.expanded.add(w); CopUi.focus = w; }
+    copRerender();
+  }));
+  copWireOpenLinks(root);
+}
+
+/** "Open in ATLAS" links without a request ID (utility): say so instead of navigating. */
+function copWireOpenLinks(root) {
+  root.querySelectorAll("a.copx-open[data-noid]").forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    CopUi.msg = "Opens the request in ATLAS once the COP is built into ATLAS (the UDQ doesn't carry the request's ATLAS ID).";
+    const m = document.getElementById("copMsg");
+    if (m) m.textContent = CopUi.msg; else alert(CopUi.msg);
+  }));
+}
+
+/** Daily-update forms (details panel) and the updates sheet. */
+function copWireUpdates(root, byW) {
+  const latestNote = (r) => { const u = copUpdatesFor(r)[0]; return u ? u.note : ""; };
+  const add = (w, dateIso, ta, focusIdx) => {
+    const r = byW[w]; const note = ta.value.trim();
+    if (!r || !note) { ta.focus(); return; }
+    copSaveDailyUpdate(w, dateIso, note);
+    CopUi.msg = `Update added for ${r.last5} (pending until it's in ATLAS).`;
+    CopUi.focusUpd = focusIdx;
+    copRerender();
+  };
+  root.querySelectorAll(".copx-uform").forEach((f) => {
+    const w = f.dataset.w, ta = f.querySelector("[data-unote]"), dt = f.querySelector("[data-udate]");
+    f.querySelector("[data-usame]").addEventListener("click", () => { ta.value = latestNote(byW[w]); ta.focus(); });
+    f.querySelector("[data-uadd]").addEventListener("click", () => add(w, dt.value || xtIso(copToday()), ta, null));
+    f.querySelector("[data-uhist]").addEventListener("click", () => copShowHistory(byW[w]));
+  });
+  const ud = root.querySelector("#copUpdDate");
+  if (ud) ud.addEventListener("change", () => { CopUi.updDate = ud.value || ""; copRerender(); });
+  root.querySelectorAll(".copx-sheet tbody tr[data-w]").forEach((tr) => {
+    const w = tr.dataset.w, ta = tr.querySelector("[data-unote]");
+    const iso = CopUi.updDate || xtIso(copToday());
+    tr.querySelector("[data-usame]").addEventListener("click", () => { ta.value = latestNote(byW[w]); ta.focus(); });
+    tr.querySelector("[data-uadd]").addEventListener("click", () => add(w, iso, ta, Number(ta.dataset.i)));
+    ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add(w, iso, ta, Number(ta.dataset.i)); } });
+  });
+  if (CopUi.focusUpd != null) {
+    const next = root.querySelector(`.copx-sheet textarea[data-i="${CopUi.focusUpd}"]`) || root.querySelector(".copx-sheet textarea");
+    CopUi.focusUpd = null;
+    if (next) requestAnimationFrame(() => next.focus());
+  }
 }
 
 function copRerender() { if (AppState.activeTool === "cop") renderWorkspace(); }
@@ -2134,6 +2516,11 @@ function copWire(root, built, rows, isActive) {
   if (so) so.addEventListener("change", () => { const p = copGetPrefs(); p.stuckOn = so.checked; copSetPrefs(p); copRerender(); });
   const rs = $("#copStuckReset");
   if (rs) rs.addEventListener("click", () => { const p = copGetPrefs(); p.stuck = Object.assign({}, COP_STUCK_DEFAULTS); copSetPrefs(p); copRerender(); });
+
+  copWireOpenLinks(root);
+  copWireUpdates(root, byW);
+  const um = $("#copUpdMode");
+  if (um) um.addEventListener("click", () => { CopUi.updMode = !CopUi.updMode; CopUi.msg = ""; copRerender(); });
 
   $("#copExport").addEventListener("click", () => {
     try { copExportXlsx(rows, isActive); setMsg("Exported."); } catch (e) { console.error(e); setMsg("Export failed: " + e.message); }

@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.3",
+    title: "COP: daily updates from the board, request links, requestor view",
+    notes: [
+      "Daily updates: enter them right from the COP — in a shipment's details (\"Add daily update\") or with \"Enter daily updates\" above the table, which lists every shipment you can update in one sheet. \"History\" opens the full daily-status log, styled like ATLAS's Daily Status Activity. Until the COP is built into ATLAS, entries are saved in this browser and marked \"pending\"; they count toward the daily check, are included in Backup, and drop off once the same day's update shows up in a fresh ATLAS pull.",
+      "Request link: the WMTR in the table and details has an \"open in ATLAS\" link. It's a placeholder for the developer mockup — once the COP lives in ATLAS it opens the request.",
+      "Requestor view: \"View as Requestor\" shows a clean page — your active requests by step in plain language, the latest update, destination, RDD and your TTI POC's contact, with a progress bar and update history per request. No compliance checks or metric flags. (In ATLAS this shows the signed-in requestor's requests; here a picker stands in for that.)",
+    ],
+  },
+  {
     version: "2.6.2",
     title: "COP: RDD optional per request, AES deadlines, cleaner filters and layout",
     notes: [

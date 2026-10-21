@@ -27,7 +27,7 @@ const TOOLS = [
   // tools are reached through the tab bar inside it (copHubTabs), not the rail.
   // A Metrics UDQ opens on the COP (loadFile). "metrics" = the Metrics
   // dashboard, which shows when no tool is active on a Metrics UDQ.
-  { id: "cop",      group: "COP", hub: true,     label: "Pipeline",            needs: "none",     ready: true  },
+  { id: "cop",      group: "COP", hub: true,     label: "Shipments",           needs: "none",     ready: true  },
   { id: "metrics",  group: "COP", hub: true,     label: "Metrics",             needs: "metrics",  ready: true  },
   { id: "pmr",      group: "COP", hub: true,     label: "PMR",                 needs: "metrics",  ready: true  },
   { id: "ecm",      group: "COP", hub: true,     label: "Export-Controlled",   needs: "metrics",  ready: true  },

@@ -1072,20 +1072,19 @@ body.theme-dark .atlas-fetch input{
 .rail-cop svg{ flex:none; display:block; }
 .rail-cop .t{ display:block; font-family:var(--disp); font-size:19px; font-weight:600; letter-spacing:.12em; line-height:1.05; }
 .rail-cop .s{ display:block; font-size:10.5px; opacity:.9; letter-spacing:.02em; }
+/* ATLAS-style navy tab bar (as on the WMTR request page: REQUEST / RFQ / ACCOUNTING). */
 .cop-hub{
-  display:flex; flex-wrap:wrap; gap:4px; margin:0 0 10px; padding:4px;
-  background:var(--card); border:1px solid var(--line); border-radius:var(--radius-panel);
+  display:flex; flex-wrap:wrap; margin:0 0 14px; background:#1e2a4a; border-radius:10px; overflow:hidden;
+  font-family:Poppins,"Segoe UI",system-ui,sans-serif;
 }
 .cop-hub button{
-  border:0; background:transparent; color:var(--ink); cursor:pointer;
-  font-family:var(--disp); text-transform:uppercase; letter-spacing:1px; font-size:13px;
-  padding:7px 14px; border-radius:var(--radius-btn);
+  flex:1 1 auto; border:0; background:transparent; color:#c9d3e3; cursor:pointer;
+  font-family:inherit; font-weight:600; text-transform:uppercase; letter-spacing:.6px; font-size:12.5px;
+  padding:13px 16px;
 }
-.cop-hub button:hover:not(:disabled){ background:#F2F5F8; }
-.cop-hub button.active{ background:var(--accent); color:#fff; }
-.cop-hub button:disabled{ color:#A9B4BF; cursor:not-allowed; }
-body.theme-dark .cop-hub button:hover:not(:disabled){ background:#1a2632; }
-body.theme-dark .cop-hub button:disabled{ color:#4b5a68; }
+.cop-hub button:hover:not(:disabled){ color:#fff; }
+.cop-hub button.active{ background:#5a6d9a; color:#fff; }
+.cop-hub button:disabled{ color:#5f6b82; cursor:not-allowed; }
 
 /* ===== Dangerous goods dashboard panel (feature #8) ===== */
 .dg-panel{ border-color: rgba(176,0,0,.35); }

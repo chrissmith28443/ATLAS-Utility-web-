@@ -13,6 +13,19 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.0",
+    title: "COP redesign: four steps, a bubble per shipment, ATLAS styling",
+    notes: [
+      "The COP's Shipments tab is redesigned in the ATLAS look (white cards, blue table headers, the light-blue Filter bar, navy tabs). Each active shipment is a bubble showing the last five digits of its WMTR, in one of four steps: TTI Quality Review, DTRA Program / Compliance Review, Estimate (TTI preparation and DTRA review), and Execution — which is split by where the shipment is: pre-clearance / green light, booked / picked up, in transit, customs, delivery.",
+      "Bubble colours: green = on track, amber = needs attention, red = missed or overdue. A small red number on a bubble is how many business days it's missing a daily update. Hover a bubble for the latest daily update, whether a daily update is missing, and any other open items; click it to jump to its row and step-by-step checklist.",
+      "Drafts aren't shown. \"Delivered - POD Received\" now counts as complete and moves the shipment to the Closed tab, which is the post-shipment audit (every required document, metrics and close-out checks).",
+      "Day-to-day checks only: daily updates; problem status, Red Flag, RDD and time in step; at Quality Review the minimum inventory fields (Description, Qty, U/M, U/I, ECCN/USML, Schedule B/HTS, Cntry of Mfg, Value), addresses / POCs and countries matching the addresses; after Compliance, DTRA's BIS/DDTC authorization and Denied Party Screen; the RFQ within 1 business day of both Compliance approval and the pack date; Cost List, draft CIV and Packing List before DTRA Estimate Review; a draft AWB before In Transit; carrier and AWB/BoL # once moving; ITN before departure; MARAD. Temp control / HAZMAT, PO, VAT, POD and other close-out documents are no longer flagged while a shipment is active.",
+      "\"To do\" items (what's left in the current step) don't colour a bubble. Gaps from a step the shipment has already passed are shown as \"Late\" in its checklist but don't keep it amber.",
+      "Time in step: TTI Estimate Preparation now counts from the pack date (4 days amber, 6 red), so a request waiting for cargo to arrive isn't flagged. Program and Compliance Review are one step (6 / 10 days). Day limits saved in an earlier version are reset to the new defaults.",
+      "Filter bar: TTI POC, My shipments only, Metric hits, RDD window, search, Needs attention only, Reset; the Ops Tracker and Day limits links live there too. The COP's tab is now called Shipments.",
+    ],
+  },
+  {
     version: "2.5.99",
     title: "Fetch from ATLAS now brings the Cost List, full shipping activity and estimates",
     notes: [

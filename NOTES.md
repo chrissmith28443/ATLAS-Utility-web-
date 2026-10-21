@@ -142,3 +142,20 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Open question for user: ~1/3 of requests past estimate review have an empty Request
   Estimate List (e.g. 10304) — QA copy, or genuinely missing?
 - QA export is stale (~9 Sep 2026): daily/RDD/stuck flags on active shipments are inflated.
+
+### v2.6.0 COP redesign (2026-10-21)
+- User feedback: drafts out; Program + Compliance combined; simple day-to-day view; ATLAS
+  styling (screenshots of dtra-logistics.com + ATLAS_PR_Activity_History_Mockup_v1.4.html:
+  Poppins, navy #1e2a4a, white cards, blue table headers, light-blue Filter accordion).
+- Board: 4 step columns (qr / review / estimate / exec), exec split by phase (pre, booked,
+  transit, customs, delivery); bubble = last 5, colour = health, red badge = missed daily days.
+  Hover: latest update, daily status, other open items (c.brief). Click → row + checklist.
+- Active rules = copActiveEvaluate (lean). Closed = copEvaluate (full audit). "Delivered - POD
+  Received" is closed. Past-QR gaps = "late" (not counted). TTI Est Prep stuck clock starts at
+  pack date (4/6). Prefs stuckV=2 resets old day limits.
+- RFQ due = 1 BD after later of Compliance approval and pack date.
+- Next (user's plan): standalone HTML mockup of just this COP for the TTI dev team to build
+  into the ATLAS WMTR dashboard (no fetch/UDQ — reads ATLAS data directly). Poppins isn't
+  loaded by the utility (falls back to Segoe UI) — adding the Google Fonts link would be a
+  new external dependency; not done.
+

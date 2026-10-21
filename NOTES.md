@@ -158,4 +158,5 @@ Arrived Warehouse or the warehouse actual date is filled.
   into the ATLAS WMTR dashboard (no fetch/UDQ — reads ATLAS data directly). Poppins isn't
   loaded by the utility (falls back to Segoe UI) — adding the Google Fonts link would be a
   new external dependency; not done.
-
+- v2.6.1: time-in-step flags OFF by default (prefs.stuckOn); RFQ is the only default timeline.
+  Toggle under Filter › Day limits for management.

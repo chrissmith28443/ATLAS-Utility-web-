@@ -90,9 +90,10 @@ function copIsClosedStatus(low) {
   return /^(delivered - pod received|completed|ready to invoice|invoiced|cancel+ed( with (charges|costs))?|shipment cancel+ed)$/.test(low);
 }
 
-/* "Stuck" limits — business days in a step before amber / red. Editable under
-   Filter › Day limits. None while moving (in transit / customs): RDD and daily
-   updates cover that stretch. */
+/* "Stuck" limits — business days in a step before amber / red. OFF by default
+   (prefs.stuckOn): the RFQ is the only hard timeline. Management can turn them
+   on and edit them under Filter › Day limits. None while moving (in transit /
+   customs). */
 const COP_STUCK_DEFAULTS = {
   qr:            [2, 3],
   review:        [6, 10],
@@ -204,6 +205,7 @@ function copGetPrefs() {
   if (p.stuckV !== 2) { p.stuck = {}; p.stuckV = 2; }
   p.stuck = Object.assign({}, COP_STUCK_DEFAULTS, (p.stuck && typeof p.stuck === "object") ? p.stuck : {});
   p.me = typeof p.me === "string" ? p.me : "";
+  p.stuckOn = p.stuckOn === true;          // time-in-step flags: off unless management turns them on
   return p;
 }
 function copSetPrefs(p) {
@@ -1381,7 +1383,9 @@ function copActiveEvaluate(rec, ctx) {
   // Time in step. TTI Estimate Preparation can't start until the cargo is
   // packed (weights/dims drive the RFQ), so its clock starts at the later of
   // entering the step and the pack date — and doesn't run until there is one.
-  const lim = si.stuckKey ? ctx.prefs.stuck[si.stuckKey] : null;
+  // Off by default: the RFQ is the only hard timeline. Management can switch
+  // these flags on under Filter › Day limits.
+  const lim = si.stuckKey && ctx.prefs.stuckOn ? ctx.prefs.stuck[si.stuckKey] : null;
   let stuckState = "";
   let stuckSince = si.stuckSince;
   let waitingPack = false;
@@ -1879,7 +1883,8 @@ function copFilterPanel(built, all) {
         <span class="copx-msg" id="copMsg">${esc(CopUi.msg)}</span>
         <input type="file" id="copTrkFile" accept=".xlsx,.xlsm" class="hidden">
       </div>
-      ${CopUi.settingsOpen ? `<div class="copx-limits">${stuckRows}<div><button class="lnk" id="copStuckReset" type="button" style="border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;text-decoration:underline">Reset day limits</button></div></div>` : ""}
+      ${CopUi.settingsOpen ? `<div class="copx-limits"><label class="copx-chk" style="grid-column:1 / -1"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}>
+        Flag shipments that sit in a step longer than these limits (off by default — only the RFQ timeline is flagged)</label>${prefs.stuckOn ? stuckRows + `<div><button class="lnk" id="copStuckReset" type="button" style="border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;text-decoration:underline">Reset day limits</button></div>` : ""}</div>` : ""}
     </div>
   </details>`);
   return det;
@@ -2093,6 +2098,8 @@ function copWire(root, built, rows, isActive) {
     p.stuck[k] = pair;
     copSetPrefs(p); copRerender();
   }));
+  const so = $("#copStuckOn");
+  if (so) so.addEventListener("change", () => { const p = copGetPrefs(); p.stuckOn = so.checked; copSetPrefs(p); copRerender(); });
   const rs = $("#copStuckReset");
   if (rs) rs.addEventListener("click", () => { const p = copGetPrefs(); p.stuck = Object.assign({}, COP_STUCK_DEFAULTS); copSetPrefs(p); copRerender(); });
 

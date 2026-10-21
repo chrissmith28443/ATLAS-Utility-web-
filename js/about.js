@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.1",
+    title: "COP: the RFQ is the only timeline flagged by default",
+    notes: [
+      "Time-in-step flags (\"sitting in a step too long\") are now off by default. The only hard timeline the COP flags out of the box is the RFQ: sent within 1 business day of both Compliance approval and the pack date.",
+      "Management can still switch time-in-step flags on — Filter › Day limits › \"Flag shipments that sit in a step longer than these limits\" — and set the limits for each step. The Days in Step column still shows the count either way, without colouring it.",
+    ],
+  },
+  {
     version: "2.6.0",
     title: "COP redesign: four steps, a bubble per shipment, ATLAS styling",
     notes: [

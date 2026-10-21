@@ -204,3 +204,6 @@ Arrived Warehouse or the warehouse actual date is filled.
   loadFromAtlasXmasTree({ quiet: true }) in the background (no redraw unless Christmas Tree tab
   is open). No re-pull within COP_AUTO_PULL_MIN (10) min. Keeps the current hub tab. Only works
   inside ATLAS; on atlas-utility.net it shows "couldn't pull" and keeps the dropped UDQ.
+- v2.6.12: COP_MOCKUP.links (false in the Utility): copWmtrLink(r, text) makes the WMTR number the
+  link to the request (copRequestUrl needs the ATLAS request ID); plain text in the Utility.
+  "Open in ATLAS" / ↗ links removed.

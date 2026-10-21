@@ -202,9 +202,9 @@ const CopUi = {
 };
 
 /* Mockup / ATLAS-build features. The Utility can't write to ATLAS, so entering
-   and saving daily updates is off here; the developer mockup (and ATLAS)
-   switch it on. */
-const COP_MOCKUP = { editUpdates: false };
+   and saving daily updates — and WMTR links to the request — are off here;
+   the developer mockup (and ATLAS) switch them on. */
+const COP_MOCKUP = { editUpdates: false, links: false };   // links: WMTR numbers open the request
 
 /* ---- prefs (me + stuck limits) ---- */
 function copGetPrefs() {
@@ -1690,7 +1690,7 @@ textarea.copx-in{resize:vertical;min-height:40px}
 .copx-uform .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .copx-uform .row input[type=date]{width:auto;flex:1}
 .copx-uform .lnk,.copx-sheet .lnk,.copx-info .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
-a.copx-open{font-weight:600;font-size:12px;text-decoration:none;color:var(--ax-link);white-space:nowrap}
+a.copx-open{font-weight:inherit;text-decoration:underline;color:var(--ax-link);white-space:nowrap}
 a.copx-open:hover{text-decoration:underline}
 .copx-sheet-hd{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px}
 .copx-sheet-hd label{display:flex;align-items:center;gap:8px;font-weight:600}
@@ -1933,7 +1933,7 @@ function copColDefs(isActive) {
   const health = { id: "health", label: "", fixed: true, title: "Health",
     sort: (r) => COP_HEALTH_ORDER[r.health], td: (r) => `<td><span class="copx-dot ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""}"></span></td>` };
   const wmtr = { id: "wmtr", label: "WMTR", fixed: true, ft: "text", sort: (r) => r.num, fv: (r) => r.wmtr,
-    td: (r) => `<td class="w">${esc(r.last5)} ${copOpenLink(r)}${isActive && r.consol.length ? ` <span class="copx-pill b" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>` };
+    td: (r) => `<td class="w">${copWmtrLink(r, r.last5)}${isActive && r.consol.length ? ` <span class="copx-pill b" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>` };
   const poc = textCol("poc", "TTI POC", (r) => r.poc);
   poc.td = (r) => `<td class="nw">${esc(r.poc || "—")}</td>`;
   const route = { id: "route", label: "Origin / Destination", ft: "text",
@@ -2144,7 +2144,7 @@ function copDetailRow(r, ncol, isActive) {
   return el(`<tr class="copx-det"><td colspan="${ncol}"><div class="copx-det-grid">
     <div class="copx-info">
       ${isActive && COP_MOCKUP.editUpdates ? copUpdateForm(r) : ""}
-      <div><div class="k">Request</div>${esc(r.wmtr)} ${copOpenLink(r, "Open in ATLAS")}<br>${esc(r.title || "")}</div>
+      <div><div class="k">Request</div>${copWmtrLink(r, r.wmtr)}<br>${esc(r.title || "")}</div>
       <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
       <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
       ${r.rdd || isActive ? `<div><div class="k">RDD</div>${r.rdd ? esc(copFmt(r.rdd)) : "—"}
@@ -2247,10 +2247,13 @@ function copRequestUrl(r) {
   const id = r && r.rec && (r.rec.f["request id"] || r.rec.f["requestid"] || r.rec.f["id"]);
   return id ? `/wmtr/request/edit/${encodeURIComponent(id)}/SRF` : null;
 }
-function copOpenLink(r, text) {
+/** The WMTR number, as a link to the request (mockup / ATLAS build — the
+    Utility can't open ATLAS requests, so there it's plain text). */
+function copWmtrLink(r, text) {
+  if (!COP_MOCKUP.links) return esc(text);
   const url = copRequestUrl(r);
   return `<a class="copx-open" href="${url ? esc(url) : "#"}" ${url ? 'target="_blank" rel="noopener"' : `data-noid="1"`}
-    title="Open ${esc(r.wmtr)} in ATLAS">${text ? esc(text) + " " : ""}<span aria-hidden="true">↗</span></a>`;
+    title="Open ${esc(r.wmtr)} in ATLAS">${esc(text)}</a>`;
 }
 
 /** The daily-update form + history link (shipment details, TTI view). */
@@ -2287,7 +2290,7 @@ function copUpdatesSheet(rows) {
     const last = ups[0];
     const today = ups.find((x) => xtIso(x.date) === iso);
     tb.appendChild(el(`<tr class="${today ? "done" : ""}" data-w="${esc(r.wmtr)}">
-      <td class="w">${esc(r.last5)} ${copOpenLink(r)}<small>${esc(r.poc || "")}</small></td>
+      <td class="w">${copWmtrLink(r, r.last5)}<small>${esc(r.poc || "")}</small></td>
       <td class="st">${esc(r.status)}<small>${esc(r.dest || "")}</small></td>
       <td class="up">${last ? `<span class="d">${esc(copFmt(last.date))}${last.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(last.note)}</span>` : `<span class="d">No updates yet</span>`}</td>
       <td>${today ? `<div class="copx-donebox">✓ ${esc(today.note)}${today.pending ? ' <b class="copx-amber">(pending)</b>' : ""}</div>` : ""}
@@ -2403,7 +2406,7 @@ function copRenderRequestor(root, built) {
     for (const r of rows.slice().sort((a, b) => (b.stepIdx - a.stepIdx) || a.num - b.num)) {
       const last = copUpdatesFor(r).find((x) => !x.pending);
       tb.appendChild(el(`<tr class="row ${CopUi.focus === r.wmtr ? "sel" : ""}" data-w="${esc(r.wmtr)}">
-        <td class="w">${esc(r.last5)} ${copOpenLink(r)}<small>${esc(r.wmtr)}</small></td>
+        <td class="w">${copWmtrLink(r, r.last5)}<small>${esc(r.wmtr)}</small></td>
         <td style="max-width:260px">${esc(r.title)}</td>
         <td class="st">${esc(copReqStatusText(r))}<small>${esc(r.status)}</small></td>
         <td class="up">${last ? `<span class="d">${esc(copFmt(last.date))}</span><span class="x">${esc(last.note)}</span>` : `<span class="d">No updates yet</span>`}</td>
@@ -2415,7 +2418,7 @@ function copRenderRequestor(root, built) {
         const link = r.tracklink && /^https?:\/\//i.test(r.tracklink) ? ` · <a href="${esc(r.tracklink)}" target="_blank" rel="noopener">Track shipment</a>` : "";
         tb.appendChild(el(`<tr class="copx-det"><td colspan="7"><div class="copx-det-grid req">
           <div class="copx-info">
-            <div><div class="k">Request</div>${esc(r.wmtr)} ${copOpenLink(r, "Open")}<br>${esc(r.title)}</div>
+            <div><div class="k">Request</div>${copWmtrLink(r, r.wmtr)}<br>${esc(r.title)}</div>
             <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
             <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
             <div><div class="k">Your TTI POC</div>${esc(r.poc || "—")}${r.pocEmail ? ` · <a href="mailto:${esc(r.pocEmail)}">${esc(r.pocEmail)}</a>` : ""}${r.pocPhone ? ` · ${esc(r.pocPhone)}` : ""}</div>

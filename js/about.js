@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.12",
+    title: "COP: \"Open in ATLAS\" links removed",
+    notes: [
+      "The \"Open in ATLAS\" / ↗ links are gone from the COP — the Utility can't open ATLAS requests. In the developer mockup (and ATLAS) the WMTR number itself is the link to the request.",
+    ],
+  },
+  {
     version: "2.6.11",
     title: "COP: clicking COP pulls the latest data from ATLAS",
     notes: [

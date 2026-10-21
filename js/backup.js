@@ -18,8 +18,9 @@
 
    What is NOT exported: the per-UDQ "form cache" (atlas.formcache.*). Those are
    transient, shipment-specific in-progress inputs — not reference data and not
-   meaningful to move between machines or share. Everything else under the
-   "atlas." namespace is included.
+   meaningful to move between machines or share. Nor is the COP's copy of the
+   Ops Tracker (atlas.cop.tracker) — that's data, re-dropped whenever the
+   tracker is updated. Everything else under the "atlas." namespace is included.
    ========================================================================= */
 
 /* Keys we back up, in a stable order. The theme is a bare string; the rest are
@@ -30,6 +31,11 @@ const ATLAS_BACKUP_SPEC = [
   { key: "atlas.recents",  kind: "json",   label: "Recent UDQs" },
   { key: "atlas.parents",  kind: "json",   label: "Saved manual parent items" },
   { key: "atlas.shipdetails", kind: "json", label: "Saved manual shipping details" },
+  { key: "atlas.itemsplits", kind: "json", label: "Saved line-item splits" },
+  { key: "atlas.xmastree.ignores", kind: "json", label: "Acknowledged / ignored metrics (Christmas Tree & COP)" },
+  { key: "atlas.xmastree.holidays", kind: "json", label: "Holiday list" },
+  { key: "atlas.pmr_metrics.ignores", kind: "json", label: "PMR / Metrics ignore list" },
+  { key: "atlas.cop.prefs", kind: "json", label: "COP settings (your name, day limits)" },
   { key: "atlas.theme",    kind: "string", label: "Appearance" },
 ];
 
@@ -117,6 +123,10 @@ function atlasValidateBackup(obj) {
   if (Array.isArray(hist)) summary.push(`${hist.length} history entr${hist.length === 1 ? "y" : "ies"}`);
   const rec = obj.data["atlas.recents"];
   if (Array.isArray(rec)) summary.push(`${rec.length} recent UDQ${rec.length === 1 ? "" : "s"}`);
+  const ign = obj.data["atlas.xmastree.ignores"];
+  if (ign && typeof ign === "object") { const n = Object.keys(ign).length; summary.push(`acknowledgements on ${n} WMTR${n === 1 ? "" : "s"}`); }
+  if (Array.isArray(obj.data["atlas.xmastree.holidays"])) summary.push("holiday list");
+  if (obj.data["atlas.cop.prefs"] && typeof obj.data["atlas.cop.prefs"] === "object") summary.push("COP settings");
   if (typeof obj.data["atlas.theme"] === "string") summary.push("appearance preference");
   return { ok: true, reason: "", summary };
 }
@@ -202,6 +212,22 @@ function atlasApplyBackup(obj, mode) {
       try { cur = JSON.parse(_bkGet("atlas.shipdetails") || "{}") || {}; } catch (e) { cur = {}; }
       // merge per-WMTR; imported entries win on conflict
       writeJson("atlas.shipdetails", Object.assign({}, cur, data["atlas.shipdetails"]));
+    }
+    // Per-WMTR maps (splits, ignore lists): imported entries win on conflict.
+    for (const key of ["atlas.itemsplits", "atlas.xmastree.ignores", "atlas.pmr_metrics.ignores"]) {
+      if (!data[key] || typeof data[key] !== "object" || Array.isArray(data[key])) continue;
+      let cur = {};
+      try { cur = JSON.parse(_bkGet(key) || "{}") || {}; } catch (e) { cur = {}; }
+      writeJson(key, Object.assign({}, cur, data[key]));
+    }
+    if (Array.isArray(data["atlas.xmastree.holidays"])) {
+      let cur = [];
+      try { cur = JSON.parse(_bkGet("atlas.xmastree.holidays") || "[]") || []; } catch (e) { cur = []; }
+      writeJson("atlas.xmastree.holidays", Array.from(new Set(cur.concat(data["atlas.xmastree.holidays"]))).sort());
+    }
+    // COP settings are personal (your name); keep this browser's on merge, take the file's if there are none.
+    if (data["atlas.cop.prefs"] && typeof data["atlas.cop.prefs"] === "object" && _bkGet("atlas.cop.prefs") == null) {
+      writeJson("atlas.cop.prefs", data["atlas.cop.prefs"]);
     }
     // theme intentionally left as-is on merge (it's a device preference)
   } else {
@@ -316,6 +342,7 @@ function _atlasBackupAfterImport() {
   try {
     if (typeof AtlasSettings !== "undefined") AtlasSettings._data = null; // force reload from storage
     if (typeof applyReferenceData === "function") applyReferenceData();
+    if (typeof _xtHolidaySet !== "undefined") _xtHolidaySet = null; // re-read the holiday list
     if (typeof loadSavedTheme === "function") loadSavedTheme();
     if (typeof recentsRender === "function") recentsRender();
     if (typeof renderAll === "function") renderAll();

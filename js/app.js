@@ -23,6 +23,17 @@ const AppState = {
 };
 
 const TOOLS = [
+  // Management sits at the top of the rail. The COP is its first item and is
+  // what a Metrics UDQ opens on (loadFile).
+  { id: "cop",      group: "Management",         label: "COP",                 needs: "metrics",  ready: true  },
+  { id: "metrics",  group: "Management",         label: "Metrics",             needs: "metrics",  ready: true  },
+  { id: "pmr",      group: "Management",         label: "PMR",                 needs: "metrics",  ready: true  },
+  // Required Attachments' Metrics role now lives inside the Metrics dashboard
+  // (the "Shipping docs" card / section embeds this same window), so it's hidden
+  // from the rail on Metrics UDQs. It stays on the rail for SRF UDQs, where it's
+  // the single-WMTR attachment audit — a different view with no dashboard home.
+  { id: "reqatt",   group: "Management",         label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
+  { id: "ecm",      group: "Management",         label: "Export-Controlled Materials", needs: "metrics", ready: true },
   { id: "packet",   group: "Shipping",           label: "Generate packet",     needs: "srf",      ready: true  },
   { id: "ci",       group: "Shipping",           label: "Commercial Invoice",  needs: "srf",      ready: true  },
   { id: "pl",       group: "Shipping",           label: "Packing List/Inventory", needs: "srf",   ready: true  },
@@ -37,14 +48,6 @@ const TOOLS = [
   // against this one WMTR. Sits last in the group — it's what you press when the
   // documents are done, not another document.
   { id: "audit",    group: "Shipping",           label: "Audit",               needs: "srf", needsGrid: true, ready: true  },
-  { id: "metrics",  group: "Metrics",            label: "Metrics",             needs: "metrics",  ready: true  },
-  { id: "pmr",      group: "Metrics",            label: "PMR",                 needs: "metrics",  ready: true  },
-  // Required Attachments' Metrics role now lives inside the Metrics dashboard
-  // (the "Shipping docs" card / section embeds this same window), so it's hidden
-  // from the rail on Metrics UDQs. It stays on the rail for SRF UDQs, where it's
-  // the single-WMTR attachment audit — a different view with no dashboard home.
-  { id: "reqatt",   group: "Metrics",            label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
-  { id: "ecm",      group: "Metrics",            label: "Export-Controlled Materials", needs: "metrics", ready: true },
   { id: "xmastree", group: "Christmas Tree",      label: "Christmas Tree",       needs: "none",     ready: true  },
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
@@ -89,6 +92,9 @@ function workbookAllSheets(arrayBuffer) {
 /* ---------------- File loading ---------------- */
 
 async function loadFile(file) {
+  // An Ops Tracker dropped here belongs to the COP — take it without replacing
+  // the loaded UDQ.
+  if (typeof copMaybeTrackerFile === "function" && await copMaybeTrackerFile(file)) return;
   const status = document.getElementById("loadStatus");
   status.classList.remove("err");
   status.textContent = `Reading ${file.name}…`;
@@ -155,7 +161,9 @@ async function loadFile(file) {
       }
       status.textContent =
         `Loaded ${file.name} — Metrics UDQ · ${wmtrCount} SRF record${wmtrCount === 1 ? "" : "s"} · ` +
-        `open PMR from the Metrics group`;
+        `showing the COP; Metrics and PMR are in the Management group`;
+      // A Metrics UDQ opens on the COP (Management › COP).
+      if (typeof renderCopWorkspace === "function") AppState.activeTool = "cop";
     } else if (udqType === "property") {
       AppState.data = readPropertyUdq(grid);
       AppState.dataBase = AppState.data;   // pristine copy for the manual-values override
@@ -779,6 +787,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "invpr") renderInvPrWorkspace(ws);
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
   else if (AppState.activeTool === "pmr") renderPmrWorkspace(ws);
+  else if (AppState.activeTool === "cop") renderCopWorkspace(ws);
   else if (AppState.activeTool === "reqatt") renderReqattWorkspace(ws);
   else if (AppState.activeTool === "audit") renderRecordAuditWorkspace(ws);
   else if (AppState.activeTool === "ecm") renderEcmWorkspace(ws);

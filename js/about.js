@@ -13,6 +13,20 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.95",
+    title: "COP — Common Operational Picture",
+    notes: [
+      "New: COP (Management › COP). A Metrics UDQ now opens on a picture of every active shipment: eight workflow steps across the top (Draft, TTI Quality Review, DTRA Program Review, DTRA Compliance Review, Estimate, Ready to Ship, In Transit, Delivered) with how many shipments sit in each and how many have a missed (red) or attention (amber) item, and a table of the shipments underneath. Click a step to show only those shipments.",
+      "Each shipment has a step-by-step checklist (click its row): what has to be done at each step before it moves on — addresses, POCs and inventory fields at Quality Review; Denied Party Screen and BIS/DDTC authorization after Compliance; RFQ within 1 business day, cost list, CIV and estimate at the Estimate step; PO, final CIV, packing list, SLI/AES, label photo, pallet placard, RC, DG declaration and pack date before pickup; AWB/BoL and VAT in transit; POD, MCT and vendor invoice before close-out. An item still to do in the current step shows as a box; once the shipment has moved past it, a missed required item turns red.",
+      "Throughout: daily status updates are required every business day from the moment a request enters TTI Quality Review until delivery; RDD turns amber 5 business days out and red once passed (unless an Approval to Adjust RDD is attached); and each step has a limit on how long a shipment can sit there (Day limits — editable). Rejections, manual metric flags and cost over the approved amount come straight from the Christmas Tree.",
+      "Hover over a shipment for its latest daily status update, carrier and AWB/BoL and its open items. The latest update is also a column in the table. Consolidated shipments are tagged and highlight each other.",
+      "My shipments / All: pick your name once and the COP shows your shipments; All adds a by-POC grid (shipments per step, red counts) for managers. Filters for TTI POC, RDD, at-risk and stuck. Copy as text, Export (.xlsx with a full checklist tab) and Print / PDF.",
+      "Ops Tracker: drop the tracker .xlsx onto the COP (or the main drop zone) to add RFQ Sent, Date Packed, AES / ITN and MARAD checks — including a hard red when a shipment that needs AES has been picked up without an ITN. The last tracker loaded is kept in this browser; load an updated one any time. Also flags shipments active in ATLAS but missing from the tracker, and AES classes that don't match the route.",
+      "Closed view lists every completed, invoiced, ready-to-invoice or cancelled shipment with its final checklist.",
+      "\"Metrics\" in the menu is now \"Management\" and sits at the top. Settings › Backup now also saves the Christmas Tree acknowledgements, the holiday list, the PMR ignore list, line-item splits and your COP settings.",
+    ],
+  },
+  {
     version: "2.5.94",
     title: "Fetch / UDQ menu; packet saves separate PDFs; faster consolidation fetch",
     notes: [

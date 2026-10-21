@@ -346,13 +346,15 @@ function xtFmtDayList(isos) {
 }
 
 /** Daily-update gap check over a list of activity-entry dates. Every working day
-    (Mon–Fri, excluding holidays) from the first entry through today must have an entry.
+    (Mon–Fri, excluding holidays) from `from` (when the request left Draft — SRF) or the
+    first entry, whichever is earlier, through today must have an entry.
     Returns "missed" (a past working day has no entry), "due" (only today's entry is
-    outstanding), or "" (no gap, or no entries yet — updates haven't started). */
-function xtDailyGap(dates) {
-  if (!dates || !dates.length) return "";
+    outstanding), or "" (no gap, or nothing to count from). */
+function xtDailyGap(dates, from) {
+  dates = dates || [];
+  if (!dates.length && !from) return "";
   const have = new Set(dates.map((d) => xtIso(d)));
-  let start = dates[0];
+  let start = from || dates[0];
   for (const d of dates) if (d.getTime() < start.getTime()) start = d;
   const today = xtDayStart(new Date());
   const todayIso = xtIso(today);
@@ -692,12 +694,22 @@ function xtBuildRow(rec) {
   const costVariance = ratio(governingAmount);
 
   // Is Activity Tracker Update Late? SRF (daily) and PR (TTI POC Status Check) only.
-  // A daily update is expected every working day (holidays/weekends exempt) from the
-  // first daily-history entry onward. Any missing past working day -> "missed"; only
-  // today's entry still outstanding -> "due". No entries yet -> nothing (can't know
-  // when updates should have started). Only evaluated while the request is active.
-  const activityGap = ((rec.service === "SRF" || rec.service === "PR") && !delivered)
-    ? xtDailyGap(rec.activityDates) : "";
+  // An update is expected every working day (holidays/weekends exempt). SRF: from the
+  // day the request left Draft (oldest non-Draft Workflow Logs stamp — "Date Submitted"
+  // is user-entered and unreliable), so a request with no entries at all is flagged
+  // too. PR: from the first entry onward. Any missing past working day -> "missed";
+  // only today's entry still outstanding -> "due". Only evaluated while active.
+  let leftDraft = null;
+  if (rec.service === "SRF") {
+    for (const e of wfl) if (e.dt && !/^draft\b/i.test(norm(e.status)) && (!leftDraft || e.dt.getTime() < leftDraft.getTime())) leftDraft = e.dt;
+    if (/^draft\b/i.test(norm(sc.status))) leftDraft = null;      // sent back to Draft: not due
+    // Never before ATLAS began recording daily updates (PMR_DAILY_LOG_START_ISO).
+    const logStart = typeof PMR_DAILY_LOG_START_ISO !== "undefined" ? xtParseDate(PMR_DAILY_LOG_START_ISO) : null;
+    if (leftDraft && logStart && leftDraft.getTime() < logStart.getTime()) leftDraft = logStart;
+  }
+  const closedStatus = /^(completed|ready to invoice|invoiced|cancel)/i.test(norm(sc.status));
+  const activityGap = ((rec.service === "SRF" || rec.service === "PR") && !delivered && !closedStatus)
+    ? xtDailyGap(rec.activityDates, leftDraft) : "";
   const activityLate = activityGap === "missed" ? "Yes" : "";
 
   // PO Execution Due (PR) = WORKDAY(EstimateApproved, 1)  [no holidays, per formula]

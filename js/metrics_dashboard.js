@@ -260,8 +260,8 @@ function mxRenderDailyUpdateSection(dash, precomputed) {
 
   const windowed = !!(d.window_start && d.window_end);
   const countLabel = windowed
-    ? `${d.with_daily} WMTR${d.with_daily === 1 ? "" : "s"} with daily activity in window${d.with_daily ? ` · ${d.compliant} clean` : ""}`
-    : `${d.with_daily} of ${d.total_records} WMTRs have daily logs${d.with_daily ? ` · ${d.compliant} clean` : ""}`;
+    ? `${d.with_daily} WMTR${d.with_daily === 1 ? "" : "s"} due daily updates in window${d.with_daily ? ` · ${d.compliant} clean` : ""}`
+    : `${d.with_daily} of ${d.total_records} WMTRs checked${d.with_daily ? ` · ${d.compliant} clean` : ""}`;
 
   const panel = el(`
     <div class="panel mx-daily" id="mxsec-daily">
@@ -274,10 +274,10 @@ function mxRenderDailyUpdateSection(dash, precomputed) {
   dash.appendChild(panel);
   const host = panel.querySelector("#mxDailyBody");
 
-  host.appendChild(el(`<div class="hint" style="margin-bottom:12px;">A daily entry is expected for every <strong>business day</strong> a WMTR is being logged — weekends and US federal holidays are skipped. A WMTR is flagged when a business day with no entry falls inside the reporting window above (checked over the part of each WMTR's logged span that overlaps the window). Only WMTRs that already have a Daily Status History are checked.</div>`));
+  host.appendChild(el(`<div class="hint" style="margin-bottom:12px;">A daily entry is expected for every <strong>business day</strong> from the day a request leaves Draft (its first Workflow Logs stamp after Draft) until it's delivered — weekends and US federal holidays are skipped. A request that has left Draft but has no entries at all is flagged too. A WMTR is flagged when a business day with no entry falls inside the reporting window above.</div>`));
 
   if (!d.with_daily) {
-    host.appendChild(el(`<div class="mx-empty">No WMTRs have a Daily Status History in this window — nothing to check.</div>`));
+    host.appendChild(el(`<div class="mx-empty">No WMTRs were due daily updates in this window — nothing to check.</div>`));
     return;
   }
 
@@ -295,7 +295,7 @@ function mxRenderDailyUpdateSection(dash, precomputed) {
       <div class="panel" style="box-shadow:none;border:none;">
         <div class="body">
           <div class="stats mx-kpis">
-            <div class="stat"><div class="k">WMTRs with logs</div><div class="v">${d.with_daily}</div></div>
+            <div class="stat"><div class="k">WMTRs checked</div><div class="v">${d.with_daily}</div></div>
             <div class="stat"><div class="k">No gaps</div><div class="v ${d.has_gaps === 0 ? "mx-good" : ""}">${d.compliant_pct.toFixed(1)}%</div></div>
             <div class="stat"><div class="k">Flagged (gaps)</div><div class="v ${d.has_gaps ? "mx-bad" : ""}">${d.has_gaps}</div></div>
           </div>

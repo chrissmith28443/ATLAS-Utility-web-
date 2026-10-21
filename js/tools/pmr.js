@@ -134,14 +134,20 @@ function pmrRound2(x) {
 /* =========================================================================
    Daily Update Check (new in 2.5.0 — no desktop predecessor)
 
-   For every WMTR that carries a "Daily Status History" sub-section, confirm:
-     1. a daily entry exists for each *business day* in the logged span
-        (weekends + US federal holidays are not expected), and
-     2. the first daily entry lands within PMR_DAILY_START_GRACE_BIZDAYS
-        business days of the record's "Date Submitted".
+   For every WMTR, confirm:
+     1. a daily entry exists for each *business day* from the day the request
+        left Draft (its first non-Draft Workflow Logs stamp, or its first daily
+        entry if earlier) until its Delivery Date — or until yesterday while it's
+        still open (weekends + US federal holidays are not expected), and
+     2. (disabled, see below) the first daily entry lands within
+        PMR_DAILY_START_GRACE_BIZDAYS business days of "Date Submitted".
 
-   WMTRs with no daily entries are skipped — the check only applies once daily
-   updates have been entered. This computation is independent of the PMR/Metrics
+   Rule since 2.5.96: updates are required from the moment a request leaves
+   Draft (never earlier than PMR_DAILY_LOG_START_ISO, when ATLAS began
+   recording them), so a request with no daily entries at all is flagged once its
+   Workflow Logs show it left Draft. Records with neither daily entries nor
+   Workflow Logs are skipped (no way to tell when updates were due). This
+   computation is independent of the PMR/Metrics
    reporting window (which filters on Delivery Date); update cadence matters most
    for in-progress requests that have no Delivery Date yet.
 
@@ -154,6 +160,11 @@ function pmrRound2(x) {
    ========================================================================= */
 
 const PMR_DAILY_START_GRACE_BIZDAYS = 3;
+// ATLAS started recording Daily Status History on 23 Feb 2026 (two entries that
+// day; logging began in earnest on the 24th). No update can be required before
+// then — a request that left Draft earlier is counted from this date. Shared by
+// the Christmas Tree and the COP.
+const PMR_DAILY_LOG_START_ISO = "2026-02-24";
 const PMR_DAILY_SECTION_TITLE = "Daily Status History";
 
 // On-time / late scoring floor. TTI was relieved of the NLT Completion Date
@@ -302,6 +313,23 @@ function pmrParseDailyBlocks(grid) {
       }
     }
 
+    // When the request left Draft: the oldest Workflow Logs entry whose status
+    // isn't Draft (Status col B, Date/Time col C, newest first). "Date Submitted"
+    // is user-entered and can predate the real submission by months, so it isn't
+    // used. null when the export has no Workflow Logs for this record.
+    let leftDraft = null;
+    for (let r = rr + 1; r < rEnd; r++) {
+      if (normWs(gridCell(grid, r, 2)).toLowerCase() !== "workflow logs") continue;
+      for (let k = r + 2; k < rEnd; k++) {
+        const st = norm(gridCell(grid, k, 2));
+        if (!st) break;
+        if (/^draft\b/i.test(st)) continue;
+        const d = pmrToDate(gridCell(grid, k, 3));
+        if (d && (!leftDraft || pmrDayDiff(d, leftDraft) > 0)) leftDraft = d;
+      }
+      break;
+    }
+
     const dates = [];
     if (titleRow) {
       // Entry rows start two rows below the title (title, then Date/Notes header).
@@ -328,7 +356,7 @@ function pmrParseDailyBlocks(grid) {
       const ia = pmrIso(a), ib = pmrIso(b);
       return ia < ib ? -1 : ia > ib ? 1 : 0;
     });
-    out.push({ wmtr, submitted, status, delivery, dates: uniq });
+    out.push({ wmtr, submitted, status, delivery, leftDraft, dates: uniq });
   }
   return out;
 }
@@ -354,7 +382,12 @@ function pmrDailyUpdateCheck(grid, startIso, endIso) {
 
   // Holiday set spanning every year the daily logs touch.
   const years = new Set();
-  for (const b of blocks) for (const d of b.dates) years.add(d.y);
+  for (const b of blocks) {
+    for (const d of b.dates) years.add(d.y);
+    if (b.leftDraft) years.add(b.leftDraft.y);
+  }
+  // Open requests are checked up to yesterday, so cover every year through today.
+  if (years.size) for (let y = Math.min(...years); y <= pmrToday().y; y++) years.add(y);
   if (winStart) years.add(winStart.y);
   if (winEnd) years.add(winEnd.y);
   if (!years.size) years.add(new Date().getFullYear());
@@ -364,12 +397,28 @@ function pmrDailyUpdateCheck(grid, startIso, endIso) {
   let compliant = 0, lateStart = 0, hasGaps = 0;
   let inWindowRecords = 0;
 
+  const yesterday = pmrAddDays(pmrToday(), -1);
+  const logStart = pmrToDate(PMR_DAILY_LOG_START_ISO);
   for (const b of blocks) {
-    if (!b.dates.length) continue;              // only check WMTRs with daily logs
-    if (String(b.status || "").toLowerCase().startsWith("cancel")) continue; // canceled: not expected to keep logging
+    const st = String(b.status || "").toLowerCase().trim();
+    if (st.startsWith("cancel")) continue; // canceled: not expected to keep logging
     if (pmrSrfRelieved(b.wmtr, b.delivery ? pmrIso(b.delivery) : null)) continue; // relieved SRF: not scored on any metric
-    const first = b.dates[0];
-    const last = b.dates[b.dates.length - 1];
+    const inDraft = /^draft\b/.test(st);              // sent back to Draft: only its logged span counts
+    const closedSt = /^(completed|ready to invoice|invoiced)$/.test(st);
+    let leftDraft = inDraft ? null : b.leftDraft;
+    if (leftDraft && pmrDayDiff(leftDraft, logStart) > 0) leftDraft = logStart;        // before ATLAS logged updates
+    if (leftDraft && b.delivery && pmrDayDiff(b.delivery, leftDraft) > 0) leftDraft = null; // delivered before then
+    if (!b.dates.length && (!leftDraft || (closedSt && !b.delivery))) continue;   // nothing to count from / to
+    // Updates are due every business day from the day the request left Draft
+    // (or its first entry, if that's earlier) until delivery. A request that has
+    // left Draft but never been updated is flagged too.
+    let first = b.dates.length ? b.dates[0] : leftDraft;
+    if (leftDraft && pmrDayDiff(leftDraft, first) > 0) first = leftDraft;
+    let last;
+    if (b.delivery) last = b.delivery;
+    else if (inDraft || closedSt) last = b.dates.length ? b.dates[b.dates.length - 1] : first;
+    else last = yesterday;                         // still open: every past business day counts (today isn't missed yet)
+    if (pmrDayDiff(first, last) < 0) continue;     // nothing due yet
 
     // Clip the checked span to the reporting window. A WMTR is only in scope when
     // its logged span overlaps the window; the gap check then runs over the
@@ -1457,10 +1506,10 @@ function renderPmrResults(result) {
     program_count: `${result.program_count_total} of ${total} delivered WMTRs counted across ${result.program_count_rows.length} ${result.program_count_rows.length === 1 ? "program" : "programs"}.${result.missing_program_count ? ` ${result.missing_program_count} not counted — ${progAct ? "see banner above." : "all acknowledged."}` : ""}`,
     daily: (() => {
       const d = result.daily_update || { with_daily: 0, compliant: 0, has_gaps: 0, compliant_pct: 0 };
-      const scope = (result.window_start && result.window_end) ? "with daily activity in this window" : "with daily logs";
+      const scope = (result.window_start && result.window_end) ? "due daily updates in this window" : "due daily updates";
       if (!d.with_daily) return `No WMTRs ${scope} — nothing to check.`;
       return `${d.compliant} of ${d.with_daily} WMTRs ${scope} have no gaps (${d.compliant_pct.toFixed(1)}%) · WMTRs with gaps: ${d.has_gaps}. ` +
-        `A daily entry is expected every business day (weekends + US federal holidays excluded), checked over the part of each WMTR's logged span that falls inside the reporting window.`;
+        `A daily entry is expected every business day (weekends + US federal holidays excluded) from the day a request leaves Draft until it's delivered, checked over the part that falls inside the reporting window.`;
     })(),
     cancelled: (() => {
       const n = result.cancelled_count || 0;

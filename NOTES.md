@@ -109,8 +109,14 @@ Arrived Warehouse or the warehouse actual date is filled.
 28. Claude permissions: .claude/settings.local.json trimmed to broad rules (2026-10-21);
     git push still asks. Old list backed up as .claude/settings.local.backup-2026-10-21.json.
 
-### Status
-All design questions answered (2026-10-21). Next: build COP (new js/tools/cop.js), menu
-rename Metrics→Management at top with COP first, COP default on Metrics UDQ load/fetch,
-ops-tracker drop, json_udq rebuild of Request Estimate List, backup includes COP keys.
-Separate version after: Christmas Tree + PMR daily-update rule (count from first TTI QR).
+### Status (2026-10-21)
+- v2.5.95 COP built (js/tools/cop.js) — committed locally, NOT pushed yet.
+- v2.5.96 daily-update rule (PMR/Metrics/Tree/COP): required every business day from
+  "left Draft" (oldest non-Draft Workflow Logs stamp; Date Submitted is unreliable) to
+  delivery / yesterday; floor PMR_DAILY_LOG_START_ISO = 2026-02-24 (ATLAS daily history
+  began 23–24 Feb 2026). QA impact: Q2 FY26 100%→92.6%, Q3 100%→98.7%. Not pushed yet.
+- Fetch path (json_udq.js) does NOT rebuild Cost List or Request Estimate List — COP shows
+  "No data" for those checks on fetched data. Need a JSON sample to add them.
+- Open question for user: ~1/3 of requests past estimate review have an empty Request
+  Estimate List (e.g. 10304) — QA copy, or genuinely missing?
+- QA export is stale (~9 Sep 2026): daily/RDD/stuck flags on active shipments are inflated.

@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.5.96",
+    title: "Daily updates are required from the day a request leaves Draft",
+    notes: [
+      "Daily Update Check (Metrics, PMR, Christmas Tree and COP all use the same rule): a daily entry is now required every business day from the day the request left Draft until it's delivered. Before, the check only started at the first entry someone made and stopped at the last one, so a slow start or a request that stopped being updated was never counted.",
+      "\"Left Draft\" is the request's first Workflow Logs stamp after Draft (Date Submitted is typed in by the requestor and can be months off, so it isn't used). A request that has left Draft but has no daily entries at all is now flagged too.",
+      "Nothing is required before 24 Feb 2026, when ATLAS started recording daily updates, and a request delivered before then isn't checked. Open requests are checked through yesterday (today's entry isn't late yet). Requests sent back to Draft, cancelled ones and pre-Oct 2025 deliveries are treated as before.",
+      "Expect lower \"clean\" percentages for past quarters where a request's first update came a day or two after it was submitted.",
+      "COP: the daily-update check now counts from the same \"left Draft\" stamp (it was using Date Submitted).",
+    ],
+  },
+  {
     version: "2.5.95",
     title: "COP — Common Operational Picture",
     notes: [

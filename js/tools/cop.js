@@ -711,21 +711,24 @@ function copEvaluate(rec, ctx) {
   }
 
   // Daily status updates: every business day from the moment the request left
-  // Draft (Date Submitted, or the first non-Draft Workflow Logs stamp if that's
-  // earlier) until delivery.
+  // Draft (its oldest non-Draft Workflow Logs stamp — "Date Submitted" is
+  // user-entered and can predate the real submission by months — or its first
+  // daily entry, if earlier) until delivery. Same rule as PMR / Christmas Tree.
   (function () {
     const label = "Daily status updates";
-    let start = xtParseDate(f["date submitted"]);
-    for (const e of wfl) {
-      const l = copLaneOf(e.status);
-      if (e.dt && l && l !== "draft" && (!start || e.dt.getTime() < start.getTime())) start = e.dt;
-    }
+    let start = null;
+    for (const e of wfl) if (e.dt && !/^draft\b/i.test(norm(e.status)) && (!start || e.dt.getTime() < start.getTime())) start = e.dt;
+    // Never before ATLAS began recording daily updates (Feb 2026).
+    const logStart = typeof PMR_DAILY_LOG_START_ISO !== "undefined" ? xtParseDate(PMR_DAILY_LOG_START_ISO) : null;
+    if (start && logStart && start.getTime() < logStart.getTime()) start = logStart;
+    if (start && delivered && delivered.getTime() < start.getTime()) start = null;
+    for (const x of rec.daily) if (!start || x.date.getTime() < start.getTime()) start = x.date;
     if (laneIdx === COP_LANE_IDX.draft || laneIdx === -1) {
       add("daily", "general", "req", label, { met: "na", detail: "Required once the request enters TTI Quality Review." }, ["activity"]);
       return;
     }
     if (!start) {
-      add("daily", "general", "req", label, { met: null, detail: "No Date Submitted or Workflow Logs stamp to count from." }, ["activity"]);
+      add("daily", "general", "req", label, { met: null, detail: "No Workflow Logs stamp or daily entry to count from." }, ["activity"]);
       return;
     }
     if (li.closed && !rec.daily.length) {

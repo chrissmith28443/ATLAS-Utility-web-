@@ -1485,6 +1485,7 @@ function copActiveEvaluate(rec, ctx) {
     pocEmail: f["tti poc email"] || "", pocPhone: f["tti poc phone number"] || "", requestor: f["requestor name"] || "",
     status: si.status, step: si.step, stepIdx, phase: si.phase, sub: si.sub, problem: si.problem, unmapped: si.unmapped,
     daysInStep: si.stepSince ? copBizDaysBetween(si.stepSince, today) : null, stuck: stuckState,
+    statusSince: copRunSince(rec.wfl, (b) => b === copBaseStatus(si.status)),
     rdd, rddDays: rdd && !delivered ? copCalDays(today, rdd) : null,
     dest: copShortCountry(f["country of destination"] || ""), origin: copShortCountry(f["country of origin"] || ""),
     mode: sc.as || f["requested mode of transit"] || "",
@@ -1524,6 +1525,35 @@ function copBuildAll() {
 /* -------------------------------------------------------------------------
    FILTERS
    ------------------------------------------------------------------------- */
+/* "Today" strip quick filters (Active view). */
+const COP_QUICK_DAYS = 7;                 // "departing" window
+function copDepartingSoon(r) {
+  if (r.step !== "exec" || COP_PHASE_IDX[r.phase] >= COP_PHASE_IDX.transit) return false;
+  const ship = (r.rec && r.rec.ship) || {};
+  if (xtParseDate(ship["departure from origin act. date"])) return false;     // already left
+  const etd = xtParseDate(ship["departure from origin est. date"]);
+  return !!etd && copCalDays(copToday(), etd) <= COP_QUICK_DAYS;              // includes an ETD already passed
+}
+const COP_QUICK = {
+  due: (r) => r.daily && r.daily.dueToday,
+  missed: (r) => r.daily && r.daily.missed && r.daily.missed.length > 0,
+  departing: copDepartingSoon,
+};
+function copTodayStrip(base) {
+  const n = (f) => base.filter(f).length;
+  const att = n((r) => r.counts.red || r.counts.amber);
+  const chip = (key, cls, count, text, on) => `<button type="button" class="${cls} ${on ? "on" : ""}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}"><b>${count}</b>${esc(text)}</button>`;
+  const due = n(COP_QUICK.due);
+  return el(`<div class="copx-today" role="group" aria-label="Today">
+    <span class="lbl">Today</span>
+    ${chip("", "", base.length, " active", !CopUi.quick && !CopUi.atRisk)}
+    ${chip("due", "p", due, due === 1 ? " update due today" : " updates due today", CopUi.quick === "due")}
+    ${chip("missed", "r", n(COP_QUICK.missed), " with missed updates", CopUi.quick === "missed")}
+    ${chip("attention", "a", att, att === 1 ? " needs attention" : " need attention", CopUi.atRisk)}
+    ${chip("departing", "n", n(COP_QUICK.departing), ` departing within ${COP_QUICK_DAYS} days`, CopUi.quick === "departing")}
+  </div>`);
+}
+
 function copFilterRows(all) {
   let rows = all;
   if (CopUi.poc) rows = rows.filter((r) => copLow(r.poc) === copLow(CopUi.poc));
@@ -1533,6 +1563,7 @@ function copFilterRows(all) {
   }
   const base = rows;                       // before attention / hit filters (board counts)
   if (CopUi.atRisk) rows = rows.filter((r) => r.counts.red || r.counts.amber);
+  if (CopUi.quick && CopUi.view !== "closed") rows = rows.filter(COP_QUICK[CopUi.quick] || (() => true));
   if (CopUi.hit) rows = rows.filter((r) => r.checks.some((c) => c.id === CopUi.hit && (c.state === "fail" || c.state === "warn" || c.state === "due")));
   if (CopUi.rddDays === -1) rows = rows.filter((r) => r.rddDays !== null && r.rddDays < 0);          // Past RDD
   else if (CopUi.rddDays) rows = rows.filter((r) => r.rddDays !== null && r.rddDays >= 0 && r.rddDays <= CopUi.rddDays);
@@ -1548,11 +1579,11 @@ function copFilterRows(all) {
 const COPX_CSS = `
 .copx{--ax-navy:#1e2a4a;--ax-ink:#1f2d3d;--ax-ink2:#3c4858;--ax-muted:#5a6778;--ax-line:#d6dde8;--ax-line2:#e3e8ef;
   --ax-card:#fff;--ax-soft:#f3f5f9;--ax-acc:#e3f0fc;--ax-acc2:#f0f7ff;--ax-link:#1565c0;--ax-blue:#1e5aa8;--ax-blue-soft:#e3edf9;
-  --ax-th:#6d9ad0;--ax-green:#2e7d32;--ax-green-soft:#eaf5ec;--ax-amber:#c65d00;--ax-amber-soft:#fff1e3;--ax-red:#c62828;--ax-red-soft:#fdecea;--ax-purple:#6a3fb5;--ax-purple-soft:#e1d2fa;
+  --ax-th:#6d9ad0;--ax-green:#2e7d32;--ax-green-soft:#eaf5ec;--ax-amber:#c65d00;--ax-amber-soft:#fff1e3;--ax-red:#c62828;--ax-red-soft:#fdecea;--ax-purple:#6a3fb5;--ax-purple-soft:#e1d2fa;--ax-teal:#00838f;--ax-neutral:#aab4c3;
   --ax-go:#22683a;--ax-reset:#4a7ab8;--ax-grey:#b5bcc6;
   font-family:Poppins,"Segoe UI",system-ui,sans-serif;color:var(--ax-ink);font-size:13px;display:flex;flex-direction:column;gap:16px}
 body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax-line:#33414f;--ax-line2:#2a3744;--ax-card:#17212c;
-  --ax-soft:#121a23;--ax-acc:#1d2c3d;--ax-acc2:#1a2736;--ax-link:#7fb2ef;--ax-blue-soft:#1d2c3d;--ax-green-soft:#16281b;--ax-amber-soft:#2e2112;--ax-red-soft:#2e1617;--ax-purple:#b79cf0;--ax-purple-soft:#2c2142}
+  --ax-soft:#121a23;--ax-acc:#1d2c3d;--ax-acc2:#1a2736;--ax-link:#7fb2ef;--ax-blue-soft:#1d2c3d;--ax-green-soft:#16281b;--ax-amber-soft:#2e2112;--ax-red-soft:#2e1617;--ax-purple:#b79cf0;--ax-purple-soft:#2c2142;--ax-teal:#4dd0e1;--ax-neutral:#4a5868}
 .copx *{box-sizing:border-box}
 .copx button,.copx input,.copx select{font-family:inherit}
 .copx-tabs{display:flex;gap:4px;border-bottom:2px solid var(--ax-line);margin-top:-4px}
@@ -1598,7 +1629,7 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
   font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
 .copx-col .tally{display:flex;gap:10px;flex-wrap:wrap;padding:7px 12px;font-size:11.5px;color:var(--ax-ink2);border-bottom:1px solid var(--ax-line2);background:var(--ax-card)}
 .copx-col .tally b{font-weight:700}
-.copx-col .tally .r{color:var(--ax-red)} .copx-col .tally .a{color:var(--ax-amber)} .copx-col .tally .g{color:var(--ax-green)}
+.copx-col .tally .r{color:var(--ax-red)} .copx-col .tally .a{color:var(--ax-amber)} .copx-col .tally .g{color:var(--ax-muted)}
 .copx-col .cb{padding:12px;display:flex;flex-wrap:wrap;gap:9px 7px;align-content:flex-start;flex:1}
 .copx-col.exec .cb{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .copx-col.review .cb,.copx-col.estimate .cb{display:flex;flex-direction:column;flex-wrap:nowrap;gap:10px}
@@ -1606,7 +1637,7 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-ph .pl{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ax-muted);margin-bottom:7px;display:flex;justify-content:space-between}
 .copx-ph .bb{display:flex;flex-wrap:wrap;gap:9px 7px}
 .copx-empty{font-size:12px;color:var(--ax-muted);font-style:italic}
-.copx-bub{height:26px;min-width:56px;padding:0 9px;border-radius:13px;border:2px solid var(--ax-green);background:var(--ax-green-soft);color:var(--ax-ink);
+.copx-bub{height:26px;min-width:56px;padding:0 9px;border-radius:13px;border:2px solid var(--ax-neutral);background:var(--ax-card);color:var(--ax-ink);
   font-weight:600;font-size:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
   transition:transform .1s, box-shadow .1s}
 .copx-bub:hover,.copx-bub:focus-visible{transform:scale(1.06);box-shadow:0 0 0 3px rgba(30,90,168,.22);outline:none}
@@ -1614,11 +1645,12 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-bub.red{border-color:var(--ax-red);background:var(--ax-red-soft);color:var(--ax-red)}
 .copx-bub.due{background:var(--ax-purple-soft);color:var(--ax-purple);font-weight:700}     /* only today's update outstanding */
 .copx-bub.sel{box-shadow:0 0 0 3px var(--ax-blue)}
+.copx-bub .cl{display:inline-flex;margin-left:4px;color:var(--ax-teal)}
 .copx-bub .bang,.copx-bub .nd{position:absolute;top:-8px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:var(--ax-red);color:#fff;font-size:9.5px;line-height:16px;padding:0 4px;font-weight:700;text-align:center}
 .copx-legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--ax-ink2)}
 .copx-legend span{display:inline-flex;align-items:center;gap:6px}
-.copx-legend i{width:24px;height:13px;border-radius:7px;border:2px solid var(--ax-green);background:var(--ax-green-soft);display:inline-block}
-.copx-legend i.p{border-color:var(--ax-green);background:var(--ax-purple-soft)} .copx-legend i.a{border-color:var(--ax-amber);background:var(--ax-amber-soft)} .copx-legend i.r{border-color:var(--ax-red);background:var(--ax-red-soft)}
+.copx-legend i{width:24px;height:13px;border-radius:7px;border:2px solid var(--ax-neutral);background:var(--ax-card);display:inline-block}
+.copx-legend i.p{background:var(--ax-purple-soft)} .copx-legend .cl{color:var(--ax-teal);display:inline-flex} .copx-legend i.a{border-color:var(--ax-amber);background:var(--ax-amber-soft)} .copx-legend i.r{border-color:var(--ax-red);background:var(--ax-red-soft)}
 .copx-legend em{font-style:normal;background:var(--ax-red);color:#fff;border-radius:9px;padding:0 5px;font-size:10px;font-weight:600}
 /* table */
 .copx-tbl{overflow:auto;max-height:720px;border-radius:6px}
@@ -1649,7 +1681,16 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-dot.amber{background:var(--ax-amber)} .copx-dot.red{background:var(--ax-red)}
 .copx-pill{display:inline-block;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin:0 3px 2px 0}
 .copx-pill.r{background:var(--ax-red-soft);color:var(--ax-red)} .copx-pill.a{background:var(--ax-amber-soft);color:var(--ax-amber)}
-.copx-pill.g{background:var(--ax-green-soft);color:var(--ax-green)} .copx-pill.p{background:var(--ax-purple-soft);color:var(--ax-purple)} .copx-pill.b{background:var(--ax-blue-soft);color:var(--ax-blue)}
+.copx-pill.g{background:var(--ax-green-soft);color:var(--ax-green)} .copx-pill.p{background:var(--ax-purple-soft);color:var(--ax-purple)} .copx-pill.t{background:transparent;border:1px solid var(--ax-teal);color:var(--ax-teal)}
+/* Today strip */
+.copx-today{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 14px;font-size:12.5px}
+.copx-today .lbl{font-weight:600;color:var(--ax-ink2);margin-right:4px}
+.copx-today button{font:inherit;font-size:12.5px;border:1px solid var(--ax-line);background:var(--ax-card);color:var(--ax-ink);border-radius:16px;padding:4px 12px;cursor:pointer}
+.copx-today button b{font-weight:700;margin-right:3px}
+.copx-today button:hover{border-color:var(--ax-blue)}
+.copx-today button.p b{color:var(--ax-purple)} .copx-today button.r b{color:var(--ax-red)} .copx-today button.a b{color:var(--ax-amber)} .copx-today button.n b{color:var(--ax-blue)}
+.copx-today button.on{background:var(--ax-navy);border-color:var(--ax-navy);color:#fff} .copx-today button.on b{color:#fff}
+.copx-today button:disabled{opacity:.5;cursor:default} .copx-pill.b{background:var(--ax-blue-soft);color:var(--ax-blue)}
 .copx-red{color:var(--ax-red);font-weight:600} .copx-amber{color:var(--ax-amber);font-weight:600}
 /* detail */
 tr.copx-det td{background:var(--ax-acc2);padding:14px 16px 18px}
@@ -1796,12 +1837,12 @@ function renderCopWorkspace(container) {
   if (isActive) {
     // The board shows exactly what's in the table: top filters, search and
     // table column filters all drive it (counts and tallies follow).
+    card.appendChild(copTodayStrip(base));
     card.appendChild(copBoard(rows, rows));
     card.appendChild(el(`<div class="copx-legend">
-      <span><i></i>On track</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
-      <span><i class="p"></i>Today's update still due</span>
-      <span><em>3</em>daily updates missing</span>
-      <span>Hover a bubble for the latest update · click it for details</span></div>`));
+      <span><i></i>On track</span><span><i class="p"></i>Today's update still due</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
+      <span><em>3</em>daily updates missing</span><span>${COP_CONSOL_ICON}Consol</span>
+      <span>Oldest in its status first · hover for the latest update · click for details</span></div>`));
   }
 
   /* ---- details table ---- */
@@ -1874,6 +1915,9 @@ function copFilterPanel(built, all) {
   </div>`);
 }
 
+/* Small chain-link mark for consolidated shipments (teal, like the hover's consol line). */
+const COP_CONSOL_ICON = `<span class="cl" title="Consol" aria-hidden="true"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span>`;
+
 /** Only today's daily update is still outstanding (no earlier days missed). */
 function copDueTodayOnly(r) { return !!(r.daily && r.daily.dueToday && !r.daily.missed.length); }
 
@@ -1883,11 +1927,11 @@ function copBoard(base, rows) {
   const tag = (r) => {
     const nd = r.daily.missed.length;
     return `<button type="button" class="copx-bub ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""} ${copDueTodayOnly(r) ? "due" : ""} ${CopUi.focus === r.wmtr ? "sel" : ""}"
-      data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr + " — " + r.status)}"${shown.has(r.wmtr) ? "" : ' style="opacity:.25"'}>${esc(r.last5)}${
+      data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr + " — " + r.status + (r.consol.length ? " — consol" : ""))}"${shown.has(r.wmtr) ? "" : ' style="opacity:.25"'}>${esc(r.last5)}${r.consol.length ? COP_CONSOL_ICON : ""}${
       r.problem ? `<span class="bang" aria-hidden="true">!</span>` : nd ? `<span class="nd" aria-hidden="true">${nd > 99 ? "99+" : nd}</span>` : ""}</button>`;
   };
-  const order = { red: 0, amber: 1, green: 2 };
-  const sortB = (a, b) => (order[a.health] - order[b.health]) || a.num - b.num;
+  // Oldest in its current status first (blank dates last), then WMTR number.
+  const sortB = (a, b) => copCmp(a.statusSince ? a.statusSince.getTime() : null, b.statusSince ? b.statusSince.getTime() : null) || a.num - b.num;
   const tally = (xs) => {
     const r = xs.filter((x) => x.health === "red").length, a = xs.filter((x) => x.health === "amber").length;
     return `<span class="r"><b>${r}</b> missed</span><span class="a"><b>${a}</b> attention</span><span class="g"><b>${xs.length - r - a}</b> on track</span>`;
@@ -1936,7 +1980,7 @@ function copColDefs(isActive) {
   const health = { id: "health", label: "", fixed: true, title: "Health",
     sort: (r) => COP_HEALTH_ORDER[r.health], td: (r) => `<td><span class="copx-dot ${r.health === "red" ? "red" : r.health === "amber" ? "amber" : ""}"></span></td>` };
   const wmtr = { id: "wmtr", label: "WMTR", fixed: true, ft: "text", sort: (r) => r.num, fv: (r) => r.wmtr,
-    td: (r) => `<td class="w">${copWmtrLink(r, r.last5)}${isActive && r.consol.length ? ` <span class="copx-pill b" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>` };
+    td: (r) => `<td class="w">${copWmtrLink(r, r.last5)}${isActive && r.consol.length ? ` <span class="copx-pill t" title="Consolidated with ${esc(r.consol.join(", "))}">Consol</span>` : ""}<small>${esc(r.wmtr)}</small></td>` };
   const poc = textCol("poc", "TTI POC", (r) => r.poc);
   poc.td = (r) => `<td class="nw">${esc(r.poc || "—")}</td>`;
   const route = { id: "route", label: "Origin / Destination", ft: "text",
@@ -2177,7 +2221,8 @@ function copHoverHtml(r) {
   const others = open.filter((c) => c.id !== "daily");
   return `<div class="h">${esc(r.last5)} · ${esc(r.status || "—")}</div>
     <div class="s">${esc(r.wmtr)}${r.poc ? " · " + esc(r.poc) : ""}</div>
-    ${r.consol && r.consol.length ? `<div class="k">Consol</div><div><b>Consolidated with ${esc(r.consol.join(", "))}</b></div>` : ""}
+    ${r.statusSince ? `<div class="s">In this status since ${esc(copFmt(r.statusSince))} (${copPlural(copBizDaysBetween(r.statusSince, copToday()), "business day")})</div>` : ""}
+    ${r.consol && r.consol.length ? `<div class="k">Consol</div><div style="color:var(--ax-teal,#00838f);font-weight:600">${COP_CONSOL_ICON.replace('class="cl"', 'class="cl" style="margin:0 4px 0 0"')}Consolidated with ${esc(r.consol.join(", "))}</div>` : ""}
     <div class="k">Latest update</div>
     <div>${r.latest ? `<b>${esc(copFmt(r.latest.date))}</b> — ${esc(r.latest.note)}` : "No daily updates yet."}</div>
     <div class="k">Daily update</div>${dailyLine}
@@ -2386,7 +2431,7 @@ function copRenderRequestor(root, built) {
 
   // board — same four steps, neutral tags
   const board = el(`<div class="copx-board"></div>`);
-  const tag = (r) => `<button type="button" class="copx-bub neutral ${CopUi.focus === r.wmtr ? "sel" : ""}" data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr)}">${esc(r.last5)}</button>`;
+  const tag = (r) => `<button type="button" class="copx-bub neutral ${CopUi.focus === r.wmtr ? "sel" : ""}" data-w="${esc(r.wmtr)}" aria-label="${esc(r.wmtr)}">${esc(r.last5)}${r.consol.length ? COP_CONSOL_ICON : ""}</button>`;
   const subs = { qr: "TTI checks the request details", review: "DTRA program & export compliance", estimate: "Quotes, costs and DTRA approval", exec: "Clearance → pickup → delivery" };
   for (const s of COP_STEPS) {
     const xs = rows.filter((r) => r.step === s.id).sort((a, b) => a.num - b.num);
@@ -2451,7 +2496,7 @@ function copRenderRequestor(root, built) {
     b.addEventListener("mouseenter", (e) => {
       const last = copUpdatesFor(r).find((x) => !x.pending);
       hover.innerHTML = `<div class="h">${esc(r.last5)} · ${esc(copReqStatusText(r))}</div><div class="s">${esc(r.title)}</div>
-        ${r.consol && r.consol.length ? `<div class="k">Consol</div><div>Shipping together with ${esc(r.consol.join(", "))}</div>` : ""}
+        ${r.consol && r.consol.length ? `<div class="k">Consol</div><div style="color:var(--ax-teal,#00838f);font-weight:600">Shipping together with ${esc(r.consol.join(", "))}</div>` : ""}
         <div class="k">Latest update</div><div>${last ? `<b>${esc(copFmt(last.date))}</b> — ${esc(last.note)}` : "No updates yet."}</div>
         <div class="k">Destination</div><div>${esc(r.dest || "—")}${r.rdd ? ` · RDD ${esc(copFmt(r.rdd))}` : ""}</div>`;
       hover.style.display = "block"; move(e); });
@@ -2545,7 +2590,7 @@ function copWire(root, built, rows, isActive) {
 
   root.querySelectorAll(".copx-tabs button").forEach((b) => b.addEventListener("click", () => {
     if (CopUi.view === b.dataset.v) return;
-    CopUi.view = b.dataset.v; CopUi.hit = ""; CopUi.focus = ""; copRerender();
+    CopUi.view = b.dataset.v; CopUi.hit = ""; CopUi.quick = ""; CopUi.focus = ""; copRerender();
   }));
 
   // filter panel
@@ -2556,6 +2601,13 @@ function copWire(root, built, rows, isActive) {
   if ($("#copHit")) $("#copHit").addEventListener("change", (e) => { CopUi.hit = e.target.value; copRerender(); });
   $("#copRdd").addEventListener("change", (e) => { CopUi.rddDays = Number(e.target.value) || 0; copRerender(); });
   $("#copRisk").addEventListener("change", (e) => { CopUi.atRisk = e.target.checked; copRerender(); });
+  root.querySelectorAll(".copx-today button[data-quick]").forEach((b) => b.addEventListener("click", () => {
+    const k = b.dataset.quick;
+    if (k === "attention") { CopUi.atRisk = !CopUi.atRisk; CopUi.quick = ""; }
+    else if (!k) { CopUi.quick = ""; CopUi.atRisk = false; }
+    else { CopUi.quick = CopUi.quick === k ? "" : k; CopUi.atRisk = false; }
+    copRerender();
+  }));
   const q = $("#copQ");
   let qt = null;
   q.addEventListener("input", () => {
@@ -2567,7 +2619,7 @@ function copWire(root, built, rows, isActive) {
     }, 250);
   });
   $("#copReset").addEventListener("click", () => {
-    Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", focus: "" });
+    Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", quick: "", focus: "" });
     const st = copTblState(isActive); st.f = {}; st.sort = "";
     copRerender();
   });

@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.15",
+    title: "COP: cleaner board, Today strip, consol marker",
+    notes: [
+      "On-track bubbles are now plain (white with a grey border) — colour only shows when something needs you: purple = today's update still due, amber = needs attention, red = missed / overdue.",
+      "New \"Today\" strip above the board: active shipments, updates due today, shipments with missed updates, those needing attention, and those departing within 7 days (Est. Departure, not yet left — includes a passed ETD). Click one to show just those; click again (or \"active\") to clear.",
+      "Bubbles in each box are ordered oldest-in-its-current-status first; hover shows how long it's been in that status.",
+      "Consolidated shipments carry a small teal link mark on their bubble; the hover's consol line and the table's Consol tag are the same teal.",
+    ],
+  },
+  {
     version: "2.6.14",
     title: "COP: consols named on hover",
     notes: [

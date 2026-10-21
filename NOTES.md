@@ -214,3 +214,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   MARAD Submitted Date (optional: Final Shipping / Warehouse Invoice Received dates).
 - v2.6.14: Hover (TTI + requestor) names consol partners (r.consol, from Linked Request List
   "Consol" linkage).
+- v2.6.15: Bubbles neutral when on track (--ax-neutral); colour = exceptions only. "Today" strip
+  (copTodayStrip): active / due today / missed / attention (= CopUi.atRisk) / departing ≤7 days
+  (COP_QUICK, CopUi.quick; Active view only). Bubbles sorted by r.statusSince (oldest first).
+  Consol = teal chain icon (COP_CONSOL_ICON) on bubble + teal hover line + teal table pill.

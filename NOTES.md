@@ -110,11 +110,11 @@ Arrived Warehouse or the warehouse actual date is filled.
     git push still asks. Old list backed up as .claude/settings.local.backup-2026-10-21.json.
 
 ### Status (2026-10-21)
-- v2.5.95 COP built (js/tools/cop.js) — committed locally, NOT pushed yet.
+- v2.5.95 COP built (js/tools/cop.js) — pushed 2026-10-21.
 - v2.5.96 daily-update rule (PMR/Metrics/Tree/COP): required every business day from
   "left Draft" (oldest non-Draft Workflow Logs stamp; Date Submitted is unreliable) to
   delivery / yesterday; floor PMR_DAILY_LOG_START_ISO = 2026-02-24 (ATLAS daily history
-  began 23–24 Feb 2026). QA impact: Q2 FY26 100%→92.6%, Q3 100%→98.7%. Not pushed yet.
+  began 23–24 Feb 2026). QA impact: Q2 FY26 100%→92.6%, Q3 100%→98.7%. Pushed 2026-10-21.
 - v2.5.97: COP is the hub — one big rail button; Pipeline / Metrics / PMR / Export-Controlled /
   Christmas Tree are tabs (TOOLS entries with hub:true; copHubTabs in cop.js). Management
   rail group removed; Required Attachments moved to Shipping. "Find metric hits" picker.
@@ -136,7 +136,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   all 50 Shipping Activity columns and the Request Estimate List, mapped from the Metrics
   JSON sample (Downloads\cfb99354-...json, Oct 2026). Verified: cost lines sum to Total
   Cost on 210/210 fetched records.
-- Not pushed: 2.5.95–2.5.99 — waiting on user's go-ahead.
+- Pushed to main 2026-10-21 (2.5.95–2.5.99 live on atlas-utility.net).
 - Fetch path (json_udq.js) does NOT rebuild Cost List or Request Estimate List — COP shows
   "No data" for those checks on fetched data. Need a JSON sample to add them.
 - Open question for user: ~1/3 of requests past estimate review have an empty Request

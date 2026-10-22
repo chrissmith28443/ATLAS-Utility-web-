@@ -218,3 +218,9 @@ Arrived Warehouse or the warehouse actual date is filled.
   (copTodayStrip): active / due today / missed / attention (= CopUi.atRisk) / departing ≤7 days
   (COP_QUICK, CopUi.quick; Active view only). Bubbles sorted by r.statusSince (oldest first).
   Consol = teal chain icon (COP_CONSOL_ICON) on bubble + teal hover line + teal table pill.
+- 2026-10-22 field mockup for TTI devs (Downloads\ATLAS_ShipActivity_NewFields_Mockup.png): new
+  "Shipment Milestones" group under Daily Status Update / Carrier row in Shipping Activity &
+  History: Date Packed, RFQ Sent Date, ITN / NOEEI Citation, MARAD Submitted Date, Warehouse
+  Invoice Received (opt), Final Shipping Invoice Received (opt), Monitor this RDD checkbox.
+  No ITN Filed Date. User decision (supersedes 2.6.13 note): Monitor RDD becomes an ATLAS
+  REQUEST field for everyone, not per user. Until it exists, the Utility keeps it per browser.

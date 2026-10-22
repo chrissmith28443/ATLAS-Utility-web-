@@ -236,3 +236,5 @@ Arrived Warehouse or the warehouse actual date is filled.
   JSON to .claude/tmp_test/m.json and the Ops Tracker to t.xlsx, headless Chrome
   --dump-dom http://localhost:8777/.claude/tmp_test/extract.html > extract_dom.html, then
   python build_dash.py <out.html> (update its SCR path to where extract_dom.html is).
+  Now built from Downloads/UDQ_Metrics (SRF)_22 Oct.xlsx (copy to .claude/tmp_test/m.xlsx): 44 active,
+  24 not yet updated on 22 Oct = purple. extract.html reads the xlsx like app.js workbookAllSheets.

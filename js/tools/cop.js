@@ -1668,6 +1668,21 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-colpick .ft{width:100%}
 .copx-colpick .lnk{border:0;background:none;color:var(--ax-link);font-weight:600;cursor:pointer;padding:0;text-decoration:underline;font-size:12px}
 .copx-tbl tr.row{cursor:pointer}
+/* Doc Check */
+.copx-dc-hd{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;margin-bottom:14px}
+.copx-dc-hd .copx-chk{margin-bottom:8px}
+.copx-dc-sumline{margin:0 0 8px auto;font-size:12.5px;color:var(--ax-ink2)}
+.copx-dc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:14px}
+.copx-dc-card{border:1px solid var(--ax-line);border-radius:10px;background:var(--ax-soft);padding:10px 12px}
+.copx-dc-card .k{font-size:11px;font-weight:600;letter-spacing:.4px;color:var(--ax-muted);text-transform:uppercase}
+.copx-dc-card .n{font-size:24px;font-weight:700;color:var(--ax-navy);line-height:1.2}
+.copx-dc-card .s{font-size:11.5px;color:var(--ax-ink2)}
+.copx-dc-t td.dc{text-align:center;font-weight:600}
+.copx-dc-t th:nth-child(n+4){text-align:center}
+.copx-dc-t td.dc.x{color:var(--ax-green)} .copx-dc-t td.dc.na,.copx-dc-t td.dc.unk{color:var(--ax-muted);font-weight:400}
+.copx-dc-t td.dc.miss{color:var(--ax-red);background:var(--ax-red-soft)}
+.copx-dc-legend{margin-top:8px;font-size:11.5px;color:var(--ax-muted)}
+.copx-tbl td.aud div{font-size:12px;font-weight:600;line-height:1.35;margin-bottom:2px;white-space:nowrap}
 .copx-tbl tr.row:hover td{background:var(--ax-acc2)}
 .copx-tbl tr.row.sel td{background:var(--ax-blue-soft)}
 .copx-tbl .w{font-weight:600;white-space:nowrap}
@@ -1849,16 +1864,17 @@ function renderCopWorkspace(container) {
   /* ---- details table ---- */
   const edit = isActive && COP_MOCKUP.editUpdates;
   const sheet = edit && CopUi.updMode;
+  const dc = !isActive && CopUi.docCheck;
   const tcard = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>${sheet ? "Daily Status Updates" : isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
-      <span class="n">${sheet ? "Every shipment in view — type an update and Save it, or Save all at the end" : isActive ? "Click a row for its checklist and daily updates · click a header to sort" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing) · click a header to sort"}</span>
-      <div class="acts">${sheet ? "" : `<button class="copx-btn ${CopUi.colsOpen ? "blue" : ""}" id="copCols" type="button" aria-expanded="${!!CopUi.colsOpen}">Columns</button>`}
+    <div class="copx-hd"><h2>${sheet ? "Daily Status Updates" : dc ? "Doc Check" : isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
+      <span class="n">${sheet ? "Every shipment in view — type an update and Save it, or Save all at the end" : dc ? "Required shipping documents on closed requests, and how many of each were prepared" : isActive ? "Click a row for its checklist and daily updates · click a header to sort" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing) · click a header to sort"}</span>
+      <div class="acts">${!isActive ? `<button class="copx-btn ${dc ? "blue" : "addb"}" id="copDocCheck" type="button" aria-pressed="${!!dc}">${dc ? "Back to audit" : "Doc Check"}</button>` : ""}${sheet || dc ? "" : `<button class="copx-btn ${CopUi.colsOpen ? "blue" : ""}" id="copCols" type="button" aria-expanded="${!!CopUi.colsOpen}">Columns</button>`}
       ${edit ? `<button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button>` : ""}</div></div>
     <div class="copx-rule"></div>
   </section>`);
   root.appendChild(tcard);
-  if (!sheet && CopUi.colsOpen) tcard.appendChild(copColumnPicker(isActive));
-  tcard.appendChild(sheet ? copUpdatesSheet(rows) : copTable(rows, isActive, base));
+  if (!sheet && !dc && CopUi.colsOpen) tcard.appendChild(copColumnPicker(isActive));
+  tcard.appendChild(sheet ? copUpdatesSheet(rows) : dc ? copDocCheck(base) : copTable(rows, isActive, base));
 
   copWire(root, built, rows, isActive);
 }
@@ -1961,6 +1977,57 @@ function copBoard(base, rows) {
   return board;
 }
 
+/* Closed audit: each metric hit in a few words, for the Audit column.
+   [{ cls: "r" | "a", cat: filter category, text }] — missing documents are
+   grouped into one line. Acknowledged and not-scored items are left out. */
+const COP_DOC_SHORT = { civ: "CIV", pkl: "PL", sli: "SLI", aes: "AES", vat: "VAT", pod: "POD", mct: "MCT" };
+function copAuditItems(r) {
+  const hits = r.checks.filter((c) => c.state === "fail" || c.state === "warn" || c.state === "due");
+  const out = [];
+  const docs = hits.filter((c) => /^doc\./.test(c.id));
+  if (docs.length) out.push({ cls: docs.some((c) => c.state === "fail") ? "r" : "a", cat: "Missing documents",
+    text: "Missing docs: " + docs.map((c) => COP_DOC_SHORT[c.id.slice(4)] || c.label.replace(/ attached.*$/, "")).join(", ") });
+  const cut = (t) => String(t || "").replace(/^Acknowledged — /, "").replace(/\.\s*$/, "");
+  for (const c of hits) {
+    if (/^doc\./.test(c.id)) continue;
+    const cls = c.state === "fail" ? "r" : "a";
+    const d = cut(c.detail);
+    let m;
+    switch (c.id) {
+      case "daily": {
+        m = /^(\d+) business days?/.exec(d);
+        out.push({ cls, cat: "Daily updates", text: m ? `Daily updates: ${m[1]} day${m[1] === "1" ? "" : "s"} missed` : "Daily updates missed" }); break;
+      }
+      case "rfq":
+        m = /^Sent (\S+), after the (\S+) due date/.exec(d);
+        out.push({ cls, cat: "RFQ", text: m ? `RFQ late: sent ${m[1]} (due ${m[2]})` : /due (\S+)/.test(d) ? `RFQ not sent (due ${/due (\S+)/.exec(d)[1]})` : "RFQ" }); break;
+      case "awb":
+        out.push({ cls, cat: "AWB / carrier", text: d.replace(/^Missing: /, "Missing ") }); break;
+      case "itn":
+        out.push({ cls, cat: "AES / ITN", text: "AES / ITN: " + d.replace(/ —.*$/, "") }); break;
+      case "marad":
+        m = /Was due (\S+)/.exec(d);
+        out.push({ cls, cat: "MARAD", text: m ? `MARAD not submitted (due ${m[1]})` : "MARAD: " + d }); break;
+      case "late":
+        m = /delivered (\S+), RDD (\S+)/.exec(d);
+        out.push({ cls, cat: "Delivered after RDD", text: m ? `Delivered after RDD (${m[1]} vs ${m[2]})` : "Delivered after RDD" }); break;
+      case "deldate":
+        out.push({ cls, cat: "Delivery Date", text: "Delivery Date blank" }); break;
+      case "cost":
+        out.push({ cls, cat: "Cost variance", text: d.replace(/ \(approved.*$/, "") }); break;
+      case "rejected":
+        out.push({ cls, cat: "Rejected in review", text: "Rejected in review" }); break;
+      case "manual":
+        out.push({ cls, cat: "Manual flag", text: d }); break;
+      case "rti": case "invoiced":
+        out.push({ cls, cat: "Invoicing", text: d }); break;
+      default:
+        out.push({ cls, cat: c.label, text: c.label });
+    }
+  }
+  return out;
+}
+
 /* ---- table columns: sortable, filterable, and chosen per view (prefs.cols) ----
    Each column: id, label, sort(r) → number|string|null, fv(r) → the value its
    filter matches ("text" = contains box, otherwise a pick-list of the values
@@ -1987,10 +2054,16 @@ function copColDefs(isActive) {
   const route = { id: "route", label: "Origin / Destination", ft: "text",
     sort: (r) => copLow(r.dest) || null, fv: (r) => `${r.origin} → ${r.dest} ${r.mode}`,
     td: (r) => `<td class="nw">${esc(r.origin || "—")}<br>→ ${esc(r.dest || "—")}${r.mode ? `<br>${muted(esc(r.mode))}` : ""}</td>` };
-  const items = { id: "items", label: isActive ? "Open Items" : "Audit",
+  const items = isActive ? { id: "items", label: "Open Items",
     sort: (r) => -(r.counts.red * 1000 + r.counts.amber),
     fv: (r) => r.counts.red ? "Missed" : r.counts.amber ? "Needs attention" : "Clear",
-    td: (r) => `<td>${r.counts.red ? `<span class="copx-pill r">${r.counts.red} missed</span>` : ""}${r.counts.amber ? `<span class="copx-pill a">${r.counts.amber} attention</span>` : ""}${!r.counts.red && !r.counts.amber ? `<span class="copx-pill g">Clear</span>` : ""}</td>` };
+    td: (r) => `<td>${r.counts.red ? `<span class="copx-pill r">${r.counts.red} missed</span>` : ""}${r.counts.amber ? `<span class="copx-pill a">${r.counts.amber} attention</span>` : ""}${!r.counts.red && !r.counts.amber ? `<span class="copx-pill g">Clear</span>` : ""}</td>` }
+  : { id: "items", label: "Audit",
+    sort: (r) => -(r.counts.red * 1000 + r.counts.amber),
+    // pick-list of hit kinds; a row matches if it has that kind
+    fvList: (r) => { const xs = copAuditItems(r); return xs.length ? Array.from(new Set(xs.map((x) => x.cat))) : ["Clear"]; },
+    td: (r) => { const xs = copAuditItems(r);
+      return `<td class="aud">${xs.length ? xs.map((x) => `<div class="${x.cls === "r" ? "copx-red" : "copx-amber"}">${esc(x.text)}</div>`).join("") : `<span class="copx-pill g">Clear</span>`}</td>`; } };
   const rddCat = (r) => !r.rdd ? "No RDD" : r.rddDays === null ? "Delivered" : r.rddDays < 0 ? "Past RDD" : r.rddDays <= 7 ? "Within 7 days" : r.rddDays <= 30 ? "8–30 days" : "More than 30 days";
   const rdd = { id: "rdd", label: "RDD", opt: !isActive, sort: (r) => r.rdd ? r.rdd.getTime() : null, fv: rddCat,
     td: (r) => {
@@ -2058,8 +2131,9 @@ function copApplyColFilters(rows, isActive) {
   const cols = copVisibleCols(isActive);
   for (const c of cols) {
     const v = st.f[c.id];
-    if (!v || !c.fv) continue;
-    rows = c.ft === "text" ? rows.filter((r) => copLow(c.fv(r)).includes(copLow(v))) : rows.filter((r) => c.fv(r) === v);
+    if (!v || !(c.fv || c.fvList)) continue;
+    rows = c.fvList ? rows.filter((r) => c.fvList(r).indexOf(v) !== -1)
+      : c.ft === "text" ? rows.filter((r) => copLow(c.fv(r)).includes(copLow(v))) : rows.filter((r) => c.fv(r) === v);
   }
   return rows;
 }
@@ -2098,10 +2172,10 @@ function copTable(rows, isActive, base) {
     return `<th${c.sort ? ` class="srt${on ? " on" : ""}" data-sort="${esc(c.id)}" tabindex="0" aria-sort="${on ? (st.dir > 0 ? "ascending" : "descending") : "none"}"` : ""} title="${esc(c.title || (c.sort ? "Click to sort" : ""))}">${esc(c.label)}${arrow ? ` <span class="ar">${arrow}</span>` : ""}</th>`;
   }).join("");
   const fil = cols.map((c) => {
-    if (!c.fv) return "<th></th>";
+    if (!c.fv && !c.fvList) return "<th></th>";
     const v = st.f[c.id] || "";
     if (c.ft === "text") return `<th><input type="search" class="copx-cf" data-cf="${esc(c.id)}" value="${esc(v)}" placeholder="Filter" aria-label="Filter ${esc(c.label)}"></th>`;
-    const vals = Array.from(new Set(base.map((r) => c.fv(r)).filter(Boolean)));
+    const vals = Array.from(new Set(base.flatMap((r) => c.fvList ? c.fvList(r) : [c.fv(r)]).filter(Boolean)));
     if (v && vals.indexOf(v) === -1) vals.push(v);
     vals.sort((a, b) => copCmp(a, b));
     return `<th><select class="copx-cf" data-cf="${esc(c.id)}" aria-label="Filter ${esc(c.label)}">${opt("", "All", !v)}${vals.map((x) => opt(x, x, x === v)).join("")}</select></th>`;
@@ -2659,6 +2733,13 @@ function copWire(root, built, rows, isActive) {
   copWireOpenLinks(root);
   copWireUpdates(root, byW);
   copWireTable(root, isActive);
+  const dcb = $("#copDocCheck");
+  if (dcb) dcb.addEventListener("click", () => { CopUi.docCheck = !CopUi.docCheck; copRerender(); });
+  const dcp = $("#copDcPeriod");
+  if (dcp) dcp.addEventListener("change", () => { CopUi.dcPeriod = dcp.value; copRerender(); });
+  ["#copDcFrom", "#copDcTo"].forEach((id) => { const i = $(id); if (i) i.addEventListener("change", () => { CopUi[id === "#copDcFrom" ? "dcFrom" : "dcTo"] = i.value; copRerender(); }); });
+  const dcm = $("#copDcMissing");
+  if (dcm) dcm.addEventListener("change", () => { CopUi.dcMissingOnly = dcm.checked; copRerender(); });
   root.querySelectorAll("button[data-hist]").forEach((b) => b.addEventListener("click", () => { if (byW[b.dataset.hist]) copShowHistory(byW[b.dataset.hist]); }));
   const um = $("#copUpdMode");
   if (um) um.addEventListener("click", () => { CopUi.updMode = !CopUi.updMode; CopUi.msg = ""; copRerender(); });
@@ -2734,7 +2815,134 @@ function copWire(root, built, rows, isActive) {
 /* -------------------------------------------------------------------------
    OUTPUTS — Excel export and a print snapshot of the current view
    ------------------------------------------------------------------------- */
+/* =========================================================================
+   DOC CHECK (2.6.18) — Closed tab, for management: which required shipping
+   documents each closed request has, and how many of each were prepared in a
+   fiscal period. Same required set as the shipping-documents metric (reqatt
+   _raRequiredAbbrs / _raEvaluate). One of each type per request, however many
+   files were uploaded. Period = Delivery Date (Date Completed if blank).
+   ========================================================================= */
+const COP_DC_COLS = [
+  { key: "AWB", label: "AWB/BoL", types: ["Carrier waybills", "Bills of Lading"] },
+  { key: "CIV", label: "CIV", types: ["Commercial/Proforma Invoices"] },
+  { key: "AES", label: "AES/MFR", types: ["Automated Export System (AES) records", "MFR_NO AES"] },
+  { key: "MCT", label: "MCT", types: ["MCT"] },
+  { key: "SLI", label: "SLI", types: ["Shippers Letter of Instructions"] },
+  { key: "VAT", label: "VAT", types: ["VAT Exemption"] },
+  { key: "POD", label: "POD", types: ["Proof of Delivery"] },
+  { key: "PKL", label: "PKL/IPC", types: ["Packing List", "IPC"] },
+];
+const COP_DC_PERIODS = [
+  ["q", "Current quarter"], ["h", "Current half"], ["fy", "Current FY"],
+  ["pq", "Previous quarter"], ["ph", "Previous half"], ["pfy", "Previous FY"],
+  ["all", "All closed"], ["custom", "Custom dates"],
+];
+/** Fiscal periods (FY starts 1 Oct; Q1 Oct–Dec, H1 Oct–Mar). */
+function copFyPeriod(kind) {
+  const t = copToday();
+  const fy = t.getMonth() >= 9 ? t.getFullYear() + 1 : t.getFullYear();
+  const fm = (t.getMonth() + 3) % 12;                       // fiscal month: Oct = 0
+  const at = (y, m) => new Date(m >= 3 ? y : y - 1, (m + 9) % 12, 1);   // fiscal month m of FY y
+  const span = (y, m, len) => {
+    const start = at(y, m);
+    const end = m + len >= 12 ? at(y + 1, m + len - 12) : at(y, m + len);
+    end.setDate(end.getDate() - 1);
+    return { start, end };
+  };
+  const yy = (y) => "FY" + String(y).slice(-2);
+  const q = Math.floor(fm / 3), h = Math.floor(fm / 6);
+  switch (kind) {
+    case "q":  return Object.assign(span(fy, q * 3, 3), { label: `${yy(fy)} Q${q + 1}` });
+    case "pq": return q ? Object.assign(span(fy, (q - 1) * 3, 3), { label: `${yy(fy)} Q${q}` })
+                        : Object.assign(span(fy - 1, 9, 3), { label: `${yy(fy - 1)} Q4` });
+    case "h":  return Object.assign(span(fy, h * 6, 6), { label: `${yy(fy)} ${h ? "second" : "first"} half` });
+    case "ph": return h ? Object.assign(span(fy, 0, 6), { label: `${yy(fy)} first half` })
+                        : Object.assign(span(fy - 1, 6, 6), { label: `${yy(fy - 1)} second half` });
+    case "fy": return Object.assign(span(fy, 0, 12), { label: yy(fy) });
+    case "pfy": return Object.assign(span(fy - 1, 0, 12), { label: yy(fy - 1) });
+    case "custom": {
+      const s = xtParseDate(CopUi.dcFrom), e = xtParseDate(CopUi.dcTo);
+      return { start: s, end: e, label: s || e ? `${s ? copFmt(s) : "…"} – ${e ? copFmt(e) : "…"}` : "Custom dates" };
+    }
+    default: return { start: null, end: null, label: "All closed" };
+  }
+}
+/** One row per closed request: X / Missing / N/A per document column. */
+function copDocRow(r) {
+  const rec = r.rec, sc = copShipClass(rec);
+  const types = rec.att.map((a) => a.type);
+  const when = r.delivered || xtParseDate(rec.f["date completed"]) || null;
+  const kind = sc.handCarry ? "Hand carry" : sc.courier ? "Courier" : ({ EXPORT: "US export", IMPORT: "US import", F2F: "Foreign to foreign", DOMESTIC: "Domestic" })[sc.category] || "Unknown route";
+  const missing = new Set();
+  if (!sc.handCarry && sc.category !== "UNKNOWN") {
+    const ev = _raEvaluate(sc.category, types, sc.origin, sc.courier);
+    for (const x of ev.required) if (!x.satisfied) missing.add(x.abbr);
+  }
+  const cells = {};
+  for (const c of COP_DC_COLS) {
+    const has = copHasType(types, c.types);
+    cells[c.key] = missing.has(c.key) ? "miss" : has ? "x" : (sc.category === "UNKNOWN" && !sc.handCarry ? "unk" : "na");
+  }
+  return { r, when, kind, cells, nMissing: missing.size };
+}
+function copDocCheckRows(base) {
+  const p = copFyPeriod(CopUi.dcPeriod || "h");
+  let rows = base.map(copDocRow);
+  if (p.start || p.end) rows = rows.filter((d) => d.when && (!p.start || d.when >= p.start) && (!p.end || d.when <= p.end));
+  return { p, rows };
+}
+function copDocCheck(base) {
+  const { p, rows } = copDocCheckRows(base);
+  const shown = CopUi.dcMissingOnly ? rows.filter((d) => d.nMissing) : rows;
+  CopUi._dcRows = rows;
+  const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t)}</option>`;
+  const per = CopUi.dcPeriod || "h";
+  const count = (k, v) => rows.filter((d) => d.cells[k] === v).length;
+  const withMissing = rows.filter((d) => d.nMissing).length;
+  const range = p.start || p.end ? ` (${p.start ? copFmt(p.start) : "…"} – ${p.end ? copFmt(p.end) : "…"})` : "";
+  const wrap = el(`<div class="copx-dc">
+    <div class="copx-dc-hd">
+      <div class="copx-f"><label for="copDcPeriod">Delivered in</label><select id="copDcPeriod">${COP_DC_PERIODS.map(([v, t]) => opt(v, t, v === per)).join("")}</select></div>
+      ${per === "custom" ? `<div class="copx-f"><label for="copDcFrom">From</label><input type="date" id="copDcFrom" value="${esc(CopUi.dcFrom || "")}"></div>
+        <div class="copx-f"><label for="copDcTo">To</label><input type="date" id="copDcTo" value="${esc(CopUi.dcTo || "")}"></div>` : ""}
+      <label class="copx-chk"><input type="checkbox" id="copDcMissing" ${CopUi.dcMissingOnly ? "checked" : ""}> Only requests with missing documents</label>
+      <span class="copx-dc-sumline"><b>${rows.length}</b> closed request${rows.length === 1 ? "" : "s"} · ${esc(p.label)}${esc(range)} · <span class="${withMissing ? "copx-red" : ""}"><b>${withMissing}</b> with missing documents</span></span>
+    </div>
+    <div class="copx-dc-cards">${COP_DC_COLS.map((c) => { const x = count(c.key, "x"), m = count(c.key, "miss");
+      return `<div class="copx-dc-card"><div class="k">${esc(c.label)}</div><div class="n">${x}</div><div class="s">prepared${m ? ` · <span class="copx-red">${m} missing</span>` : ""}</div></div>`; }).join("")}</div>
+    <div class="copx-tbl"><table class="copx-dc-t"><thead><tr><th>WMTR #</th><th>Delivered</th><th>Route</th>${COP_DC_COLS.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead><tbody></tbody></table></div>
+    <div class="copx-dc-legend"><b>X</b> attached · <span class="copx-red"><b>Missing</b></span> required but not attached · N/A not required for this route · counted once per request</div>
+  </div>`);
+  const tb = wrap.querySelector("tbody");
+  const word = { x: "X", miss: "Missing", na: "N/A", unk: "—" };
+  for (const d of shown.slice().sort((a, b) => b.r.num - a.r.num)) {
+    tb.appendChild(el(`<tr><td class="w">${copWmtrLink(d.r, d.r.wmtr)}</td><td class="nw">${d.when ? esc(copFmt(d.when)) : "—"}</td><td class="nw">${esc(d.kind)}</td>
+      ${COP_DC_COLS.map((c) => `<td class="dc ${d.cells[c.key]}">${word[d.cells[c.key]]}</td>`).join("")}</tr>`));
+  }
+  if (!shown.length) tb.appendChild(el(`<tr><td colspan="${3 + COP_DC_COLS.length}" class="copx-msg">No closed requests ${CopUi.dcMissingOnly ? "with missing documents " : ""}in this period.</td></tr>`));
+  return wrap;
+}
+function copExportDocCheck(rows) {
+  const word = { x: "X", miss: "Missing", na: "N/A", unk: "" };
+  const head = ["WMTR #", "Delivered", "Route", "TTI POC"].concat(COP_DC_COLS.map((c) => c.label));
+  const aoa = [head];
+  for (const d of rows.slice().sort((a, b) => b.r.num - a.r.num))
+    aoa.push([d.r.wmtr, d.when ? copFmt(d.when) : "", d.kind, d.r.poc].concat(COP_DC_COLS.map((c) => word[d.cells[c.key]])));
+  const sum = [["Document", "Prepared", "Missing"]].concat(COP_DC_COLS.map((c) => [c.label,
+    rows.filter((d) => d.cells[c.key] === "x").length, rows.filter((d) => d.cells[c.key] === "miss").length]));
+  sum.push([], ["Period", copFyPeriod(CopUi.dcPeriod || "h").label], ["Closed requests", rows.length]);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = head.map((h, i) => ({ wch: i === 0 ? 28 : i < 4 ? 18 : 10 }));
+  XLSX.utils.book_append_sheet(wb, ws, "Doc Check");
+  const ws2 = XLSX.utils.aoa_to_sheet(sum);
+  ws2["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+  pmrDownloadXlsxB64(XLSX.write(wb, { type: "base64", bookType: "xlsx" }), `COP_DocCheck_${fileStamp()}.xlsx`);
+}
+
 function copExportXlsx(rows, isActive) {
+  if (!isActive && CopUi.docCheck && CopUi._dcRows) return copExportDocCheck(CopUi._dcRows);
   const top = isActive
     ? [["WMTR", "TTI POC", "Step", "ATLAS Status", "Missed", "Attention", "Daily updates missed", "Latest update date", "Latest update",
         "RDD", "Days in step", "Origin", "Destination", "Mode", "Program", "Title", "Carrier", "AWB/BoL"]]

@@ -240,3 +240,10 @@ Arrived Warehouse or the warehouse actual date is filled.
   24 not yet updated on 22 Oct = purple. extract.html reads the xlsx like app.js workbookAllSheets.
 - v2.6.17: Requestor view is ATLAS-only (user, 2026-10-22): COP_MOCKUP.requestorView = false in the
   Utility (no "View as" switch, role forced to TTI); the dashboard mockup sets it true.
+- v2.6.18: Closed Audit column = copAuditItems(r) (plain-words hits; fvList filter by hit kind).
+  Doc Check (CopUi.docCheck; copDocCheck/copDocRow/copFyPeriod/copExportDocCheck): closed requests
+  x 8 doc columns (X / Missing / N/A), counts per type once per request, period by Delivery Date
+  (Date Completed fallback), FY from 1 Oct. Required set = reqatt _raEvaluate (metric rules).
+  Note: Doc Check shows all closed requests incl. pre-Oct-2025 (not scored by the audit), so
+  "All closed" shows more "missing" than the audit's hits.
+  Mockup now carries ALL closed requests (237 records, 4.7 MB) and a "Closed · Doc Check" view.

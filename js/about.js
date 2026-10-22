@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.18",
+    title: "COP: Audit column spells out each hit; new Doc Check",
+    notes: [
+      "Closed tab: the Audit column now lists each metric hit in plain words — e.g. \"Missing docs: CIV, POD\", \"RFQ late: sent 09/21 (due 09/14)\", \"Daily updates: 3 days missed\", \"Missing carrier\", \"Delivered after RDD\". Its filter picks a kind of hit (Missing documents, RFQ, Daily updates, …).",
+      "New Doc Check (button on the Closed tab): every closed request with X / Missing / N/A for AWB/BoL, CIV, AES/MFR, MCT, SLI, VAT, POD and PKL/IPC, plus a count of each document prepared in the chosen period — current or previous quarter, half or FY, all closed, or custom dates (by Delivery Date). One of each type per request, however many files were uploaded. Same required set as the shipping-documents metric. \"Only requests with missing documents\" narrows the list; Export downloads the matrix and the counts.",
+    ],
+  },
+  {
     version: "2.6.17",
     title: "COP: requestor view removed from the Utility",
     notes: [

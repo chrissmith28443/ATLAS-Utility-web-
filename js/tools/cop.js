@@ -1632,7 +1632,7 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-col .tally .r{color:var(--ax-red)} .copx-col .tally .a{color:var(--ax-amber)} .copx-col .tally .g{color:var(--ax-muted)}
 .copx-col .cb{padding:12px;display:flex;flex-wrap:wrap;gap:9px 7px;align-content:flex-start;flex:1}
 .copx-col.exec .cb{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.copx-col.review .cb,.copx-col.estimate .cb{display:flex;flex-direction:column;flex-wrap:nowrap;gap:10px}
+.copx-col .cb.subs{display:flex;flex-direction:column;flex-wrap:nowrap;gap:10px}
 .copx-ph{background:var(--ax-card);border:1px solid var(--ax-line2);border-radius:8px;padding:8px 9px 10px}
 .copx-ph .pl{font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--ax-muted);margin-bottom:7px;display:flex;justify-content:space-between}
 .copx-ph .bb{display:flex;flex-wrap:wrap;gap:9px 7px}
@@ -1953,7 +1953,7 @@ function copBoard(base, rows) {
       <div class="ch"><div class="t">${esc(s.label)}</div><div class="s">${esc(s.sub)}</div>
         <span class="cnt" title="${xs.length} WMTR${xs.length === 1 ? "" : "s"} in this step">${xs.length}</span></div>
       <div class="tally">${tally(xs)}</div>
-      <div class="cb">${body}</div></div>`));
+      <div class="cb ${COP_STEP_SUBS[s.id] ? "subs" : ""}">${body}</div></div>`));
   }
   const unplaced = base.filter((r) => !r.step);
   if (unplaced.length) board.appendChild(el(`<div class="copx-msg" style="grid-column:1 / -1"><span class="copx-red">${copPlural(unplaced.length, "shipment")}</span> with a status the COP doesn't know: ${unplaced.map((r) => esc(r.last5 + " (" + r.status + ")")).join(", ")}.</div>`));

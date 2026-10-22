@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.16",
+    title: "COP: requestor view layout fix",
+    notes: [
+      "Requestor view: the Estimate (and Program / Compliance) bubbles no longer stretch across the whole column.",
+    ],
+  },
+  {
     version: "2.6.15",
     title: "COP: cleaner board, Today strip, consol marker",
     notes: [

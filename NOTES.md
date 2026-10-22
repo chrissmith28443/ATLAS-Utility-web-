@@ -224,3 +224,15 @@ Arrived Warehouse or the warehouse actual date is filled.
   Invoice Received (opt), Final Shipping Invoice Received (opt), Monitor this RDD checkbox.
   No ITN Filed Date. User decision (supersedes 2.6.13 note): Monitor RDD becomes an ATLAS
   REQUEST field for everyone, not per user. Until it exists, the Utility keeps it per browser.
+- v2.6.16: requestor-view fix — stacked inner-box layout scoped to `.cb.subs` (Estimate bubbles
+  were stretching full width where the requestor board has no inner boxes).
+- 2026-10-22 DEV MOCKUP of the dashboard: Downloads\ATLAS_WMTR_Dashboard_Mockup.html (2.4 MB,
+  self-contained, opens offline). Real COP code (util, udq, xmastree, pmr, reqatt, cop.js) +
+  embedded data (all 43 active + 60 most recent closed from the 21 Oct QA Metrics JSON, tracker
+  rows). Mockup switches: COP_MOCKUP.editUpdates/links = true; copToday fixed to 22 Oct 2026
+  (so today's updates are due/purple); export/link clicks show a toast; Ops Tracker UI hidden.
+  View buttons + deep links #view=tti|sheet|closed|req. Collapsible "Notes for developers".
+  REBUILD: files in .claude/mockup/ (untracked). Serve repo (atlas-static), copy the Metrics
+  JSON to .claude/tmp_test/m.json and the Ops Tracker to t.xlsx, headless Chrome
+  --dump-dom http://localhost:8777/.claude/tmp_test/extract.html > extract_dom.html, then
+  python build_dash.py <out.html> (update its SCR path to where extract_dom.html is).

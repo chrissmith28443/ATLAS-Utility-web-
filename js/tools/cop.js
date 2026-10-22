@@ -204,7 +204,7 @@ const CopUi = {
 /* Mockup / ATLAS-build features. The Utility can't write to ATLAS, so entering
    and saving daily updates — and WMTR links to the request — are off here;
    the developer mockup (and ATLAS) switch them on. */
-const COP_MOCKUP = { editUpdates: false, links: false };   // links: WMTR numbers open the request
+const COP_MOCKUP = { editUpdates: false, links: false, requestorView: false };   // links: WMTR numbers open the request; requestorView: the "View as Requestor" switch (ATLAS only)
 
 /* ---- prefs (me + stuck limits) ---- */
 function copGetPrefs() {
@@ -1810,6 +1810,7 @@ function renderCopWorkspace(container) {
     if (CopUi.role === b.dataset.role) return;
     CopUi.role = b.dataset.role; CopUi.focus = ""; CopUi.expanded = new Set(); CopUi.q = ""; copRerender();
   }));
+  if (!COP_MOCKUP.requestorView) CopUi.role = "tti";
   if (CopUi.role === "requestor") { root.appendChild(roleBar); copRenderRequestor(root, built); return; }
 
   const isActive = CopUi.view !== "closed";
@@ -1821,7 +1822,7 @@ function renderCopWorkspace(container) {
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active shipments (${built.active.length})</button>
     <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed · post-shipment audit (${built.closed.length})</button>
   </div>`);
-  tabs.appendChild(roleBar);
+  if (COP_MOCKUP.requestorView) tabs.appendChild(roleBar);
   root.appendChild(tabs);
 
   /* ---- main card ---- */

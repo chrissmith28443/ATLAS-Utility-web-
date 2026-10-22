@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.17",
+    title: "COP: requestor view removed from the Utility",
+    notes: [
+      "The \"View as TTI POC / Requestor\" switch is gone from the Utility's COP. The requestor view is planned for the ATLAS dashboard only; it stays in the developer mockup.",
+    ],
+  },
+  {
     version: "2.6.16",
     title: "COP: requestor view layout fix",
     notes: [

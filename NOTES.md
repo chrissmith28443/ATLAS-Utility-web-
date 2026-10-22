@@ -238,3 +238,5 @@ Arrived Warehouse or the warehouse actual date is filled.
   python build_dash.py <out.html> (update its SCR path to where extract_dom.html is).
   Now built from Downloads/UDQ_Metrics (SRF)_22 Oct.xlsx (copy to .claude/tmp_test/m.xlsx): 44 active,
   24 not yet updated on 22 Oct = purple. extract.html reads the xlsx like app.js workbookAllSheets.
+- v2.6.17: Requestor view is ATLAS-only (user, 2026-10-22): COP_MOCKUP.requestorView = false in the
+  Utility (no "View as" switch, role forced to TTI); the dashboard mockup sets it true.

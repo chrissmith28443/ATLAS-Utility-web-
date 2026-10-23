@@ -247,3 +247,9 @@ Arrived Warehouse or the warehouse actual date is filled.
   Note: Doc Check shows all closed requests incl. pre-Oct-2025 (not scored by the audit), so
   "All closed" shows more "missing" than the audit's hits.
   Mockup now carries ALL closed requests (237 records, 4.7 MB) and a "Closed · Doc Check" view.
+- 2026-10-23 dev mockup "Notes for developers" now spells out the write-back ask: dashboard is
+  read-only except adding a Daily Status History entry (Date + Notes/Comments), keyed by the
+  request's internal ID (not in the UDQ yet; also drives the WMTR link). Suggested endpoint
+  POST /api/wmtr/<request id>/daily-status {date, notes}; Save all = one call per row; optional
+  CORS for atlas-utility.net so the Utility could write those two fields. Mockup Save shows a toast
+  with that call. Patched in build_dash.py too.

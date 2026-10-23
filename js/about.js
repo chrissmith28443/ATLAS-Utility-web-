@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.20",
+    title: "COP: edit past daily updates; preview switch in Settings",
+    notes: [
+      "New History pop-up on the COP (History link on each row of \"Enter daily updates\" and in a shipment's details): every daily update for the request, newest first, with when it was entered. Each has an Edit button to change its date and notes, like on the request page.",
+      "Inside ATLAS, edits save to ATLAS once the ATLAS team provides the edit address (new box under Settings ▸ ATLAS data source ▸ Adjust API settings, next to the save address and Request ID field).",
+      "New Settings switch: \"Show COP daily-update entry & editing (preview)\". Turn it on to try adding and editing daily updates before the ATLAS API exists. In preview nothing is sent to ATLAS: new updates stay in this browser (marked pending) and edits to ATLAS entries last until the page reloads. Temporary — it goes away once the feature is permanent.",
+    ],
+  },
+  {
     version: "2.6.19",
     title: "COP: daily updates can save to ATLAS (once the API exists)",
     notes: [

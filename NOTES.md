@@ -265,3 +265,17 @@ Arrived Warehouse or the warehouse actual date is filled.
   call per row, reports failed rows. copCanEdit() = mockup || atlasDailyStatusOn(). Tested only
   against a stubbed fetch — first real save must be tried inside ATLAS. Devs hand back: save
   address + Request ID field name (mockup dev notes say so).
+- v2.6.20 (user, 2026-10-23): EDIT past daily updates + PREVIEW switch.
+  Edit: copShowHistory(r, editIdx, msg) lists every entry (Date, Notes, Entered, Source) with Edit
+  (copCanEditEntry / copEditDailyUpdate); History link added to each sheet row. Inside ATLAS: PUT
+  ATLAS_UDQ_CONFIG.dailyStatus.editUrl ({requestId}, {entryId}) via atlasPutDailyStatus; POST reply's
+  id is kept so a new entry is editable at once. Entry IDs ALREADY exist in the Metrics JSON
+  (dailyPOCList[].id + createdDate) -> fetched grids now carry them in Daily Status History cols E/F
+  ("Entry ID", "Entered"); every other reader stops at col D. Excel exports have no entry IDs.
+  No delete of ATLAS entries (pending browser drafts can still be deleted).
+  Preview: Settings > ATLAS data source > "Show COP daily-update entry & editing (preview)"
+  (AtlasSettings.copDailyPreview) = mockup behaviour in the Utility (copLocalUpdates: new updates
+  = browser drafts "pending", ATLAS-entry edits in memory until reload). Real ATLAS writes win when
+  set up. User plan: a later release makes the feature permanent and REMOVES this switch.
+  Devs now hand back 3 values: add address, edit address, Request ID field. Mockup rebuilt (dev notes
+  + PUT toast). Change-tracker/email text drafted in chat was revised for add + edit.

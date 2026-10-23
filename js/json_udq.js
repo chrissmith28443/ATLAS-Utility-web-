@@ -87,13 +87,17 @@ const ATLAS_UDQ_CONFIG = {
   requestNumberParam: "requestNumber",
 
   // COP daily-update write-back — the ONLY thing the Utility writes to ATLAS:
-  // a new Daily Status History entry (Date + Notes/Comments) on one request.
-  // Saving stays OFF until both `url` and `requestIdField` are filled in (TTI
-  // devs, once the API exists), and only works inside ATLAS (same-origin, the
-  // ATLAS session cookie) — on atlas-utility.net the COP stays read-only.
+  // Daily Status History entries (Date + Notes/Comments) — add a new one, or
+  // edit an existing one. Saving stays OFF until both `url` and `requestIdField`
+  // are filled in (TTI devs, once the API exists); editing also needs `editUrl`.
+  // Only works inside ATLAS (same-origin, the ATLAS session cookie) — on
+  // atlas-utility.net the COP stays read-only.
   dailyStatus: {
-    url: "",             // POST address; {requestId} is replaced, e.g. "/api/wmtr/{requestId}/daily-status".
-                         // Body sent: { "date": "YYYY-MM-DD", "notes": "..." }
+    url: "",             // POST (add) address; {requestId} is replaced, e.g. "/api/wmtr/{requestId}/daily-status".
+                         // Body sent: { "date": "YYYY-MM-DD", "notes": "..." }; the saved entry's "id" is read back.
+    editUrl: "",         // PUT (edit) address; {requestId} and {entryId} are replaced,
+                         // e.g. "/api/wmtr/{requestId}/daily-status/{entryId}". Same body.
+                         // {entryId} = the entry's "id" in the UDQ's dailyPOCList.
     requestIdField: "",  // JSON field on each UDQ record holding the request's unique ID, e.g. "RequestId"
     requestUrl: "/wmtr/request/edit/{requestId}/SRF",   // request page the WMTR number links to
   },
@@ -115,7 +119,7 @@ function atlasDailyStatusCfg() {
     }
   } catch (e) { ov = {}; }
   const pick = (k) => String(ov[k] || "").trim() || String(base[k] || "").trim();
-  return { url: pick("url"), requestIdField: pick("requestIdField"), requestUrl: base.requestUrl };
+  return { url: pick("url"), editUrl: pick("editUrl"), requestIdField: pick("requestIdField"), requestUrl: base.requestUrl };
 }
 
 /* Shipment-level columns for the fetched grid: the export's columns, plus
@@ -131,28 +135,47 @@ function atlasDailyStatusOn() {
   return AtlasLive.ok && !!c.url && !!c.requestIdField;
 }
 
-/* Add one Daily Status History entry to a request in ATLAS. Throws a
-   plain-English error on failure (shown on the COP). */
-async function atlasPostDailyStatus(requestId, dateIso, notes) {
-  const path = atlasDailyStatusCfg().url.replace("{requestId}", encodeURIComponent(requestId));
+/* Editing past entries is on: saving is on and the edit address is set. */
+function atlasDailyStatusEditOn() {
+  return atlasDailyStatusOn() && !!atlasDailyStatusCfg().editUrl;
+}
+
+/* Send one Daily Status History write ({date, notes}) to ATLAS. Returns the
+   response JSON (or null). Throws a plain-English error on failure. */
+async function atlasSendDailyStatus(method, pattern, ids, dateIso, notes) {
+  let path = pattern;
+  for (const k of Object.keys(ids)) path = path.replace("{" + k + "}", encodeURIComponent(ids[k]));
   const url = path.startsWith("/") ? (ATLAS_UDQ_CONFIG.absoluteOrigin || "").replace(/\/$/, "") + path : path;
   let resp;
   try {
     resp = await fetch(url, {
-      method: "POST", credentials: "include",
+      method, credentials: "include",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ date: dateIso, notes }),
     });
   } catch (e) {
     throw new Error(`Couldn't reach ATLAS (${e.message}).`);
   }
-  if (resp.status === 401 || resp.status === 403) throw new Error(`ATLAS denied the save (HTTP ${resp.status}). Sign in to ATLAS and try again.`);
   if (resp.redirected && /login|signin|sign-in/i.test(resp.url)) throw new Error("Your ATLAS session has expired. Refresh ATLAS, sign in, then save again.");
-  if (!resp.ok) {
-    let m = "";
-    try { const t = await resp.text(); const j = JSON.parse(t); m = j.message || j.error || j.title || ""; } catch (e) { /* not JSON */ }
-    throw new Error(`ATLAS didn't save it (HTTP ${resp.status})${m ? ": " + m : "."}`);
-  }
+  const text = await resp.text().catch(() => "");
+  let j = null;
+  try { j = text ? JSON.parse(text) : null; } catch (e) { /* not JSON */ }
+  const m = (j && (j.message || j.error || j.title)) || "";
+  if (resp.status === 401 || resp.status === 403) throw new Error(`ATLAS denied the save (HTTP ${resp.status})${m ? ": " + m : ". Sign in to ATLAS and try again."}`);
+  if (!resp.ok) throw new Error(`ATLAS didn't save it (HTTP ${resp.status})${m ? ": " + m : "."}`);
+  return j;
+}
+
+/* Add one Daily Status History entry. Returns the new entry's ID if ATLAS sends it back. */
+async function atlasPostDailyStatus(requestId, dateIso, notes) {
+  const j = await atlasSendDailyStatus("POST", atlasDailyStatusCfg().url, { requestId }, dateIso, notes);
+  const e = j && (j.data && typeof j.data === "object" ? j.data : j);
+  return (e && (e.id || e.entryId || e.Id)) || "";
+}
+
+/* Change an existing Daily Status History entry (its date and/or notes). */
+async function atlasPutDailyStatus(requestId, entryId, dateIso, notes) {
+  await atlasSendDailyStatus("PUT", atlasDailyStatusCfg().editUrl, { requestId, entryId }, dateIso, notes);
 }
 
 /* Minimum number of digits a shipping WMTR/request-number entry must contain
@@ -847,14 +870,17 @@ function atlasRecordsToGrid(records) {
       grid.push(atlasRow([[2, "Shipping Activity & History"]]));
       grid.push(atlasHeaderRow(ATLAS_SHIPACT_COLUMNS, 2));
       grid.push(atlasValueRow(atlasShipActRow(first), ATLAS_SHIPACT_COLUMNS, 2));
-      // Daily Status History — title in col C, Date/Notes in cols C/D (PMR daily check)
+      // Daily Status History — title in col C, Date/Notes in cols C/D (PMR daily check).
+      // Cols E/F (not in the Excel export): each entry's ID and when it was entered —
+      // the COP uses them to edit an entry; every other reader stops at col D.
       const daily = Array.isArray(first.dailyPOCList) ? first.dailyPOCList : [];
       if (daily.length) {
         grid.push(atlasRow([[3, "Daily Status History"]]));
-        grid.push(atlasRow([[3, "Date"], [4, "Notes/Comments"]]));
+        grid.push(atlasRow([[3, "Date"], [4, "Notes/Comments"], [5, "Entry ID"], [6, "Entered"]]));
         for (const dp of daily) {
           const dStr = dp.pocDate_UDQ || atlasCell(dp.pocDate);
-          grid.push(atlasRow([[3, dStr], [4, dp.pocNotesComments == null ? null : String(dp.pocNotesComments)]]));
+          grid.push(atlasRow([[3, dStr], [4, dp.pocNotesComments == null ? null : String(dp.pocNotesComments)],
+            [5, dp.id == null ? null : String(dp.id)], [6, dp.createdDate == null ? null : String(dp.createdDate)]]));
         }
       }
     }

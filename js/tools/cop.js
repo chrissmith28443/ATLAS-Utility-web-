@@ -352,7 +352,8 @@ function copReadDaily(grid, rr, rEnd) {
     if (COP_C_TITLES.has(c.toLowerCase())) break;
     const d = xtParseDate(c);
     if (!d) { if (!c && !norm(gridCell(grid, k, 4))) continue; break; }
-    out.push({ date: d, note: norm(gridCell(grid, k, 4)) });
+    // cols E/F: entry ID + when entered (fetched from ATLAS only; used to edit an entry)
+    out.push({ date: d, note: norm(gridCell(grid, k, 4)), id: norm(gridCell(grid, k, 5)), created: xtParseDate(gridCell(grid, k, 6)) });
   }
   return out;
 }
@@ -1498,8 +1499,8 @@ function copActiveEvaluate(rec, ctx) {
 function copBuildAll() {
   const data = copData();
   if (!data) return null;
-  // Pending daily updates entered on the COP (mockup only).
-  const drafts = COP_MOCKUP.editUpdates ? copPruneDrafts(data.records) : {};
+  // Pending daily updates entered on the COP (mockup / preview only).
+  const drafts = copLocalUpdates() ? copPruneDrafts(data.records) : {};
   const ctx = {
     today: copToday(), tracker: copGetTracker(), prefs: copGetPrefs(), ds: data.ds,
     ignores: typeof xtGetIgnores === "function" ? xtGetIgnores() : {}, drafts,
@@ -2322,9 +2323,18 @@ function copHoverHtml(r) {
    writes to ATLAS (atlasPostDailyStatus) and the entry joins the request's
    ATLAS history straight away. Otherwise the Utility has no update entry.
    ========================================================================= */
-/** Update entry is shown: the mockup, or inside ATLAS with the write-back API set up. */
+/** Saving really goes to ATLAS (inside ATLAS, write-back API set up). */
+function copAtlasWrites() { return typeof atlasDailyStatusOn === "function" && atlasDailyStatusOn(); }
+/** Preview (2.6.20, temporary): Settings ▸ "Show COP daily-update entry & editing"
+    — the mockup's browser-only behaviour, so it can be tried before the API exists. */
+function copPreviewOn() {
+  try { return typeof AtlasSettings !== "undefined" && !!AtlasSettings.get().copDailyPreview; } catch (e) { return false; }
+}
+/** Saves stay in this browser (mockup / preview), not sent to ATLAS. */
+function copLocalUpdates() { return !copAtlasWrites() && (COP_MOCKUP.editUpdates || copPreviewOn()); }
+/** Update entry is shown: the mockup, the preview, or inside ATLAS with the write-back API set up. */
 function copCanEdit() {
-  return COP_MOCKUP.editUpdates || (typeof atlasDailyStatusOn === "function" && atlasDailyStatusOn());
+  return COP_MOCKUP.editUpdates || copPreviewOn() || copAtlasWrites();
 }
 const COP_DRAFTS_KEY = "atlas.cop.dailydrafts";
 function copGetDrafts() {
@@ -2338,16 +2348,45 @@ function copSetDrafts(o) {
     Status History, then add it to the loaded history. Mockup: keep it as a
     pending entry in this browser. Throws if ATLAS doesn't save it. */
 async function copSaveDailyUpdate(wmtr, dateIso, note, r) {
-  if (typeof atlasDailyStatusOn === "function" && atlasDailyStatusOn()) {
+  if (copAtlasWrites()) {
     const id = copRequestId(r);
     if (!id) throw new Error(`${wmtr} has no ATLAS request ID in the data, so it can't be saved from here. Add the update on the request page.`);
-    await atlasPostDailyStatus(id, dateIso, String(note).trim());
-    r.rec.daily.push({ date: xtParseDate(dateIso), note: String(note).trim() });
+    const entryId = await atlasPostDailyStatus(id, dateIso, String(note).trim());
+    r.rec.daily.push({ date: xtParseDate(dateIso), note: String(note).trim(), id: entryId, created: new Date() });
     return;
   }
   const d = copGetDrafts();
   (d[wmtr] = d[wmtr] || []).push({ date: dateIso, note: String(note).trim(), at: new Date().toISOString() });
   copSetDrafts(d);
+}
+
+/* EDITING PAST UPDATES (2.6.20) — the History pop-up lets the TTI POC change an
+   entry's date and notes, like the edit on the request page. Inside ATLAS this
+   PUTs to ATLAS_UDQ_CONFIG.dailyStatus.editUrl using the entry's ID (dailyPOCList
+   "id"); the mockup changes it in this page only (pending entries in the browser). */
+/** This entry (from copUpdatesFor) can be edited here. */
+function copCanEditEntry(x) {
+  if (x.pending) return true;
+  if (copAtlasWrites()) return !!(x.src && x.src.id) && atlasDailyStatusEditOn();
+  return copLocalUpdates();
+}
+/** Change one entry's date + notes. Throws if ATLAS doesn't save it. */
+async function copEditDailyUpdate(r, x, dateIso, note) {
+  note = String(note).trim();
+  if (x.pending) {
+    const d = copGetDrafts();
+    const e = (d[r.wmtr] || []).find((y) => y.at === x.at);
+    if (e) { e.date = dateIso; e.note = note; copSetDrafts(d); r.pending = d[r.wmtr]; }
+    return;
+  }
+  if (copAtlasWrites()) {
+    if (!atlasDailyStatusEditOn()) throw new Error("Editing past updates isn't set up yet (no edit address in Settings).");
+    const id = copRequestId(r);
+    if (!id) throw new Error(`${r.wmtr} has no ATLAS request ID in the data. Edit it on the request page.`);
+    await atlasPutDailyStatus(id, x.src.id, dateIso, note);
+  }
+  x.src.date = xtParseDate(dateIso);
+  x.src.note = note;
 }
 function copDeleteDraft(wmtr, at) {
   const d = copGetDrafts();
@@ -2373,7 +2412,7 @@ function copPruneDrafts(records) {
 }
 /** Every update for a row, newest first: ATLAS entries + pending ones. */
 function copUpdatesFor(r) {
-  const atlas = ((r.rec && r.rec.daily) || []).map((x) => ({ date: x.date, note: x.note, pending: false }));
+  const atlas = ((r.rec && r.rec.daily) || []).map((x) => ({ date: x.date, note: x.note, pending: false, created: x.created, src: x }));
   const pend = (r.pending || []).map((x) => ({ date: xtParseDate(x.date), note: x.note, pending: true, at: x.at }));
   return atlas.concat(pend).filter((x) => x.date).sort((a, b) => (b.date - a.date) || (a.pending === b.pending ? 0 : a.pending ? -1 : 1));
 }
@@ -2423,7 +2462,7 @@ function copUpdatesSheet(rows) {
     <div class="copx-sheet-hd">
       <label>Update date <input type="date" class="copx-in" id="copUpdDate" value="${esc(iso)}"></label>
       <span class="copx-pill ${done === rows.length ? "g" : "b"}">${done} of ${rows.length} updated</span>
-      <span class="copx-msg">${CopUi.msg ? `<b>${esc(CopUi.msg)}</b>` : "Use the TTI POC filter above to show just your shipments."}</span>
+      <span class="copx-msg">${CopUi.msg ? `<b>${esc(CopUi.msg)}</b>` : !COP_MOCKUP.editUpdates && copLocalUpdates() ? "<b>Preview</b> — saved updates stay in this browser (pending) and aren't sent to ATLAS." : "Use the TTI POC filter above to show just your shipments."}</span>
       <button class="copx-btn addb" type="button" data-usave style="margin-left:auto">Save all updates</button>
     </div>
     <div class="copx-tbl"><table><thead><tr><th>WMTR</th><th>Status</th><th>Last update</th><th style="min-width:320px">Update for ${esc(copFmt(xtParseDate(iso)))}</th><th></th></tr></thead><tbody></tbody></table></div>
@@ -2441,27 +2480,39 @@ function copUpdatesSheet(rows) {
       <td>${today ? `<div class="copx-donebox">✓ ${esc(today.note)}${today.pending ? ' <b class="copx-amber">(pending)</b>' : ""}</div>` : ""}
         <textarea class="copx-in" data-unote data-i="${i}" rows="2" maxlength="1000" placeholder="${today ? "Add another update" : "Today's update"}">${esc((CopUi.sheetText || {})[r.wmtr] || "")}</textarea></td>
       <td class="nw"><button class="copx-btn sm blue" type="button" data-usame>Same as last</button>
-        <button class="copx-btn sm addb" type="button" data-uone>Save</button></td>
+        <button class="copx-btn sm addb" type="button" data-uone>Save</button>
+        <button class="lnk" type="button" data-uhist>History (${ups.length})</button></td>
     </tr>`));
   });
   if (!rows.length) tb.appendChild(el(`<tr><td colspan="5" class="copx-msg">No shipments in view.</td></tr>`));
   return wrap;
 }
 
-/** ATLAS-style "Daily Status Activity" history pop-up. */
-function copShowHistory(r) {
+/** ATLAS-style "Daily Status Activity" history pop-up. `edit` = the row being
+    edited (index into the list); `msg` = a save result to show. */
+function copShowHistory(r, edit, msg) {
   const ups = copUpdatesFor(r);
   const old = document.getElementById("copHist");
   if (old) old.remove();
+  const hasCreated = ups.some((x) => x.created);
+  const cols = 4 + (hasCreated ? 1 : 0);
+  const row = (x, i) => {
+    if (i === edit) return `<tr class="copx-hedit" data-i="${i}"><td class="nw"><input type="date" class="copx-in" data-hdate value="${esc(xtIso(x.date))}" aria-label="Update date"></td>
+      <td colspan="${cols - 2}"><textarea class="copx-in" data-hnote rows="3" maxlength="1000" aria-label="Notes">${esc(x.note)}</textarea></td>
+      <td class="nw"><button class="copx-btn sm addb" type="button" data-hsave>Save</button> <button class="copx-ack" type="button" data-hcancel>Cancel</button></td></tr>`;
+    return `<tr><td class="nw">${esc(copFmt(x.date))}</td><td style="white-space:pre-wrap">${esc(x.note)}</td>
+      ${hasCreated ? `<td class="nw">${x.created ? esc(copFmt(x.created)) : ""}</td>` : ""}
+      <td class="nw">${x.pending ? '<span class="copx-pill a">Pending — not in ATLAS yet</span>' : '<span class="copx-pill g">ATLAS</span>'}</td>
+      <td class="nw">${edit == null && copCanEditEntry(x) ? `<button class="copx-ack" type="button" data-hedit="${i}">Edit</button>` : ""}
+        ${x.pending && edit == null ? `<button class="copx-ack" type="button" data-del="${esc(x.at)}">Delete</button>` : ""}</td></tr>`;
+  };
   const m = el(`<div id="copHist" class="copx copx-modal-bg" role="dialog" aria-modal="true" aria-label="Daily Status Activity">
     <style>${COPX_CSS}</style>
     <div class="copx-modal">
       <div class="copx-modal-hd"><span>Daily Status Activity — ${esc(r.wmtr)}</span><button type="button" class="x" aria-label="Close">×</button></div>
-      <div class="copx-tbl" style="max-height:70vh"><table><thead><tr><th>Date</th><th>Notes</th><th>Source</th><th></th></tr></thead><tbody>
-        ${ups.length ? ups.map((x) => `<tr><td class="nw">${esc(copFmt(x.date))}</td><td>${esc(x.note)}</td>
-          <td class="nw">${x.pending ? '<span class="copx-pill a">Pending — not in ATLAS yet</span>' : '<span class="copx-pill g">ATLAS</span>'}</td>
-          <td>${x.pending ? `<button class="copx-ack" type="button" data-del="${esc(x.at)}">Delete</button>` : ""}</td></tr>`).join("")
-          : `<tr><td colspan="4" class="copx-msg">No updates yet.</td></tr>`}
+      ${msg ? `<div class="copx-msg" style="padding:6px 14px"><b>${esc(msg)}</b></div>` : ""}
+      <div class="copx-tbl" style="max-height:70vh"><table><thead><tr><th>Date</th><th>Notes</th>${hasCreated ? "<th>Entered</th>" : ""}<th>Source</th><th></th></tr></thead><tbody>
+        ${ups.length ? ups.map(row).join("") : `<tr><td colspan="${cols}" class="copx-msg">No updates yet.</td></tr>`}
       </tbody></table></div>
     </div></div>`);
   document.body.appendChild(m);
@@ -2470,12 +2521,36 @@ function copShowHistory(r) {
   document.addEventListener("keydown", onKey);
   m.addEventListener("click", (e) => { if (e.target === m) close(); });
   m.querySelector(".x").addEventListener("click", close);
-  m.querySelector(".x").focus();
+  const reopen = (ed, t) => { close(); copShowHistory(r, ed, t); };
   m.querySelectorAll("button[data-del]").forEach((b) => b.addEventListener("click", () => {
     copDeleteDraft(r.wmtr, b.dataset.del);
     r.pending = (copGetDrafts()[r.wmtr]) || [];
-    close(); copShowHistory(r); copRerender();
+    reopen(); copRerender();
   }));
+  m.querySelectorAll("button[data-hedit]").forEach((b) => b.addEventListener("click", () => reopen(Number(b.dataset.hedit))));
+  const er = m.querySelector(".copx-hedit");
+  if (er) {
+    const ta = er.querySelector("[data-hnote]"), dt = er.querySelector("[data-hdate]");
+    er.querySelector("[data-hcancel]").addEventListener("click", () => reopen());
+    er.querySelector("[data-hsave]").addEventListener("click", async (e) => {
+      const note = ta.value.trim(), iso = dt.value;
+      if (!note || !iso) { (note ? dt : ta).focus(); return; }
+      const x = ups[edit];
+      if (note === x.note && iso === xtIso(x.date)) { reopen(); return; }
+      e.target.disabled = true;
+      try { await copEditDailyUpdate(r, x, iso, note); }
+      catch (err) {
+        console.error(err); e.target.disabled = false;
+        const box = m.querySelector(".copx-hmsg") || er.insertAdjacentElement("afterend", el(`<tr class="copx-hmsg"><td colspan="${cols}" class="copx-msg"></td></tr>`));
+        box.querySelector("td").innerHTML = `<b>Not saved — ${esc(err.message || err)}</b>`;
+        return;
+      }
+      reopen(null, `Update for ${copFmt(xtParseDate(iso))} changed` +
+        (!x.pending && !COP_MOCKUP.editUpdates && copLocalUpdates() ? " (preview — this page only, not sent to ATLAS)." : "."));
+      copRerender();
+    });
+    requestAnimationFrame(() => ta.focus());
+  } else m.querySelector(".x").focus();
 }
 
 /* =========================================================================
@@ -2659,6 +2734,7 @@ function copWireUpdates(root, byW) {
     const keep = () => { if (ta.value.trim()) CopUi.sheetText[w] = ta.value; else delete CopUi.sheetText[w]; };
     ta.addEventListener("input", keep);
     tr.querySelector("[data-usame]").addEventListener("click", () => { ta.value = latestNote(byW[w]); keep(); ta.focus(); });
+    tr.querySelector("[data-uhist]").addEventListener("click", () => copShowHistory(byW[w]));
     tr.querySelector("[data-uone]").addEventListener("click", async () => {
       const note = ta.value.trim();
       if (!note || !byW[w]) { ta.focus(); return; }

@@ -37,6 +37,7 @@ const AtlasSettings = {
       customForwarders: [],   // [{name, address}]
       customVendors: [],      // [{name, address, abbrev}] — Property PO vendor list
       autoSaveForms: true,    // persist in-progress tool form inputs
+      copDailyPreview: false, // COP daily-update entry/editing shown before the ATLAS API exists (browser-only, temporary)
       packetSliFreight: "",   // last-used SLI freight location (packet default)
       packetSliForward: "",   // last-used SLI forwarding agent (packet default)
       hardBlock: { enabled: false, codes: {} }, // Validation gate (Feature #3)
@@ -47,7 +48,7 @@ const AtlasSettings = {
                               // Blank/absent => use the hard-coded default in json_udq.js.
       udqApi: {},             // per-env override for the ATLAS API base URL: { qa:"...", prod:"..." }.
                               // Blank/absent => use ATLAS_UDQ_CONFIG's built-in base in json_udq.js.
-      dailyStatus: {},        // per-env COP daily-update save settings: { qa:{ url, requestIdField }, ... }.
+      dailyStatus: {},        // per-env COP daily-update save settings: { qa:{ url, editUrl, requestIdField }, ... }.
                               // Blank/absent => ATLAS_UDQ_CONFIG.dailyStatus in json_udq.js.
     };
   },
@@ -346,6 +347,8 @@ function openSettings() {
           <div class="settings-section" id="setUdqSection">
             <h3>ATLAS data source</h3>
             <div class="ref-builtin">Environment: <strong>${esc(_udqEnv.toUpperCase())}</strong>. Where the &ldquo;Fetch from ATLAS&rdquo; buttons pull data from.</div>
+            <label class="set-check"><input type="checkbox" id="setCopPreview" ${s.copDailyPreview ? "checked" : ""}> Show COP daily-update entry &amp; editing (preview)</label>
+            <div class="settings-note">Try entering and editing daily updates on the COP before the ATLAS save API exists. In preview, updates stay in this browser (marked &ldquo;pending&rdquo;) and nothing is sent to ATLAS; edits to ATLAS entries last until the page reloads. Once the save address and Request ID field below are set and you're inside ATLAS, saving is real whether or not this is ticked.</div>
             <div class="udq-summary" id="setUdqSummary">API: ${esc(_udqApiEff)}${_udqApiOv ? " (override)" : ""}${_udqOvCount ? ` &middot; ${_udqOvCount} UDQ ID override${_udqOvCount === 1 ? "" : "s"}` : ""}${(_dsOv.url || _dsBuiltin.url) && (_dsOv.requestIdField || _dsBuiltin.requestIdField) ? " &middot; daily-update saving set up" : ""}</div>
             <button class="btn ghost" id="setUdqAdvBtn" type="button" aria-expanded="false" aria-controls="setUdqAdv">Adjust API settings&hellip;</button>
             <div class="udq-adv" id="setUdqAdv">
@@ -360,6 +363,11 @@ function openSettings() {
                   <label for="setDsUrl">Daily update save address</label>
                   <input type="text" id="setDsUrl" class="udq-id" value="${esc(_dsOv.url || "")}" placeholder="${esc(_dsBuiltin.url ? "default: " + _dsBuiltin.url : "not set — e.g. /api/wmtr/{requestId}/daily-status")}" spellcheck="false" autocomplete="off" autocapitalize="off">
                   <div class="settings-note">From the ATLAS team. Where the COP saves a daily update (Date + Notes/Comments); <span style="font-family:var(--mono);">{requestId}</span> is replaced with the request's ID. Saving only works inside ATLAS.</div>
+                </div>
+                <div class="settings-field span2">
+                  <label for="setDsEditUrl">Daily update edit address</label>
+                  <input type="text" id="setDsEditUrl" class="udq-id" value="${esc(_dsOv.editUrl || "")}" placeholder="${esc(_dsBuiltin.editUrl ? "default: " + _dsBuiltin.editUrl : "not set — e.g. /api/wmtr/{requestId}/daily-status/{entryId}")}" spellcheck="false" autocomplete="off" autocapitalize="off">
+                  <div class="settings-note">From the ATLAS team. Where the COP saves a change to a past update; <span style="font-family:var(--mono);">{entryId}</span> is replaced with that update's ID. Blank = past updates can't be edited from the COP.</div>
                 </div>
                 <div class="settings-field span2">
                   <label for="setDsIdField">Request ID field</label>
@@ -551,10 +559,14 @@ function openSettings() {
     const dsUrlInp = overlay.querySelector("#setDsUrl");
     const dsUrl = dsUrlInp ? dsUrlInp.value.trim() : "";
     const dsIdField = ((overlay.querySelector("#setDsIdField") || {}).value || "").trim();
-    if (dsUrlInp) dsUrlInp.classList.remove("udq-bad");
-    if (dsUrl && !(dsUrl.startsWith("/") || /^https?:\/\/\S+$/i.test(dsUrl))) {
-      apiBad = true;
-      if (dsUrlInp) dsUrlInp.classList.add("udq-bad");
+    const dsEditInp = overlay.querySelector("#setDsEditUrl");
+    const dsEditUrl = dsEditInp ? dsEditInp.value.trim() : "";
+    for (const [inp, v] of [[dsUrlInp, dsUrl], [dsEditInp, dsEditUrl]]) {
+      if (inp) inp.classList.remove("udq-bad");
+      if (v && !(v.startsWith("/") || /^https?:\/\/\S+$/i.test(v))) {
+        apiBad = true;
+        if (inp) inp.classList.add("udq-bad");
+      }
     }
     const udqVals = {
       metrics:  readUdq("setUdqMetrics"),
@@ -576,7 +588,7 @@ function openSettings() {
       if (udqErrEl) {
         udqErrEl.style.display = "block";
         const parts = [];
-        if (apiBad) parts.push("The API base URL and daily update save address must be blank, a relative path starting with \u201c/\u201d, or an absolute http(s):// URL.");
+        if (apiBad) parts.push("The API base URL and daily update save / edit addresses must be blank, a relative path starting with \u201c/\u201d, or an absolute http(s):// URL.");
         if (udqBad.length) parts.push(`${udqBad.length} UDQ ID${udqBad.length === 1 ? " is" : "s are"} not a valid GUID. Fix the highlighted field${udqBad.length === 1 ? "" : "s"}, or clear ${udqBad.length === 1 ? "it" : "them"} to use the built-in default.`);
         udqErrEl.textContent = parts.join(" ");
       }
@@ -597,6 +609,7 @@ function openSettings() {
     const allDs = Object.assign({}, AtlasSettings.get().dailyStatus || {});
     const dsOv = {};
     if (dsUrl) dsOv.url = dsUrl;
+    if (dsEditUrl) dsOv.editUrl = dsEditUrl;
     if (dsIdField) dsOv.requestIdField = dsIdField;
     if (Object.keys(dsOv).length) allDs[udqEnv] = dsOv; else delete allDs[udqEnv];
 
@@ -637,6 +650,7 @@ function openSettings() {
       customForwarders,
       customVendors,
       autoSaveForms: !!overlay.querySelector("#setAutoSave").checked,
+      copDailyPreview: !!(overlay.querySelector("#setCopPreview") || {}).checked,
       hardBlock,
       udqIds: allUdqIds,
       udqApi: allUdqApi,

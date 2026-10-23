@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.19",
+    title: "COP: daily updates can save to ATLAS (once the API exists)",
+    notes: [
+      "Inside ATLAS, the COP's daily-update entry (Save on each row, Save all updates, and the form in a shipment's details) will write the update straight to the request's Daily Status History — Date and Notes/Comments only. It switches on once the ATLAS team provides the save address and the request ID field, entered under Settings ▸ ATLAS data source ▸ Adjust API settings (or built in); until then nothing changes.",
+      "If ATLAS doesn't take an update, the COP says why and keeps your text in the box. On atlas-utility.net the COP stays read-only.",
+      "Inside ATLAS, once the data carries the request ID, the WMTR number links to the request page.",
+    ],
+  },
+  {
     version: "2.6.18",
     title: "COP: Audit column spells out each hit; new Doc Check",
     notes: [

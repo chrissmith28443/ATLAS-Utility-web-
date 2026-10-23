@@ -85,7 +85,75 @@ const ATLAS_UDQ_CONFIG = {
   // broad enough to return more than one record, the WMTR picker is shown. Set to
   // null to revert both to the full-pull + client-slice paths.
   requestNumberParam: "requestNumber",
+
+  // COP daily-update write-back — the ONLY thing the Utility writes to ATLAS:
+  // a new Daily Status History entry (Date + Notes/Comments) on one request.
+  // Saving stays OFF until both `url` and `requestIdField` are filled in (TTI
+  // devs, once the API exists), and only works inside ATLAS (same-origin, the
+  // ATLAS session cookie) — on atlas-utility.net the COP stays read-only.
+  dailyStatus: {
+    url: "",             // POST address; {requestId} is replaced, e.g. "/api/wmtr/{requestId}/daily-status".
+                         // Body sent: { "date": "YYYY-MM-DD", "notes": "..." }
+    requestIdField: "",  // JSON field on each UDQ record holding the request's unique ID, e.g. "RequestId"
+    requestUrl: "/wmtr/request/edit/{requestId}/SRF",   // request page the WMTR number links to
+  },
 };
+
+/* True once any UDQ fetch from ATLAS has worked in this session — i.e. the
+   Utility is running inside ATLAS (fetch never works from atlas-utility.net). */
+const AtlasLive = { ok: false };
+
+/* Effective daily-update settings: ATLAS_UDQ_CONFIG.dailyStatus, with any
+   non-blank override from Settings ▸ ATLAS data source (this browser, per env). */
+function atlasDailyStatusCfg() {
+  const base = ATLAS_UDQ_CONFIG.dailyStatus || {};
+  let ov = {};
+  try {
+    if (typeof AtlasSettings !== "undefined") {
+      const all = AtlasSettings.get().dailyStatus || {};
+      ov = (all[ATLAS_UDQ_CONFIG.env] && typeof all[ATLAS_UDQ_CONFIG.env] === "object") ? all[ATLAS_UDQ_CONFIG.env] : {};
+    }
+  } catch (e) { ov = {}; }
+  const pick = (k) => String(ov[k] || "").trim() || String(base[k] || "").trim();
+  return { url: pick("url"), requestIdField: pick("requestIdField"), requestUrl: base.requestUrl };
+}
+
+/* Shipment-level columns for the fetched grid: the export's columns, plus
+   "Request ID" when the request ID field is set. */
+function atlasScalarColumns() {
+  const idf = atlasDailyStatusCfg().requestIdField;
+  return idf ? ATLAS_SCALAR_COLUMNS.concat([[idf, "Request ID"]]) : ATLAS_SCALAR_COLUMNS;
+}
+
+/* Daily-update saving is on: inside ATLAS and both settings filled in. */
+function atlasDailyStatusOn() {
+  const c = atlasDailyStatusCfg();
+  return AtlasLive.ok && !!c.url && !!c.requestIdField;
+}
+
+/* Add one Daily Status History entry to a request in ATLAS. Throws a
+   plain-English error on failure (shown on the COP). */
+async function atlasPostDailyStatus(requestId, dateIso, notes) {
+  const path = atlasDailyStatusCfg().url.replace("{requestId}", encodeURIComponent(requestId));
+  const url = path.startsWith("/") ? (ATLAS_UDQ_CONFIG.absoluteOrigin || "").replace(/\/$/, "") + path : path;
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ date: dateIso, notes }),
+    });
+  } catch (e) {
+    throw new Error(`Couldn't reach ATLAS (${e.message}).`);
+  }
+  if (resp.status === 401 || resp.status === 403) throw new Error(`ATLAS denied the save (HTTP ${resp.status}). Sign in to ATLAS and try again.`);
+  if (resp.redirected && /login|signin|sign-in/i.test(resp.url)) throw new Error("Your ATLAS session has expired. Refresh ATLAS, sign in, then save again.");
+  if (!resp.ok) {
+    let m = "";
+    try { const t = await resp.text(); const j = JSON.parse(t); m = j.message || j.error || j.title || ""; } catch (e) { /* not JSON */ }
+    throw new Error(`ATLAS didn't save it (HTTP ${resp.status})${m ? ": " + m : "."}`);
+  }
+}
 
 /* Minimum number of digits a shipping WMTR/request-number entry must contain
    before we fire a server query. "requestNumber" is a CONTAINS match, so a
@@ -722,7 +790,7 @@ function atlasValueRow(obj, columns, startCol) {
 
 /** The 122 shipment headers, in order (row 1 of the grid). */
 function atlasShipmentHeaderRow() {
-  return ATLAS_SCALAR_COLUMNS.map((p) => p[1]);
+  return atlasScalarColumns().map((p) => p[1]);
 }
 
 /** Append a titled sub-section (title at `titleCol`, header + data at `startCol`). */
@@ -745,7 +813,7 @@ function atlasRecordsToGrid(records) {
     if (!wmtr) continue;                          // skip blank-WMTR anomalies
 
     // --- record row (col A = WMTR) ---
-    grid.push(ATLAS_SCALAR_COLUMNS.map((p) => atlasCell(rec[p[0]])));
+    grid.push(atlasScalarColumns().map((p) => atlasCell(rec[p[0]])));
 
     // --- Request Estimate List (directly under the record row, as in the export) ---
     const est = Array.isArray(rec.RequestEstimateList) ? rec.RequestEstimateList : [];
@@ -905,6 +973,7 @@ async function atlasFetchUdqJson(id, extraQuery) {
     if (data && Array.isArray(data.data)) data = data.data;       // tolerate {data:[...]}
     else throw new Error("Unexpected ATLAS response shape — expected a list of UDQ records.");
   }
+  AtlasLive.ok = true;
   return data;
 }
 

@@ -1862,7 +1862,7 @@ function renderCopWorkspace(container) {
   }
 
   /* ---- details table ---- */
-  const edit = isActive && COP_MOCKUP.editUpdates;
+  const edit = isActive && copCanEdit();
   const sheet = edit && CopUi.updMode;
   const dc = !isActive && CopUi.docCheck;
   const tcard = el(`<section class="copx-card">
@@ -2265,7 +2265,7 @@ function copDetailRow(r, ncol, isActive) {
   const watch = isActive ? !!(copGetPrefs().rddWatch || {})[r.reqNo] : false;
   return el(`<tr class="copx-det"><td colspan="${ncol}"><div class="copx-det-grid">
     <div class="copx-info">
-      ${isActive && COP_MOCKUP.editUpdates ? copUpdateForm(r) : ""}
+      ${isActive && copCanEdit() ? copUpdateForm(r) : ""}
       <div><div class="k">Request</div>${copWmtrLink(r, r.wmtr)}<br>${esc(r.title || "")}</div>
       <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
       <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
@@ -2318,7 +2318,14 @@ function copHoverHtml(r) {
    browser as "pending" and shown alongside the ATLAS history until the same
    date + note turns up in a later UDQ (then it's dropped automatically).
    Pending entries do NOT count toward the daily-update check — only ATLAS does.
+   2.6.19: inside ATLAS, once ATLAS_UDQ_CONFIG.dailyStatus is filled in, Save
+   writes to ATLAS (atlasPostDailyStatus) and the entry joins the request's
+   ATLAS history straight away. Otherwise the Utility has no update entry.
    ========================================================================= */
+/** Update entry is shown: the mockup, or inside ATLAS with the write-back API set up. */
+function copCanEdit() {
+  return COP_MOCKUP.editUpdates || (typeof atlasDailyStatusOn === "function" && atlasDailyStatusOn());
+}
 const COP_DRAFTS_KEY = "atlas.cop.dailydrafts";
 function copGetDrafts() {
   try { const o = JSON.parse(localStorage.getItem(COP_DRAFTS_KEY) || "{}"); return (o && typeof o === "object") ? o : {}; }
@@ -2327,9 +2334,17 @@ function copGetDrafts() {
 function copSetDrafts(o) {
   try { localStorage.setItem(COP_DRAFTS_KEY, JSON.stringify(o)); } catch (e) { /* storage off */ }
 }
-/** Write one daily status update. ATLAS: POST to the request's Daily Status
-    History (date, notes). Utility: keep it as a pending entry in this browser. */
-function copSaveDailyUpdate(wmtr, dateIso, note) {
+/** Write one daily status update. Inside ATLAS: POST it to the request's Daily
+    Status History, then add it to the loaded history. Mockup: keep it as a
+    pending entry in this browser. Throws if ATLAS doesn't save it. */
+async function copSaveDailyUpdate(wmtr, dateIso, note, r) {
+  if (typeof atlasDailyStatusOn === "function" && atlasDailyStatusOn()) {
+    const id = copRequestId(r);
+    if (!id) throw new Error(`${wmtr} has no ATLAS request ID in the data, so it can't be saved from here. Add the update on the request page.`);
+    await atlasPostDailyStatus(id, dateIso, String(note).trim());
+    r.rec.daily.push({ date: xtParseDate(dateIso), note: String(note).trim() });
+    return;
+  }
   const d = copGetDrafts();
   (d[wmtr] = d[wmtr] || []).push({ date: dateIso, note: String(note).trim(), at: new Date().toISOString() });
   copSetDrafts(d);
@@ -2364,17 +2379,23 @@ function copUpdatesFor(r) {
 }
 function copUpdatedOn(r, iso) { return copUpdatesFor(r).some((x) => xtIso(x.date) === iso); }
 
-/** Link to the request in ATLAS. The UDQ doesn't carry the request's internal
-    ID (the address is /wmtr/request/edit/<request id>/SRF), so this is null in
-    the utility; the ATLAS build has the ID and links straight to the page. */
-function copRequestUrl(r) {
-  const id = r && r.rec && (r.rec.f["request id"] || r.rec.f["requestid"] || r.rec.f["id"]);
-  return id ? `/wmtr/request/edit/${encodeURIComponent(id)}/SRF` : null;
+/** The request's unique ATLAS ID ("Request ID" column — added to the fetched
+    data once ATLAS_UDQ_CONFIG.dailyStatus.requestIdField is set). */
+function copRequestId(r) {
+  return (r && r.rec && (r.rec.f["request id"] || r.rec.f["requestid"] || r.rec.f["id"])) || "";
 }
-/** The WMTR number, as a link to the request (mockup / ATLAS build — the
-    Utility can't open ATLAS requests, so there it's plain text). */
+/** Link to the request in ATLAS (address pattern in ATLAS_UDQ_CONFIG.dailyStatus.requestUrl).
+    Null until the data carries the request ID. */
+function copRequestUrl(r) {
+  const id = copRequestId(r);
+  const pat = (typeof ATLAS_UDQ_CONFIG !== "undefined" && ATLAS_UDQ_CONFIG.dailyStatus && ATLAS_UDQ_CONFIG.dailyStatus.requestUrl) || "/wmtr/request/edit/{requestId}/SRF";
+  return id ? pat.replace("{requestId}", encodeURIComponent(id)) : null;
+}
+/** The WMTR number, as a link to the request (mockup, or inside ATLAS when the
+    data has the request ID — on atlas-utility.net it's plain text). */
 function copWmtrLink(r, text) {
-  if (!COP_MOCKUP.links) return esc(text);
+  const live = typeof AtlasLive !== "undefined" && AtlasLive.ok && copRequestUrl(r);
+  if (!COP_MOCKUP.links && !live) return esc(text);
   const url = copRequestUrl(r);
   return `<a class="copx-open" href="${url ? esc(url) : "#"}" ${url ? 'target="_blank" rel="noopener"' : `data-noid="1"`}
     title="Open ${esc(r.wmtr)} in ATLAS">${esc(text)}</a>`;
@@ -2602,10 +2623,20 @@ function copWireOpenLinks(root) {
 /** Daily-update forms (details panel) and the updates sheet. */
 function copWireUpdates(root, byW) {
   const latestNote = (r) => { const u = copUpdatesFor(r)[0]; return u ? u.note : ""; };
-  const add = (w, dateIso, ta, focusIdx) => {
+  // Saving can take a moment inside ATLAS: lock the buttons, and on failure keep
+  // the typed text and say why.
+  const busy = (on) => root.querySelectorAll("[data-uadd],[data-uone],[data-usave]").forEach((b) => { b.disabled = on; });
+  const fail = (e) => {
+    console.error(e); busy(false);
+    CopUi.msg = `Not saved — ${e.message || e}`;
+    const m = root.querySelector(".copx-sheet-hd .copx-msg") || document.getElementById("copMsg");
+    if (m) m.textContent = CopUi.msg; else alert(CopUi.msg);
+  };
+  const add = async (w, dateIso, ta, focusIdx) => {
     const r = byW[w]; const note = ta.value.trim();
     if (!r || !note) { ta.focus(); return; }
-    copSaveDailyUpdate(w, dateIso, note);
+    busy(true);
+    try { await copSaveDailyUpdate(w, dateIso, note, r); } catch (e) { return fail(e); }
     CopUi.msg = `Update saved for ${r.last5}.`;
     CopUi.focusUpd = focusIdx;
     copRerender();
@@ -2628,23 +2659,31 @@ function copWireUpdates(root, byW) {
     const keep = () => { if (ta.value.trim()) CopUi.sheetText[w] = ta.value; else delete CopUi.sheetText[w]; };
     ta.addEventListener("input", keep);
     tr.querySelector("[data-usame]").addEventListener("click", () => { ta.value = latestNote(byW[w]); keep(); ta.focus(); });
-    tr.querySelector("[data-uone]").addEventListener("click", () => {
+    tr.querySelector("[data-uone]").addEventListener("click", async () => {
       const note = ta.value.trim();
       if (!note || !byW[w]) { ta.focus(); return; }
-      copSaveDailyUpdate(w, iso, note);
+      busy(true);
+      try { await copSaveDailyUpdate(w, iso, note, byW[w]); } catch (e) { return fail(e); }
       delete CopUi.sheetText[w];
       CopUi.msg = `Saved ${byW[w].last5}'s update for ${copFmt(xtParseDate(iso))}.`;
       CopUi.focusUpd = Number(ta.dataset.i);            // the next row to update moves into this slot
       copRerender();
     });
   });
-  root.querySelectorAll(".copx-sheet [data-usave]").forEach((b) => b.addEventListener("click", () => {
+  // Save all = one save per filled row, in turn; rows that fail keep their text.
+  root.querySelectorAll(".copx-sheet [data-usave]").forEach((b) => b.addEventListener("click", async () => {
     const filled = Array.from(root.querySelectorAll(".copx-sheet tbody tr[data-w]"))
       .map((tr) => ({ w: tr.dataset.w, note: tr.querySelector("[data-unote]").value.trim() }))
       .filter((x) => x.note && byW[x.w]);
     if (!filled.length) { CopUi.msg = "Nothing to save — type an update first."; copRerender(); return; }
-    for (const x of filled) { copSaveDailyUpdate(x.w, iso, x.note); delete CopUi.sheetText[x.w]; }
-    CopUi.msg = `Saved ${copPlural(filled.length, "daily update")} for ${copFmt(xtParseDate(iso))}.`;
+    busy(true);
+    let ok = 0; const bad = [];
+    for (const x of filled) {
+      try { await copSaveDailyUpdate(x.w, iso, x.note, byW[x.w]); delete CopUi.sheetText[x.w]; ok++; }
+      catch (e) { console.error(e); CopUi.sheetText[x.w] = x.note; bad.push(`${byW[x.w].last5} (${String(e.message || e).replace(/\.$/, "")})`); }
+    }
+    CopUi.msg = (ok ? `Saved ${copPlural(ok, "daily update")} for ${copFmt(xtParseDate(iso))}. ` : "") +
+      (bad.length ? `Not saved — ${bad.join("; ")}. Their text is still in the box.` : "");
     copRerender();
   }));
   if (CopUi.focusUpd != null) {

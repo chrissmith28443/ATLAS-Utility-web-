@@ -47,6 +47,8 @@ const AtlasSettings = {
                               // Blank/absent => use the hard-coded default in json_udq.js.
       udqApi: {},             // per-env override for the ATLAS API base URL: { qa:"...", prod:"..." }.
                               // Blank/absent => use ATLAS_UDQ_CONFIG's built-in base in json_udq.js.
+      dailyStatus: {},        // per-env COP daily-update save settings: { qa:{ url, requestIdField }, ... }.
+                              // Blank/absent => ATLAS_UDQ_CONFIG.dailyStatus in json_udq.js.
     };
   },
 
@@ -64,6 +66,7 @@ const AtlasSettings = {
     this._data.hardBlock = { enabled: !!hb.enabled, codes: (hb.codes && typeof hb.codes === "object") ? hb.codes : {} };
     if (!this._data.udqIds || typeof this._data.udqIds !== "object") this._data.udqIds = {};
     if (!this._data.udqApi || typeof this._data.udqApi !== "object") this._data.udqApi = {};
+    if (!this._data.dailyStatus || typeof this._data.dailyStatus !== "object") this._data.dailyStatus = {};
     return this._data;
   },
 
@@ -247,6 +250,9 @@ function openSettings() {
     : "/api/UDQ";
   const _udqApiOv = String((s.udqApi && s.udqApi[_udqEnv]) || "").trim();
   const _udqApiEff = _udqApiOv || _udqApiBuiltin;
+  // COP daily-update save (address + request ID field) — built-in + this browser's override.
+  const _dsBuiltin = (typeof ATLAS_UDQ_CONFIG !== "undefined" && ATLAS_UDQ_CONFIG.dailyStatus) || {};
+  const _dsOv = (s.dailyStatus && s.dailyStatus[_udqEnv] && typeof s.dailyStatus[_udqEnv] === "object") ? s.dailyStatus[_udqEnv] : {};
   const _udqOvCount = ["metrics", "shipping", "property"].filter((k) => String(_udqOv[k] || "").trim()).length +
     ["srf", "pr", "pmct", "ws"].filter((k) => {
       const oct = (_udqOv.christmasTree && typeof _udqOv.christmasTree === "object") ? _udqOv.christmasTree : {};
@@ -340,7 +346,7 @@ function openSettings() {
           <div class="settings-section" id="setUdqSection">
             <h3>ATLAS data source</h3>
             <div class="ref-builtin">Environment: <strong>${esc(_udqEnv.toUpperCase())}</strong>. Where the &ldquo;Fetch from ATLAS&rdquo; buttons pull data from.</div>
-            <div class="udq-summary" id="setUdqSummary">API: ${esc(_udqApiEff)}${_udqApiOv ? " (override)" : ""}${_udqOvCount ? ` &middot; ${_udqOvCount} UDQ ID override${_udqOvCount === 1 ? "" : "s"}` : ""}</div>
+            <div class="udq-summary" id="setUdqSummary">API: ${esc(_udqApiEff)}${_udqApiOv ? " (override)" : ""}${_udqOvCount ? ` &middot; ${_udqOvCount} UDQ ID override${_udqOvCount === 1 ? "" : "s"}` : ""}${(_dsOv.url || _dsBuiltin.url) && (_dsOv.requestIdField || _dsBuiltin.requestIdField) ? " &middot; daily-update saving set up" : ""}</div>
             <button class="btn ghost" id="setUdqAdvBtn" type="button" aria-expanded="false" aria-controls="setUdqAdv">Adjust API settings&hellip;</button>
             <div class="udq-adv" id="setUdqAdv">
               <div class="ref-builtin">Leave a field blank to use the built-in default shown in grey; UDQ IDs must be GUIDs (e.g. cfb99354-d596-4a86-b067-7b19eea14708). Saved in <em>this browser only</em> — the built-in defaults stay the source of truth for everyone else, so this is for quick corrections without a redeploy.</div>
@@ -349,6 +355,16 @@ function openSettings() {
                   <label for="setUdqApi">API base URL</label>
                   <input type="text" id="setUdqApi" class="udq-id" value="${esc(_udqApiOv)}" placeholder="default: ${esc(_udqApiBuiltin)}" spellcheck="false" autocomplete="off" autocapitalize="off">
                   <div class="settings-note">The base every UDQ ID is appended to (<span style="font-family:var(--mono);">&lt;base&gt;/&lt;UDQ ID&gt;</span>). A relative path (e.g. /api/UDQ) rides the ATLAS session on this host; an absolute https:// URL targets another host (cross-origin rules apply).</div>
+                </div>
+                <div class="settings-field span2">
+                  <label for="setDsUrl">Daily update save address</label>
+                  <input type="text" id="setDsUrl" class="udq-id" value="${esc(_dsOv.url || "")}" placeholder="${esc(_dsBuiltin.url ? "default: " + _dsBuiltin.url : "not set — e.g. /api/wmtr/{requestId}/daily-status")}" spellcheck="false" autocomplete="off" autocapitalize="off">
+                  <div class="settings-note">From the ATLAS team. Where the COP saves a daily update (Date + Notes/Comments); <span style="font-family:var(--mono);">{requestId}</span> is replaced with the request's ID. Saving only works inside ATLAS.</div>
+                </div>
+                <div class="settings-field span2">
+                  <label for="setDsIdField">Request ID field</label>
+                  <input type="text" id="setDsIdField" class="udq-id" value="${esc(_dsOv.requestIdField || "")}" placeholder="${esc(_dsBuiltin.requestIdField ? "default: " + _dsBuiltin.requestIdField : "not set — e.g. RequestId")}" spellcheck="false" autocomplete="off" autocapitalize="off">
+                  <div class="settings-note">From the ATLAS team. The name of the field in the Metrics UDQ that holds each request's unique ID. COP daily-update saving turns on when both are set (after the next fetch).</div>
                 </div>
                 ${udqFieldsHtml}
               </div>
@@ -532,6 +548,14 @@ function openSettings() {
       apiBad = true;
       if (apiInp) apiInp.classList.add("udq-bad");
     }
+    const dsUrlInp = overlay.querySelector("#setDsUrl");
+    const dsUrl = dsUrlInp ? dsUrlInp.value.trim() : "";
+    const dsIdField = ((overlay.querySelector("#setDsIdField") || {}).value || "").trim();
+    if (dsUrlInp) dsUrlInp.classList.remove("udq-bad");
+    if (dsUrl && !(dsUrl.startsWith("/") || /^https?:\/\/\S+$/i.test(dsUrl))) {
+      apiBad = true;
+      if (dsUrlInp) dsUrlInp.classList.add("udq-bad");
+    }
     const udqVals = {
       metrics:  readUdq("setUdqMetrics"),
       shipping: readUdq("setUdqShipping"),
@@ -552,7 +576,7 @@ function openSettings() {
       if (udqErrEl) {
         udqErrEl.style.display = "block";
         const parts = [];
-        if (apiBad) parts.push("The API base URL must be blank, a relative path starting with \u201c/\u201d, or an absolute http(s):// URL.");
+        if (apiBad) parts.push("The API base URL and daily update save address must be blank, a relative path starting with \u201c/\u201d, or an absolute http(s):// URL.");
         if (udqBad.length) parts.push(`${udqBad.length} UDQ ID${udqBad.length === 1 ? " is" : "s are"} not a valid GUID. Fix the highlighted field${udqBad.length === 1 ? "" : "s"}, or clear ${udqBad.length === 1 ? "it" : "them"} to use the built-in default.`);
         udqErrEl.textContent = parts.join(" ");
       }
@@ -570,6 +594,11 @@ function openSettings() {
     // API base URL override: keep only a non-blank value so blank = built-in.
     const allUdqApi = Object.assign({}, AtlasSettings.get().udqApi || {});
     if (apiVal) allUdqApi[udqEnv] = apiVal; else delete allUdqApi[udqEnv];
+    const allDs = Object.assign({}, AtlasSettings.get().dailyStatus || {});
+    const dsOv = {};
+    if (dsUrl) dsOv.url = dsUrl;
+    if (dsIdField) dsOv.requestIdField = dsIdField;
+    if (Object.keys(dsOv).length) allDs[udqEnv] = dsOv; else delete allDs[udqEnv];
 
     const packetDocs = {};
     overlay.querySelectorAll(".set-doc").forEach((cb) => { packetDocs[cb.dataset.id] = cb.checked; });
@@ -611,6 +640,7 @@ function openSettings() {
       hardBlock,
       udqIds: allUdqIds,
       udqApi: allUdqApi,
+      dailyStatus: allDs,
     });
     applyReferenceData();
     _settingsAfterChange();

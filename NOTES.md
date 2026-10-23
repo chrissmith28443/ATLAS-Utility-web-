@@ -253,3 +253,15 @@ Arrived Warehouse or the warehouse actual date is filled.
   POST /api/wmtr/<request id>/daily-status {date, notes}; Save all = one call per row; optional
   CORS for atlas-utility.net so the Utility could write those two fields. Mockup Save shows a toast
   with that call. Patched in build_dash.py too.
+- v2.6.19: COP daily-update WRITE-BACK built into the Utility (user, 2026-10-23 — supersedes the
+  2.6.7 "mockup-only" rule for ATLAS). Settings: ATLAS_UDQ_CONFIG.dailyStatus { url ({requestId}
+  placeholder), requestIdField, requestUrl } in json_udq.js, overridable per browser/env in
+  Settings > ATLAS data source > Adjust API settings (AtlasSettings.dailyStatus). ON only when both
+  url + requestIdField are set AND a UDQ fetch has worked this session (AtlasLive.ok = inside
+  ATLAS); atlas-utility.net stays read-only. requestIdField adds a "Request ID" column to fetched
+  grids (atlasScalarColumns) -> copRequestId -> WMTR link + POST atlasPostDailyStatus(id, date,
+  notes) body {date:"YYYY-MM-DD", notes}, session cookie, no API key. On success the entry is pushed
+  into rec.daily (counts at once); on failure the text stays and the reason shows. Save all = one
+  call per row, reports failed rows. copCanEdit() = mockup || atlasDailyStatusOn(). Tested only
+  against a stubbed fetch — first real save must be tried inside ATLAS. Devs hand back: save
+  address + Request ID field name (mockup dev notes say so).

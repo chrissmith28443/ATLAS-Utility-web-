@@ -13,6 +13,18 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.0",
+    title: "Offline mode + new Air Waybill",
+    notes: [
+      "New Offline mode for using the Utility outside ATLAS: tick \"Offline mode\" at the top of this window. The menu shrinks to Shipment details, Commercial Invoice, Packing List, Placards and Air Waybill; Fetch / UDQ, the COP and every UDQ-only tool are hidden. Untick it to go back.",
+      "Shipment details: type in the whole shipment — shipment #, dates, purpose, payment terms, Incoterm, currency, mode, shipper, consignee, notify party, end user, pickup and deliver-to (\"same as\" boxes), line items and packages (paste straight from Excel). Saved automatically in this browser under the shipment #; open, duplicate or delete saved shipments.",
+      "Excel template: download a blank or example Offline Shipment template (drop-downs included), fill it in, and drop it on the Utility to load the shipment. Export to Excel saves any shipment back out as a filled template.",
+      "In offline mode no document carries TTI or DTRA markings: the CIV, Packing List and Placards print your company name and logo (Shipment details ▸ Your company). The no-charge declaration and the U.S. export-control statement are Yes/No choices.",
+      "Offline mode is a simplified stand-alone view: a numbered Shipment details page, a short menu (Shipment details, then the four documents), no Settings, drop zone or ATLAS features, and this window shows plain help instead of the changelog. It stays on after the browser or app is closed and reopened, until it's unticked here.",
+      "New Air Waybill (offline mode only): a fillable PDF laid out like the standard air waybill. Every box fills in from the shipment — addresses, pieces, gross / volume / chargeable weight, goods and dimensions, notify party — and anything can be typed over. The downloaded PDF stays editable in Acrobat / Edge / Chrome, or tick Lock to flatten it. Prints one copy or all three originals.",
+    ],
+  },
+  {
     version: "2.6.21",
     title: "Dashboard opens faster",
     notes: [
@@ -1150,12 +1162,14 @@ function openAbout() {
         <header>
           <h2>ATLAS Utility</h2>
           <span class="ab-ver">${esc(_aboutVersionString())}</span>
+          ${typeof offlineAboutToggleHtml === "function" ? offlineAboutToggleHtml() : ""}
           <button class="x" id="aboutClose" title="Close" aria-label="Close">×</button>
         </header>
         <div class="ab-body">
+          ${typeof offlineOn === "function" && offlineOn() ? offlineAboutHelpHtml() : `
           <p class="ab-lede">Browser-only tool for generating transportation &amp; logistics documents from a UDQ
           Excel export. All processing happens on this device — UDQ data never leaves your computer.</p>
-          ${entries}
+          ${entries}`}
         </div>
         <div class="ab-foot">
           <span class="ab-meta">Per-browser storage · no backend</span>
@@ -1168,6 +1182,7 @@ function openAbout() {
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) closeAbout(); });
   overlay.querySelector("#aboutClose").addEventListener("click", closeAbout);
   overlay.querySelector("#aboutOk").addEventListener("click", closeAbout);
+  if (typeof offlineWireAboutToggle === "function") offlineWireAboutToggle(overlay);
   document.addEventListener("keydown", _aboutEsc);
 }
 

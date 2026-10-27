@@ -99,6 +99,9 @@ async function loadFile(file, preGrid) {
   // An Ops Tracker dropped here belongs to the COP — take it without replacing
   // the loaded UDQ.
   if (!preGrid && typeof copMaybeTrackerFile === "function" && await copMaybeTrackerFile(file)) return;
+  // Offline mode reads only its own Excel template (offline.js); a template
+  // dropped with offline mode off offers to switch it on.
+  if (!preGrid && typeof offlineMaybeFile === "function" && await offlineMaybeFile(file)) return;
   const status = document.getElementById("loadStatus");
   status.classList.remove("err");
   status.textContent = `Reading ${file.name}…`;
@@ -284,7 +287,12 @@ function renderAll() {
 function renderDropzone() {
   const dz = document.getElementById("dropzone");
   const fileTag = document.getElementById("dzFile");
-  if (AppState.fileName) {
+  if (typeof offlineOn === "function" && offlineOn()) {
+    dz.classList.add("compact");
+    fileTag.classList.add("hidden");
+    document.getElementById("dzTitle").textContent = "Offline mode — drop a filled Offline Shipment template";
+    document.getElementById("dzSub").textContent = "or click to browse for the .xlsx (download a blank one from Shipment details)";
+  } else if (AppState.fileName) {
     dz.classList.add("compact");
     fileTag.textContent = AppState.fileName;
     fileTag.classList.remove("hidden");
@@ -358,7 +366,8 @@ function renderDashboard() {
   // collapse it) so only the Christmas Tree functions are on screen.
   // The COP hub tools (COP, PMR, Export-Controlled) have their own view and tab
   // bar, so the request dashboard is hidden behind them too.
-  if (AppState.activeTool === "xmastree" || (typeof copIsHubTool === "function" && copIsHubTool(AppState.activeTool))) {
+  if (AppState.activeTool === "xmastree" || (typeof copIsHubTool === "function" && copIsHubTool(AppState.activeTool)) ||
+      (typeof offlineOn === "function" && offlineOn())) {
     dash.classList.add("hidden");
     dash.classList.remove("dash-collapsed");
     return;
@@ -620,6 +629,8 @@ function scrollAfterToolSelect() {
 function renderRail() {
   const rail = document.getElementById("rail");
   rail.innerHTML = "";
+  // Offline mode: its own short menu (offline.js).
+  if (typeof offlineOn === "function" && offlineOn()) { offlineRenderRail(rail); return; }
   // The COP: one big button at the top; its tools are tabs inside it.
   if (typeof copRailButton === "function") rail.appendChild(copRailButton());
   let lastGroup = null;
@@ -786,6 +797,8 @@ function renderWorkspace() {
   else if (AppState.activeTool === "ci") renderCiWorkspace(ws);
   else if (AppState.activeTool === "pl") renderPlWorkspace(ws);
   else if (AppState.activeTool === "placards") renderPlacardsWorkspace(ws);
+  else if (AppState.activeTool === "awb") renderAwbWorkspace(ws);
+  else if (AppState.activeTool === "offship") renderOfflineShipWorkspace(ws);
   else if (AppState.activeTool === "sli") renderSliWorkspace(ws);
   else if (AppState.activeTool === "rfq") renderRfqWorkspace(ws);
   else if (AppState.activeTool === "ipc") renderIpcWorkspace(ws);
@@ -813,10 +826,13 @@ function renderWorkspace() {
   // Inventory Crosswalk has its own drop zone too.
   document.body.classList.toggle("xt-hide-dropzone",
     AppState.activeTool === "xmastree" || AppState.activeTool === "invconv");
+  const offline = typeof offlineOn === "function" && offlineOn();
   // Per-document parent-items toggle (CI, PL, Placards, RFQ, Packet).
-  if (typeof mpInjectDocToggle === "function") mpInjectDocToggle(ws, AppState.activeTool);
+  if (!offline && typeof mpInjectDocToggle === "function") mpInjectDocToggle(ws, AppState.activeTool);
   // Per-document manual-values override button/indicator (every SRF / Property document).
-  if (typeof mdInjectDocBar === "function") mdInjectDocBar(ws, AppState.activeTool);
+  if (!offline && typeof mdInjectDocBar === "function") mdInjectDocBar(ws, AppState.activeTool);
+  // Offline mode: which shipment the document is for + a way back to it.
+  if (offline) offlineInjectDocBar(ws, AppState.activeTool);
   if (typeof formcacheOnRender === "function") formcacheOnRender();
 
   // Mark the active tool's first panel so its header reads as the "section start"
@@ -829,6 +845,8 @@ function renderWorkspace() {
 
 function renderCiWorkspace(container) {
   const m = AppState.data.meta;
+  // Offline mode: the user's own company, signer and declarations (offline.js).
+  const off = (typeof offlineBrand === "function") ? offlineBrand() : null;
 
   // Start with the Settings "Default signer" — or, when none is set, whoever was
   // picked last on a CI / PL / Packet (settings.js atlasStartSignerName).
@@ -837,11 +855,14 @@ function renderCiWorkspace(container) {
   const signerOpts = ['<option value="">(leave blank)</option>']
     .concat(SIGNERS.map((s, i) => `<option value="${i}"${i === startIdx ? " selected" : ""}>${esc(s.name)} — ${esc(s.title)}</option>`))
     .join("");
-  const curPurpose = m.purpose || "Donation";
-  const purposeOpts = PURPOSE_CHOICES
+  const curPurpose = off ? (m.purpose || "") : (m.purpose || "Donation");
+  const purposeList = off ? [""].concat(OFF_LISTS.purpose) : PURPOSE_CHOICES.slice();
+  if (curPurpose && purposeList.indexOf(curPurpose) === -1) purposeList.push(curPurpose);
+  const purposeOpts = purposeList
     .map((p) => `<option${p === curPurpose ? " selected" : ""}>${esc(p)}</option>`).join("");
+  const curCurrency = (off && off.meta.currency) || CI_CURRENCIES[0].code;
   const currencyOpts = CI_CURRENCIES
-    .map((c, i) => `<option value="${esc(c.code)}"${i === 0 ? " selected" : ""}>${esc(c.code)} — ${esc(c.name)}</option>`).join("");
+    .map((c) => `<option value="${esc(c.code)}"${c.code === curCurrency ? " selected" : ""}>${esc(c.code)} — ${esc(c.name)}</option>`).join("");
 
   const panel = el(`
     <div class="panel">
@@ -862,7 +883,7 @@ function renderCiWorkspace(container) {
       <header><h2>Commercial Invoice</h2><span class="count">${esc(m.wmtr)}</span></header>
       <div class="body">
         <div class="formgrid">
-          <div class="field span2">
+          <div class="field span2"${off ? ' style="display:none"' : ""}>
             <label>Mode</label>
             <div class="cimode-row">
               <span class="cimode-side" id="ciModeLabelImp">Import / F2F</span>
@@ -878,23 +899,23 @@ function renderCiWorkspace(container) {
           <div class="field span2">
             <label class="cicheck" for="ciIntConsignee">
               <input type="checkbox" id="ciIntConsignee">
-              Include Intermediate Consignee
+              Include ${off ? "Notify party / Intermediate consignee" : "Intermediate Consignee"}
             </label>
             <div class="hint">Adds the Intermediate Consignee POC to Shipment Comments and its address into the Consignee box.</div>
           </div>
           <div class="field">
             <label for="ciInvDate">Invoice date</label>
-            <input type="date" id="ciInvDate" value="${todayISO()}">
+            <input type="date" id="ciInvDate" value="${esc((off && off.meta.invoice_date) || todayISO())}">
           </div>
           <div class="field">
             <label for="ciShipDate">Shipment date</label>
-            <input type="date" id="ciShipDate">
+            <input type="date" id="ciShipDate" value="${esc((off && off.meta.ship_date) || "")}">
             <div class="hint">Optional</div>
           </div>
           <div class="field">
             <label for="ciPurpose">Purpose of shipment</label>
             <select id="ciPurpose">${purposeOpts}</select>
-            <div class="hint">Pre-filled from the UDQ Shipment Type${/^other$/i.test(normWs(m.shipment_type || "")) ? " (\u201cOther\u201d \u2192 Donation)" : ""} — override if needed.</div>
+            <div class="hint"${off ? ' style="display:none"' : ""}>Pre-filled from the UDQ Shipment Type${/^other$/i.test(normWs(m.shipment_type || "")) ? " (\u201cOther\u201d \u2192 Donation)" : ""} — override if needed.</div>
           </div>
           <div class="field">
             <label for="ciPurposeOther">If other</label>
@@ -905,8 +926,8 @@ function renderCiWorkspace(container) {
             <input type="text" id="ciShipRef" value="${esc(m.awb_bol || "")}">
           </div>
           <div class="field">
-            <label for="ciContract">Contract no</label>
-            <input type="text" id="ciContract" value="${esc(m.contract_no || DEFAULT_CONTRACT_NO)}">
+            <label for="ciContract">${off ? "Contract / PO no" : "Contract no"}</label>
+            <input type="text" id="ciContract" value="${esc(off ? (m.contract_no || "") : (m.contract_no || DEFAULT_CONTRACT_NO))}">
           </div>
           <div class="field">
             <label for="ciIncoterm">IncoTerms</label>
@@ -919,17 +940,33 @@ function renderCiWorkspace(container) {
           </div>
           <div class="field span2">
             <label for="ciComments">Shipment comments</label>
-            <textarea id="ciComments" rows="2">${esc(ciDefaultComments(m))}</textarea>
+            <textarea id="ciComments" rows="2">${esc(off ? off.comments : ciDefaultComments(m))}</textarea>
           </div>
+          ${off ? `
+          <div class="field">
+            <label for="ciSignerName">Printed name</label>
+            <input type="text" id="ciSignerName" value="${esc(off.signerName)}">
+          </div>
+          <div class="field">
+            <label for="ciSignerTitle">Title</label>
+            <input type="text" id="ciSignerTitle" value="${esc(off.signerTitle)}">
+          </div>` : `
           <div class="field">
             <label for="ciSigner">Printed name</label>
             <select id="ciSigner" data-fc-skip>${signerOpts}</select>
-          </div>
+          </div>`}
           <div class="field span2">
             <label for="ciRemarks">Additional remarks</label>
-            <textarea id="ciRemarks" rows="2"></textarea>
-            <div class="hint">Appears after the standard export-control remarks paragraph.</div>
+            <textarea id="ciRemarks" rows="2">${esc(off ? off.remarks : "")}</textarea>
+            <div class="hint">${off ? "Printed in the Remarks box." : "Appears after the standard export-control remarks paragraph."}</div>
           </div>
+          ${off ? `
+          <div class="field span2">
+            <label class="cicheck" for="ciNoCharge"><input type="checkbox" id="ciNoCharge" ${off.declaration ? "checked" : ""}>
+              No-charge declaration (“value is declared for customs purposes only…”)</label>
+            <label class="cicheck" for="ciDcs"><input type="checkbox" id="ciDcs" ${off.dcs ? "checked" : ""}>
+              U.S. export-control statement in Remarks</label>
+          </div>` : ""}
         </div>
 
         <div class="btnrow">
@@ -964,7 +1001,7 @@ function renderCiWorkspace(container) {
   const lblImp = panel.querySelector("#ciModeLabelImp");
   const lblExp = panel.querySelector("#ciModeLabelExp");
   const detected = ciDetectMode(m);
-  modeChk.checked = (detected === "export");
+  modeChk.checked = !off && (detected === "export");
   panel.querySelector("#ciModeAuto").textContent =
     `Auto-detected: ${detected === "export" ? "Export" : "Import / F2F"}`;
   const syncModeLabels = () => {
@@ -974,13 +1011,16 @@ function renderCiWorkspace(container) {
   syncModeLabels();
   modeChk.addEventListener("change", () => { syncModeLabels(); refresh(); });
   panel.querySelector("#ciIntConsignee").addEventListener("change", refresh);
-  panel.querySelector("#ciSigner").addEventListener("change", (e) => {
+  const signerSel = panel.querySelector("#ciSigner");
+  if (signerSel) signerSel.addEventListener("change", (e) => {
     const sg = SIGNERS[Number(e.target.value)];
     if (typeof atlasRememberSigner === "function") atlasRememberSigner(e.target.value !== "" && sg ? sg.name : "");
   });
 
-  for (const id of ["ciInvDate","ciShipDate","ciShipRef","ciContract","ciIncoterm","ciCurrency","ciComments","ciSigner","ciRemarks","ciPurposeOther"]) {
-    panel.querySelector("#" + id).addEventListener("change", refresh);
+  for (const id of ["ciInvDate","ciShipDate","ciShipRef","ciContract","ciIncoterm","ciCurrency","ciComments","ciSigner","ciRemarks","ciPurposeOther",
+                    "ciSignerName","ciSignerTitle","ciNoCharge","ciDcs"]) {
+    const node = panel.querySelector("#" + id);
+    if (node) node.addEventListener("change", refresh);
   }
   panel.querySelector("#ciRefresh").addEventListener("click", refresh);
   panel.querySelector("#ciPrint").addEventListener("click", printCi);
@@ -994,12 +1034,22 @@ function ciOptionsFromForm() {
   if (purpose === "Other") purpose = g("ciPurposeOther").value.trim() || "Other";
 
   let printedName = "", title = "";
-  const signerIdx = g("ciSigner").value;
-  if (signerIdx !== "") {
-    const s = SIGNERS[Number(signerIdx)];
+  if (g("ciSignerName")) {
+    printedName = g("ciSignerName").value.trim();
+    title = g("ciSignerTitle").value.trim();
+  } else if (g("ciSigner").value !== "") {
+    const s = SIGNERS[Number(g("ciSigner").value)];
     printedName = s.name;
     title = s.title;
   }
+  // Offline mode: the user's company replaces every TTI / DTRA marking.
+  const b = (typeof offlineBrand === "function") ? offlineBrand() : null;
+  const brand = b ? {
+    logoLeft: b.logo, logoRight: "", companyName: b.name, preparedBy: b.preparedBy,
+    declaration: g("ciNoCharge") && g("ciNoCharge").checked ? CI_DECLARATION : "",
+    boiler: g("ciDcs") && g("ciDcs").checked ? CI_REMARKS_BOILERPLATE : "",
+    originLabel: "SHIPPER / EXPORTER",
+  } : null;
 
   return {
     invoiceDate: g("ciInvDate").value || "",
@@ -1016,6 +1066,7 @@ function ciOptionsFromForm() {
     userRemarks: g("ciRemarks").value.trim(),
     mode: g("ciMode") && g("ciMode").checked ? "export" : "import",
     intConsignee: !!(g("ciIntConsignee") && g("ciIntConsignee").checked),
+    brand,
   };
 }
 

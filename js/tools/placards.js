@@ -24,6 +24,7 @@ function renderPlacardsWorkspace(container) {
 
   const boxesTotal = _pkBoxCount(data);
   const hazmatAuto = _pkHasHazmat(data);
+  const off = typeof offlineOn === "function" && offlineOn();
 
   const panel = el(`
     <div class="panel">
@@ -37,14 +38,14 @@ function renderPlacardsWorkspace(container) {
             <label for="pkFrom">Ship from</label>
             <select id="pkFrom">
               <option value="pickup" selected>Pickup location</option>
-              <option value="origin">Shipment origin</option>
+              <option value="origin">${off ? "Shipper" : "Shipment origin"}</option>
             </select>
           </div>
           <div class="field">
             <label for="pkTo">Ship to</label>
             <select id="pkTo">
-              <option value="deliver" selected>Delivery destination</option>
-              <option value="consignee">Ultimate consignee</option>
+              <option value="deliver" selected>${off ? "Deliver to" : "Delivery destination"}</option>
+              <option value="consignee">${off ? "Consignee" : "Ultimate consignee"}</option>
             </select>
           </div>
           <div class="field">
@@ -129,11 +130,14 @@ function placardsOptionsFromForm() {
   const hazmatMode = (g("pkHazmat") || {}).value || "off";
   const hazmat = hazmatMode === "auto";
 
+  // Offline mode (offline.js): the user's company replaces the TTI / DTRA
+  // header, agency line and export-control footer.
+  const brand = (typeof offlineBrand === "function") ? offlineBrand() : null;
   return {
     fromKey, toKey, fromParty, toParty,
-    count, start, handling, hazmat,
-    fromLabel: fromKey === "origin" ? "Shipment Origin" : "Pickup Location",
-    toLabel: toKey === "consignee" ? "Ultimate Consignee" : "Delivery Destination",
+    count, start, handling, hazmat, brand,
+    fromLabel: fromKey === "origin" ? (brand ? "Shipper" : "Shipment Origin") : "Pickup Location",
+    toLabel: toKey === "consignee" ? (brand ? "Consignee" : "Ultimate Consignee") : (brand ? "Deliver To" : "Delivery Destination"),
   };
 }
 
@@ -201,8 +205,10 @@ function placardsBuildModel(data, opts) {
       weight: box ? _pkFmtWeight(box.weight_lbs, box.weight_kg) : (m.total_weight || ""),
       weightIsTotal: !box,
       dims: box ? (box.dims || "") : "",
-      program: _pkExpandProgram(m.ctr_program || ""),
+      program: opts.brand ? ((box && box.desc) || "") : _pkExpandProgram(m.ctr_program || ""),
       contract: m.contract_no || "",
+      brand: opts.brand || null,
+      awb: m.awb_bol || "",
       origin_country: _pkCountryShort(m.country_origin),
       dest_country: _pkCountryShort(m.country_destination),
       handling: opts.handling || "",
@@ -221,6 +227,9 @@ function placardsRenderHtml(placards, docTitle) {
 ${pages || `<div class="pk-page"><div class="pk-empty">No packages to placard.</div></div>`}
 </body></html>`;
 }
+
+const PK_FOOT_TEXT = "These items are controlled by the U.S. government and authorized for export only to the country of " +
+  "ultimate destination for use by the ultimate consignee or end-user(s) herein identified.";
 
 function _pkRenderPage(p) {
   const fromBlock = p.fromLines.length ? p.fromLines.map(esc).join("<br/>") : "—";
@@ -244,19 +253,25 @@ function _pkRenderPage(p) {
        </div>`
     : "";
 
+  const b = p.brand;
+  const head = b
+    ? `<div class="pk-logo left">${b.logo ? `<img src="${b.logo}" alt="">` : ""}</div>
+      <div class="pk-head-mid"><div class="pk-sub">${esc(b.name)}</div></div>
+      <div class="pk-logo right"></div>`
+    : `<div class="pk-logo left"><img src="${LOGO_LEFT}" alt=""></div>
+      <div class="pk-head-mid">
+        <div class="pk-sub">Prepared by TechTrans International<br>on behalf of DTRA</div>
+      </div>
+      <div class="pk-logo right"><img src="${LOGO_RIGHT}" alt=""></div>`;
   return `
 <div class="pk-page">
   <div class="pk-card">
     <div class="pk-head">
-      <div class="pk-logo left"><img src="${LOGO_LEFT}" alt=""></div>
-      <div class="pk-head-mid">
-        <div class="pk-sub">Prepared by TechTrans International<br>on behalf of DTRA</div>
-      </div>
-      <div class="pk-logo right"><img src="${LOGO_RIGHT}" alt=""></div>
+      ${head}
     </div>
 
     <div class="pk-wmtr">
-      <div class="pk-wmtr-lbl">WMTR NUMBER</div>
+      <div class="pk-wmtr-lbl">${b ? "REFERENCE #" : "WMTR NUMBER"}</div>
       <div class="pk-wmtr-val">${esc(p.wmtr || "—")}</div>
     </div>
 
@@ -285,11 +300,11 @@ function _pkRenderPage(p) {
         <div class="pk-cell-val mono">${esc(p.dims || "—")}</div>
       </div>
       <div class="pk-cell">
-        <div class="pk-cell-lbl">Program</div>
+        <div class="pk-cell-lbl">${b ? "Contents" : "Program"}</div>
         <div class="pk-cell-val">${esc(p.program || "—")}</div>
       </div>
       <div class="pk-cell agency">
-        <div class="pk-agency">Defense Threat Reduction Agency</div>
+        <div class="pk-agency">${b ? (p.awb ? `AWB / BOL: ${esc(p.awb)}` : esc(b.name)) : "Defense Threat Reduction Agency"}</div>
       </div>
     </div>
 
@@ -297,10 +312,7 @@ function _pkRenderPage(p) {
     ${hazmat}
     ${handling}
 
-    <div class="pk-foot">
-      These items are controlled by the U.S. government and authorized for export only to the country of
-      ultimate destination for use by the ultimate consignee or end-user(s) herein identified.
-    </div>
+    ${!b || b.dcs ? `<div class="pk-foot">${esc(PK_FOOT_TEXT)}</div>` : ""}
   </div>
 </div>`;
 }
@@ -391,11 +403,13 @@ async function downloadPlacardsDocx() {
 function placardsBuildDocxZip(placards) {
   const zip = new JSZip();
 
-  // Logos -> media. The data URIs live in assets.js.
-  const logoL = _pkB64ToU8(_pkStripDataUri(LOGO_LEFT));
-  const logoR = _pkB64ToU8(_pkStripDataUri(LOGO_RIGHT));
-  zip.file("word/media/logoL.png", logoL);
-  zip.file("word/media/logoR.png", logoR);
+  // Logos -> media. The data URIs live in assets.js. Offline mode: only the
+  // user's own logo (left), if they uploaded one.
+  const brand = placards[0] && placards[0].brand;
+  const srcL = brand ? brand.logo : LOGO_LEFT;
+  const srcR = brand ? "" : LOGO_RIGHT;
+  if (srcL) zip.file("word/media/logoL.png", _pkB64ToU8(_pkStripDataUri(srcL)));
+  if (srcR) zip.file("word/media/logoR.png", _pkB64ToU8(_pkStripDataUri(srcR)));
 
   zip.file("[Content_Types].xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
@@ -417,8 +431,8 @@ function placardsBuildDocxZip(placards) {
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
     `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
     `<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
-    `<Relationship Id="rIdLogoL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logoL.png"/>` +
-    `<Relationship Id="rIdLogoR" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logoR.png"/>` +
+    (srcL ? `<Relationship Id="rIdLogoL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logoL.png"/>` : "") +
+    (srcR ? `<Relationship Id="rIdLogoR" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logoR.png"/>` : "") +
     `</Relationships>`);
 
   zip.file("word/styles.xml", _PK_STYLES_XML);
@@ -501,14 +515,18 @@ function _pkPlacardXml(p) {
 
   // 1) Header — logos pinned to the corners (floating) with the "Prepared by"
   //    line centered on the FULL page width, independent of the logo widths.
+  const b = p.brand;
   rows.push({ h: Hheader, cells: [
     _C(6,
-      _pkPara(
-        _pkFloatLogo("rIdLogoL", 140, 140, 0.62, "left") +
-        _pkFloatLogo("rIdLogoR", 393, 140, 0.62, "right") +
-        _pkRun("Prepared by TechTrans International", { sz: 26, bold: true, color: _PK_INK }) +
-        "<w:r><w:br/></w:r>" +
-        _pkRun("on behalf of DTRA", { sz: 26, bold: true, color: _PK_INK }),
+      _pkPara(b
+        ? (b.logo ? _pkFloatLogo("rIdLogoL", b.logoW || 140, b.logoH || 140,
+                                 Math.min(0.62, 2.0 * (b.logoH || 1) / (b.logoW || 1)), "left") : "") +
+          _pkRun(b.name || "", { sz: 28, bold: true, color: _PK_INK })
+        : _pkFloatLogo("rIdLogoL", 140, 140, 0.62, "left") +
+          _pkFloatLogo("rIdLogoR", 393, 140, 0.62, "right") +
+          _pkRun("Prepared by TechTrans International", { sz: 26, bold: true, color: _PK_INK }) +
+          "<w:r><w:br/></w:r>" +
+          _pkRun("on behalf of DTRA", { sz: 26, bold: true, color: _PK_INK }),
         { jc: "center" }),
       { b: 1, vAlign: "center" }),
   ] });
@@ -531,12 +549,13 @@ function _pkPlacardXml(p) {
   rows.push({ h: Hdrow, cells: [
     _C(3, _pkDetailCell("Dimensions (L\u00d7W\u00d7H)",
         _pkPara(_pkRun(p.dims || "\u2014", { sz: 26, mono: true, bold: true }))), { b: 1, r: 1, vAlign: "center" }),
-    _C(3, _pkDetailCell("Program",
+    _C(3, _pkDetailCell(b ? "Contents" : "Program",
         _pkPara(_pkRun(p.program || "\u2014", { sz: 20, bold: true }))), { b: 1, vAlign: "center" }),
   ] });
+  const agency = b ? (p.awb ? "AWB / BOL: " + p.awb : (b.name || "")) : "Defense Threat Reduction Agency";
   rows.push({ h: Hcontract, cells: [
     _C(6,
-      _pkPara(_pkRun("Defense Threat Reduction Agency", { sz: 26, bold: true, color: _PK_INK }), { jc: "center" }),
+      _pkPara(_pkRun(agency, { sz: 26, bold: true, color: _PK_INK }), { jc: "center" }),
       { b: 1, vAlign: "center" }),
   ] });
 
@@ -547,7 +566,7 @@ function _pkPlacardXml(p) {
   // 7) Special handling (optional)
   if (Hhand) rows.push({ h: Hhand, cells: [ _C(6, _pkBandContent("Special Handling", p.handling), { b: 1, vAlign: "center" }) ] });
   // 8) Footer (no bottom border — outer frame closes the card)
-  rows.push({ h: Hfoot, cells: [ _C(6, _pkFooterContent(), { vAlign: "center" }) ] });
+  rows.push({ h: Hfoot, cells: [ _C(6, !b || b.dcs ? _pkFooterContent() : _pkPara(""), { vAlign: "center" }) ] });
 
   return _pkFlatTable(W, COLS, rows);
 }
@@ -629,7 +648,7 @@ function _pkPkgVal(p) {
 /* ---- full-width section content (paragraphs) ---------------------------- */
 
 function _pkWmtrContent(p) {
-  return _pkPara(_pkRun("WMTR NUMBER", { sz: 17, bold: true, color: _PK_ACCENT, caps: true, spacing: 40 }), { jc: "center", after: 60 }) +
+  return _pkPara(_pkRun(p.brand ? "REFERENCE #" : "WMTR NUMBER", { sz: 17, bold: true, color: _PK_ACCENT, caps: true, spacing: 40 }), { jc: "center", after: 60 }) +
     _pkPara(_pkRun(p.wmtr || "\u2014", { sz: 48, bold: true, color: _PK_INK, mono: true }), { jc: "center" });
 }
 

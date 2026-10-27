@@ -51,11 +51,19 @@ function renderPlWorkspace(container) {
     { k: "intermediate", label: "Intermediate Consignee" },
     { k: "end_user", label: "End User" },
   ];
+  // Offline mode (offline.js): the offline party names, a typed signer, and no
+  // UDQ-only exports.
+  const off = (typeof offlineBrand === "function") ? offlineBrand() : null;
+  if (off) {
+    const names = { origin: "Shipper", deliver: "Deliver to", consignee: "Consignee", intermediate: "Notify party" };
+    for (const o of fromOpts.concat(toOpts, thirdOpts)) if (names[o.k]) o.label = names[o.k];
+  }
   const optHtml = (arr, dflt) => arr.map((o, i) => {
     const empty = !hasParty(P[o.k]);
     return `<option value="${o.k}" ${o.k === dflt ? "selected" : ""}>` +
-      `${esc(o.label)}${empty ? " (blank in UDQ)" : ""}</option>`;
+      `${esc(o.label)}${empty ? (off ? " (blank)" : " (blank in UDQ)") : ""}</option>`;
   }).join("");
+  const offPrinted = off ? [off.signerName, off.signerTitle].filter(Boolean).join(", ") : "";
   const thirdHtml = `<option value="" selected>Don't include</option>` + optHtml(thirdOpts, null);
 
   const panel = el(`
@@ -86,19 +94,23 @@ function renderPlWorkspace(container) {
             </select>
           </div>
           <div class="field">
-            <label for="plSigner">Printed name / signer</label>
-            <select id="plSigner" data-fc-skip>${signerOpts}</select>
+            <label for="${off ? "plSignerName" : "plSigner"}">Printed name / signer</label>
+            ${off ? `<input type="text" id="plSignerName" value="${esc(offPrinted)}">`
+                  : `<select id="plSigner" data-fc-skip>${signerOpts}</select>`}
           </div>
         </div>
         <div class="btnrow">
           <button class="btn primary" id="plPrint">Save as PDF</button>
           <button class="btn primary" id="plExcel">Download Excel (.xlsx)</button>
-          <button class="btn navy" id="plInvExcel">Inventory Sheet</button>
-          <button class="btn ghost" id="plGenerate">Legacy spreadsheet (.xlsx)</button>
+          <button class="btn navy" id="plInvExcel"${off ? ' style="display:none"' : ""}>Inventory Sheet</button>
+          <button class="btn ghost" id="plGenerate"${off ? ' style="display:none"' : ""}>Legacy spreadsheet (.xlsx)</button>
           <button class="btn ghost" id="plRefresh">Refresh preview</button>
           <span class="statusline" id="plStatus"></span>
         </div>
-        <div class="note">
+        ${off ? `<div class="note">Packages become cards; a line item is listed inside the package whose
+          <strong>Package #</strong> it carries (Shipment details). Items without one are listed together.
+          <strong>Save as PDF</strong> and <strong>Download Excel</strong> give the same layout.</div>` : ""}
+        <div class="note"${off ? ' style="display:none"' : ""}>
           The preview below is the new Packing List: parent packages (Serial
           “P”) become cards, and inventory items are nested under the parent
           whose <strong>Ship Group #</strong> they match. Items with no matching
@@ -139,11 +151,14 @@ function renderPlWorkspace(container) {
   panel.querySelector("#plTo").addEventListener("change", refresh);
   panel.querySelector("#plThird").addEventListener("change", refresh);
   panel.querySelector("#plUnit").addEventListener("change", refresh);
-  panel.querySelector("#plSigner").addEventListener("change", (e) => {
+  const plSigner = panel.querySelector("#plSigner");
+  if (plSigner) plSigner.addEventListener("change", (e) => {
     const sg = SIGNERS[Number(e.target.value)];
     if (typeof atlasRememberSigner === "function") atlasRememberSigner(e.target.value !== "" && sg ? sg.name : "");
     refresh();
   });
+  const plSignerName = panel.querySelector("#plSignerName");
+  if (plSignerName) plSignerName.addEventListener("change", refresh);
   panel.querySelector("#plRefresh").addEventListener("click", refresh);
 
   updatePlPreview();
@@ -167,11 +182,16 @@ function plOptionsFromForm() {
   const thirdParty = (document.getElementById("plThird") || {}).value || "";
   const signerIdx = (document.getElementById("plSigner") || {}).value;
   let printedName = "";
-  if (signerIdx !== "" && signerIdx != null) {
+  const typed = document.getElementById("plSignerName");
+  if (typed) {
+    printedName = typed.value.trim();
+  } else if (signerIdx !== "" && signerIdx != null) {
     const sg = SIGNERS[Number(signerIdx)];
     if (sg) printedName = `${sg.name}, ${sg.title}`;
   }
-  return { unitSystem, shipFrom, shipTo, thirdParty, printedName };
+  // Offline mode: the user's company instead of the TTI / DTRA wording.
+  const brand = (typeof offlineBrand === "function") ? offlineBrand() : null;
+  return { unitSystem, shipFrom, shipTo, thirdParty, printedName, brand };
 }
 
 /**
@@ -300,6 +320,22 @@ function _plBuildGroups(data) {
 }
 
 /** Build the printable HTML for the Packing List. */
+/* Header / footer wording. Offline mode (opts.brand, from offline.js) prints the
+   user's company instead of TRLS II / TechTrans, no "Prepared by TTI … DTRA"
+   line, and the export-control paragraph only when asked for. */
+const PL_PREPARED_BY = "Prepared by TechTrans International (TTI) on behalf of the Defense Threat Reduction Agency (DTRA).";
+const PL_BOILER = "These items are controlled by the U.S. Government and authorized for export only to the country of ultimate destination for use by the ultimate consignee or end-user(s) herein identified. They may not be resold, transferred, or otherwise disposed of to any other country or to any person other than the authorized ultimate consignee, without first obtaining approval from the U.S. Government or as otherwise authorized by U.S. law and regulations.";
+function _plBrand(opts) {
+  const b = opts && opts.brand;
+  if (!b) return { top: "TRLS II", sub: "TechTrans International", logo: "", refLabel: "WMTR number",
+                   prep: PL_PREPARED_BY, boiler: PL_BOILER, labels: null };
+  return {
+    top: b.name || "", sub: "", logo: b.logo || "", refLabel: "Reference #",
+    prep: b.preparedBy || "", boiler: b.dcs ? PL_BOILER : "",
+    labels: { origin: "Shipper", deliver: "Deliver To", consignee: "Consignee", intermediate: "Notify Party" },
+  };
+}
+
 function plRenderHtml(data, opts) {
   const m = data.meta;
   const raw = m.totals_raw || {};
@@ -314,6 +350,8 @@ function plRenderHtml(data, opts) {
     deliver: "Delivery Destination", consignee: "Ultimate Consignee",
     intermediate: "Intermediate Consignee", end_user: "End User",
   };
+  const br = _plBrand(opts);
+  if (br.labels) Object.assign(PARTY_LABELS, br.labels);
   const fromKey = opts.shipFrom || "pickup";
   const toKey = opts.shipTo || "deliver";
   const pickup = _plPartyAddr(data.parties[fromKey]);
@@ -405,8 +443,9 @@ function plRenderHtml(data, opts) {
 <div class="pl-doc">
   <div class="pl-head">
     <div class="pl-brand">
-      <span class="pl-brand-1">TRLS II</span>
-      <span class="pl-brand-2">TechTrans International</span>
+      ${br.logo ? `<span class="pl-brand-logo"><img src="${br.logo}" alt=""></span>` : ""}
+      <span class="pl-brand-1${br.logo || br.top.length > 14 ? " sm" : ""}">${esc(br.top)}</span>
+      ${br.sub ? `<span class="pl-brand-2">${esc(br.sub)}</span>` : ""}
     </div>
     <div class="pl-ttl"><h1>Packing List</h1>
       <div class="sub"><b>${esc(m.wmtr)}</b> · ${esc(dateStr)}</div></div>
@@ -439,7 +478,7 @@ function plRenderHtml(data, opts) {
         <div class="row"><span class="k">Total number of packages</span><span class="v">${pkgCount}</span></div>
         <div class="row"><span class="k">Total units packed</span><span class="v">${Math.trunc(totalUnits).toLocaleString("en-US")}</span></div>
         <div class="row"><span class="k">Gross weight</span><span class="v">${esc(gross) || "—"}</span></div>
-        <div class="row"><span class="k">WMTR number</span><span class="v">${esc(m.wmtr)}</span></div>
+        <div class="row"><span class="k">${esc(br.refLabel)}</span><span class="v">${esc(m.wmtr)}</span></div>
         ${(m._consol_secondaries && m._consol_secondaries.length) ? `<div class="row"><span class="k">Consolidated WMTRs</span><span class="v">${esc(m._consol_secondaries.join(", "))}</span></div>` : ""}
       </div>
       <div class="pl-sign">
@@ -449,8 +488,8 @@ function plRenderHtml(data, opts) {
         <div class="name">${esc(dateStr)}</div>
       </div>
     </div>
-    <div class="pl-prep">Prepared by TechTrans International (TTI) on behalf of the Defense Threat Reduction Agency (DTRA).</div>
-    <div class="pl-boiler">These items are controlled by the U.S. Government and authorized for export only to the country of ultimate destination for use by the ultimate consignee or end-user(s) herein identified. They may not be resold, transferred, or otherwise disposed of to any other country or to any person other than the authorized ultimate consignee, without first obtaining approval from the U.S. Government or as otherwise authorized by U.S. law and regulations.</div>
+    ${br.prep ? `<div class="pl-prep">${esc(br.prep)}</div>` : ""}
+    ${br.boiler ? `<div class="pl-boiler">${esc(br.boiler)}</div>` : ""}
   </div>
 </div>
 </body></html>`;
@@ -551,6 +590,9 @@ body{ font-family:var(--body); color:var(--ink); padding:18px 14px 40px; }
 .pl-brand-1{ font-family:var(--disp); font-weight:700; font-size:30px; letter-spacing:2px; color:#fff; }
 .pl-brand-2{ font-family:var(--disp); font-weight:500; font-size:12px; letter-spacing:3px;
   text-transform:uppercase; color:#9FB0C2; margin-top:5px; }
+.pl-brand-1.sm{ font-size:20px; letter-spacing:1px; margin-top:6px; }
+.pl-brand-logo{ display:inline-block; background:#fff; border-radius:6px; padding:4px 8px; align-self:flex-start; }
+.pl-brand-logo img{ display:block; max-height:42px; max-width:200px; }
 .pl-ttl{ text-align:right; }
 .pl-ttl h1{ font-family:var(--disp); font-weight:700; letter-spacing:3px; text-transform:uppercase;
   font-size:32px; margin:0; line-height:.95; }
@@ -889,10 +931,12 @@ function _plXlsxParts(data, opts) {
   const blank = (s) => ({ v: "", s });
 
   // Title band (rows 1-2)
-  S.addRow([C("TRLS II", PLS.brand), blank(PLS.bandBlank), blank(PLS.bandBlank),
+  const br = _plBrand(opts);
+  if (br.labels) Object.assign(PARTY_LABELS, br.labels);
+  S.addRow([C(br.top, PLS.brand), blank(PLS.bandBlank), blank(PLS.bandBlank),
             C("PACKING LIST", PLS.titleR), blank(PLS.bandBlank), blank(PLS.bandBlank)], 26);
   S.merge(1, 1, 1, 3); S.merge(1, 4, 1, 6);
-  S.addRow([C("TechTrans International", PLS.subL), blank(PLS.bandBlank), blank(PLS.bandBlank),
+  S.addRow([C(br.sub, PLS.subL), blank(PLS.bandBlank), blank(PLS.bandBlank),
             C(`${m.wmtr || ""}  ·  ${_plToday()}`, PLS.subR), blank(PLS.bandBlank), blank(PLS.bandBlank)], 16);
   S.merge(2, 1, 2, 2); S.merge(2, 3, 2, 6);
 
@@ -985,7 +1029,7 @@ function _plXlsxParts(data, opts) {
   totRow("Total number of packages", data.packages.length);
   totRow("Total units packed", Math.trunc(totalUnits));
   totRow("Gross weight", grossFull || "—");
-  totRow("WMTR number", m.wmtr || "");
+  totRow(br.refLabel, m.wmtr || "");
   if (m._consol_secondaries && m._consol_secondaries.length) {
     totRow("Consolidated WMTRs", m._consol_secondaries.join(", "));
   }
@@ -997,10 +1041,14 @@ function _plXlsxParts(data, opts) {
   const rSign2 = S.lastRow(); S.merge(rSign2, 1, rSign2, 3); S.merge(rSign2, 4, rSign2, 6);
 
   S.addRow([]);
-  S.addRow([C("Prepared by TechTrans International (TTI) on behalf of the Defense Threat Reduction Agency (DTRA).", PLS.signLab)]);
-  const rPrep = S.lastRow(); S.merge(rPrep, 1, rPrep, 6);
-  S.addRow([C("These items are controlled by the U.S. Government and authorized for export only to the country of ultimate destination for use by the ultimate consignee or end-user(s) herein identified. They may not be resold, transferred, or otherwise disposed of to any other country or to any person other than the authorized ultimate consignee, without first obtaining approval from the U.S. Government or as otherwise authorized by U.S. law and regulations.", PLS.boiler)], 48);
-  const rBoil = S.lastRow(); S.merge(rBoil, 1, rBoil, 6);
+  if (br.prep) {
+    S.addRow([C(br.prep, PLS.signLab)]);
+    const rPrep = S.lastRow(); S.merge(rPrep, 1, rPrep, 6);
+  }
+  if (br.boiler) {
+    S.addRow([C(br.boiler, PLS.boiler)], 48);
+    const rBoil = S.lastRow(); S.merge(rBoil, 1, rBoil, 6);
+  }
 
   const cols = [
     { min: 1, max: 1, w: 5 },

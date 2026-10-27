@@ -15,8 +15,19 @@ function ciBuildPages(data, opts) {
     invoiceDate = "", shipmentDate = "", shipmentComments = "",
     purpose = "", shipmentRef = "", contractNo = "",
     mode = "import", intConsignee = false,
-    incoterm, currency = "USD",
+    incoterm, currency = "USD", brand = null,
   } = opts || {};
+  // Offline mode (offline.js) swaps the TTI / DTRA logos and wording for the
+  // user's own; without it the CI prints exactly as before.
+  const br = brand ? {
+    logo_left: brand.logoLeft || "", logo_right: brand.logoRight || "", company_name: brand.companyName || "",
+    prepared_by: brand.preparedBy || "", declaration_text: brand.declaration || "",
+    remarks_boiler: brand.boiler || "", origin_label: brand.originLabel || "ORIGIN",
+  } : {
+    logo_left: LOGO_LEFT, logo_right: LOGO_RIGHT, company_name: "",
+    prepared_by: CI_PREPARED_BY, declaration_text: CI_DECLARATION,
+    remarks_boiler: CI_REMARKS_BOILERPLATE, origin_label: "ORIGIN",
+  };
 
   const meta = data.meta;
   const parties = data.parties;
@@ -91,8 +102,7 @@ function ciBuildPages(data, opts) {
     printed_name: printedName,
     title,
     sign_date: invoiceDate,
-    prepared_by: CI_PREPARED_BY,
-    declaration_text: CI_DECLARATION,
+    ...br,
   });
 
   if (remaining.length) {
@@ -114,7 +124,7 @@ function ciBuildPages(data, opts) {
         parties,
         line_items: chunk,
         page_subtotal: fmtMoney(subtotal),
-        declaration_text: CI_DECLARATION,
+        ...br,
       });
     }
   }
@@ -222,17 +232,23 @@ function ciItemsTable(lineItems) {
   </table>`;
 }
 
+/* Header logo slot: the image, or (offline mode, no logo) the company name. */
+function ciLogoHtml(src, name) {
+  if (src) return `<img src="${src}" alt="">`;
+  return name ? `<div class="header-coname">${esc(name)}</div>` : "";
+}
+
 function ciRenderPage(p, pageIdx, totalPages) {
   if (p.is_first) {
     return `
 <div class="page"><div class="sheet">
   <div class="header">
-    <div class="header-logo left"><img src="${LOGO_LEFT}" alt="Left Logo"></div>
+    <div class="header-logo left">${ciLogoHtml(p.logo_left, p.company_name)}</div>
     <div class="header-center">
       <div class="header-subtitle">${esc(p.declaration_text)}</div>
       <div class="header-title">COMMERCIAL INVOICE</div>
     </div>
-    <div class="header-logo right"><img src="${LOGO_RIGHT}" alt="Right Logo"></div>
+    <div class="header-logo right">${ciLogoHtml(p.logo_right, "")}</div>
   </div>
 
   <div class="page-num page-num--p1">
@@ -256,7 +272,7 @@ function ciRenderPage(p, pageIdx, totalPages) {
   <div class="grid">
     ${p.mode === "export"
       ? ciShipperBox(CI_USPPI_DTRA)
-      : ciPartyBox("ORIGIN", p.parties.origin, true)}
+      : ciPartyBox(p.origin_label || "ORIGIN", p.parties.origin, true)}
     ${ciPartyBox("CONSIGNEE", p.parties.consignee, true,
       p.int_consignee && p.parties.intermediate
         ? { label: "Intermediate Consignee", party: p.parties.intermediate }
@@ -296,7 +312,7 @@ function ciRenderPage(p, pageIdx, totalPages) {
         <div class="remarks">
           <div class="label">Remarks:</div>
           <div class="remarks-body">
-            ${CI_REMARKS_BOILERPLATE}<br/>
+            ${p.remarks_boiler ? `${esc(p.remarks_boiler)}<br/>` : ""}
             ${escBr(p.user_remarks)}
           </div>
         </div>
@@ -331,7 +347,7 @@ function ciRenderPage(p, pageIdx, totalPages) {
   <div class="cont-grid">
     ${p.mode === "export"
       ? ciShipperBox(CI_USPPI_DTRA)
-      : ciPartyBox("ORIGIN", p.parties.origin, false)}
+      : ciPartyBox(p.origin_label || "ORIGIN", p.parties.origin, false)}
     ${ciPartyBox("CONSIGNEE", p.parties.consignee, false,
       p.int_consignee && p.parties.intermediate
         ? { label: "Intermediate Consignee", party: p.parties.intermediate }
@@ -543,6 +559,7 @@ body{
   object-fit: contain;
   display: block;
 }
+.header-coname{ font: 700 15px Arial, sans-serif; line-height: 1.15; max-width: 100%; }
 
 /* =========================
    CONTINUATION PAGE HEADER

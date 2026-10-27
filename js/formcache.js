@@ -20,6 +20,8 @@ const FormCache = {
   PREFIX: "atlas.formcache.",
 
   enabled() {
+    // Offline mode: the shipment itself is the memory — no "FROM MEMORY" flags.
+    if (typeof offlineOn === "function" && offlineOn()) return false;
     try {
       if (typeof AtlasSettings === "undefined") return true;
       return AtlasSettings.get().autoSaveForms !== false;

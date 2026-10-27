@@ -735,6 +735,8 @@ function atlasHardBlockActive() {
 
 /** Findings in the current validation that match enabled blocking codes. */
 function atlasBlockingFindings() {
+  // Offline mode: the pre-flight rules are ATLAS rules — nothing blocks there.
+  if (typeof offlineOn === "function" && offlineOn()) return [];
   const hb = atlasHardBlockConfig();
   if (!hb.enabled) return [];
   if (typeof ensureValidation === "function") ensureValidation();

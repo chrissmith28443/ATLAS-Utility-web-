@@ -37,7 +37,8 @@ const ATLAS_BACKUP_SPEC = [
   { key: "atlas.pmr_metrics.ignores", kind: "json", label: "PMR / Metrics ignore list" },
   { key: "atlas.cop.prefs", kind: "json", label: "COP settings (day limits, monitored RDDs)" },
   { key: "atlas.cop.dailydrafts", kind: "json", label: "COP daily updates not yet in ATLAS" },
-  { key: "atlas.theme",    kind: "string", label: "Appearance" },
+  { key: "atlas.offline", kind: "json", label: "Offline mode (on/off, company name & logo)" },
+  { key: "atlas.offline.shipments", kind: "json", label: "Offline-mode shipments" },  { key: "atlas.theme",    kind: "string", label: "Appearance" },
 ];
 
 const ATLAS_BACKUP_MARK = "atlas-backup";

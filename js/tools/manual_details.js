@@ -469,7 +469,8 @@ function mdApplyToData(data) {
     if (v === null) continue;
     if (f.k === "wmtr") {
       meta.wmtr = v;
-      meta.wmtr_last5 = wmtrLast5(v);
+      // Offline mode's shipment # is free text — file names use all of it.
+      meta.wmtr_last5 = (typeof offlineOn === "function" && offlineOn()) ? offlineSlug(v) : wmtrLast5(v);
       if (type !== "property") meta.invoice_no = v;
     } else if (f.k === "total_pkgs") {
       meta.total_pkgs = v;

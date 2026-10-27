@@ -293,3 +293,27 @@ Arrived Warehouse or the warehouse actual date is filled.
   Dev ask drafted in chat (user picked "modified since"; must refresh many times a day -> full date+time
   token from ATLAS's clock, inclusive, small overlap OK, nested changes count).
   Saved copy caveat: shared browser profile = next user briefly sees previous user's last pull.
+
+## Offline mode + Air Waybill (v2.7.0, 2026-10-27)
+- Purpose: let a non-ATLAS user (Chris's buddy) make CIV / PL / Placards / AWB by hand. Toggle = "Offline mode"
+  box in the About window header (version chip); per browser (localStorage atlas.offline). Reloads on switch.
+- js/offline.js: rail = Shipment details, CI, PL, Placards, AWB; hides Fetch/Compare/History/Consol/COP/dashboard.
+  Shipment model -> manual entry (AppState.manualOnly + manualDetails) + manual parents (packages). Party map:
+  Shipper=origin, Notify=intermediate; End user/Pickup/Deliver "same as". Shipments saved in
+  atlas.offline.shipments keyed by Shipment #. Company name + logo (PNG, resized <=600px) in atlas.offline.company.
+  offlineBrand() is what CI / PL / Placards read (no TTI/DTRA logos, Prepared-by, DTRA USPPI box, default contract #;
+  no-charge declaration + US export-control statement are Yes/No). Pre-flight hard block skipped in offline mode.
+- Excel template (offBuildTemplate / offParseTemplate): tabs Shipment (A label, B value, C help, D hidden key),
+  Items, Packages, How to use, Lists (drop-downs). Marker "OFFLINE SHIPMENT TEMPLATE" in Shipment!A1.
+  Dropping one with offline mode off offers to switch it on.
+- js/tools/awb.js: fillable PDF (pdf-lib form fields, Courier), IATA-style layout, Letter portrait. Blank box =
+  auto value from the shipment (chargeable = max(gross, cm3/6000) rounded up to 0.5 kg). OFFLINE MODE ONLY
+  (user, 2026-10-27 — not on the normal Shipping menu). Copy label incl. "All 3 originals"; optional flatten.
+- User direction (2026-10-27): offline mode = an "app within the app" for a friend who will NEVER have ATLAS.
+  Keep it super simple. Hidden in offline: Settings gear, drop zone, status line, Fetch/Compare/History/Consol,
+  COP/dashboard, FormCache ("FROM MEMORY" flags off). About window shows plain help (offlineAboutHelpHtml) +
+  the toggle instead of the changelog. Shipment details = 3-step strip, Shipment / Excel cards, numbered
+  sections 1-5; extra item columns (serial, license, UN #, hazard class) behind "Show extra columns".
+  Offline mode persists across close/reopen (localStorage flag read on load).
+- OPEN: buddy access — atlas-utility.net is behind Cloudflare Access and ships the full TTI build; giving him
+  access means adding his email (he could untick offline mode). A separate stripped build/hostname would avoid that.

@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.1",
+    title: "Offline-mode link",
+    notes: [
+      "Opening https://atlas-utility.net/?offline turns offline mode on by itself — the link to send someone who only needs the offline documents. It stays on afterwards, the same as ticking the box here.",
+    ],
+  },
+  {
     version: "2.7.0",
     title: "Offline mode + new Air Waybill",
     notes: [

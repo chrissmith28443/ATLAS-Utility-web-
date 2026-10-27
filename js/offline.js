@@ -1475,7 +1475,21 @@ function _offEnsureStyle() {
   document.head.appendChild(st);
 }
 
+/* A link with ?offline (e.g. https://atlas-utility.net/?offline) switches
+   offline mode on for this browser — the link to hand a non-ATLAS user. The
+   parameter is then dropped from the address bar; the mode stays on. */
+function _offUrlSwitch() {
+  try {
+    const u = new URL(location.href);
+    if (!u.searchParams.has("offline")) return;
+    _offSavePrefs({ on: true });
+    u.searchParams.delete("offline");
+    history.replaceState(null, "", u.pathname + (u.search || "") + u.hash);
+  } catch (e) { /* old browser — the About box still works */ }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   _offEnsureStyle();
+  _offUrlSwitch();
   if (offlineOn()) offlineEnter();
 });

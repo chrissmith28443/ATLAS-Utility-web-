@@ -3143,34 +3143,70 @@ function copRailButton() {
   return btn;
 }
 
-/* Clicking COP pulls the latest Metrics UDQ from ATLAS (the COP's data), then
-   the four Christmas Tree UDQs in the background. Fetch only works when the
-   Utility runs inside ATLAS; elsewhere it says so and keeps what's loaded.
-   A pull within the last COP_AUTO_PULL_MIN minutes isn't repeated. */
+/* Clicking COP shows the copy saved from the last pull at once (when nothing is
+   loaded yet), then pulls the latest Metrics UDQ from ATLAS in the background
+   and swaps it in, then the Christmas Tree UDQs (SRF reuses the Metrics pull —
+   same search). Fetch only works when the Utility runs inside ATLAS; elsewhere
+   it says so and keeps what's loaded. A full pull within the last
+   COP_AUTO_PULL_MIN minutes isn't repeated; once ATLAS can send only what
+   changed (atlasChangesOn), every click pulls. */
 const COP_AUTO_PULL_MIN = 10;
 const CopPull = { busy: false, at: 0 };
+function copClock(ms) {
+  return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+/* Load Metrics records without losing your place: on a refresh the tab you're
+   on (Metrics included) and the Metrics reporting window stay as they were. */
+async function copSwapInMetrics(recs, label) {
+  const keep = AppState.activeTool;
+  const prev = AppState.udqType === "metrics" && typeof MetricsUi !== "undefined"
+    ? { tool: AppState.activeTool, collapsed: AppState.dashCollapsed,
+        mx: { start: MetricsUi.start, end: MetricsUi.end, label: MetricsUi.label, quick: MetricsUi.quick } } : null;
+  await atlasLoadMetricsRecords(recs, label);
+  if (prev) {
+    AppState.activeTool = prev.tool; AppState.dashCollapsed = prev.collapsed;
+    Object.assign(MetricsUi, prev.mx);
+  } else if (keep && keep !== AppState.activeTool && copIsHubTool(keep)) {
+    AppState.activeTool = keep;
+  } else return;
+  renderRail(); renderDashboard(); renderWorkspace();
+}
 async function copAutoFetch() {
-  if (CopPull.busy || typeof atlasLoadMetrics !== "function") return;
-  if (AppState.udqType === "metrics" && Date.now() - CopPull.at < COP_AUTO_PULL_MIN * 60000) return;
+  if (CopPull.busy || typeof atlasPullMetricsRecords !== "function") return;
+  const minGap = atlasChangesOn() ? 0 : COP_AUTO_PULL_MIN;
+  if (AppState.udqType === "metrics" && Date.now() - CopPull.at < minGap * 60000) return;
   CopPull.busy = true;
   CopPull.at = Date.now();
-  try {
-    const keep = AppState.activeTool;                  // the hub tab you're on stays put
-    await atlasLoadMetrics();
-    if (keep && keep !== AppState.activeTool && copIsHubTool(keep)) {
-      AppState.activeTool = keep; renderRail(); renderDashboard(); renderWorkspace();
+  let saved = null;
+  if (AppState.udqType !== "metrics") {
+    saved = await atlasSavedMetrics();
+    if (saved && AppState.udqType !== "metrics") {
+      await copSwapInMetrics(saved.records, `ATLAS API — Metrics (${saved.records.length} records, saved ${copClock(saved.at)})`);
+      atlasSetStatus(`Showing the ATLAS data saved ${copClock(saved.at)} — getting the latest from ATLAS…`);
     }
+  }
+  let recs;
+  try {
+    recs = await atlasPullMetricsRecords({ quiet: !!saved });   // keep "Showing the ATLAS data saved …" up
   } catch (e) {
     console.error(e);
     atlasSetStatus(`Couldn't pull the Metrics UDQ from ATLAS — ${e.message || e}` +
-      (AppState.udqType === "metrics" ? " Showing the UDQ already loaded." : " Fetching only works inside ATLAS; drop a Metrics UDQ export instead."), true);
+      (saved && AppState.udqType === "metrics" ? ` Showing the copy saved ${copClock(saved.at)}.`
+        : AppState.udqType === "metrics" ? " Showing the UDQ already loaded."
+        : " Fetching only works inside ATLAS; drop a Metrics UDQ export instead."), true);
     CopPull.busy = false;
     return;                                          // no ATLAS → don't try the Christmas Tree either
   }
+  // Swap in only if the Metrics data (or nothing) is still what's loaded —
+  // never replace a shipment opened while the pull ran.
+  if (AppState.udqType === "metrics" || !AppState.grid) {
+    await copSwapInMetrics(recs);
+    atlasSetStatus(`Up to date with ATLAS as of ${copClock(Date.now())} — ${recs.length} records.`);
+  }
   CopPull.busy = false;
-  // Christmas Tree UDQs (SRF, PR, PMCT, WS) — background, no redraw unless that tab is open.
+  // Christmas Tree UDQs (SRF from the pull above; PR, PMCT, WS fetched) — background, no redraw unless that tab is open.
   if (typeof loadFromAtlasXmasTree === "function") {
-    try { await loadFromAtlasXmasTree({ quiet: true }); } catch (e) { console.error(e); }
+    try { await loadFromAtlasXmasTree({ quiet: true, srfRecords: recs }); } catch (e) { console.error(e); }
   }
 }
 function copHubTabs() {

@@ -11,8 +11,9 @@
         that ATLAS's Excel export produces (row-1 headers, row-2 values, the
         indented Inventory List / Attachment List / Shipping Activity & History
         / Daily Status History / Linked Request List sub-sections).
-     3. atlasGridToXlsxBuffer() writes that grid to an in-memory .xlsx with
-        SheetJS, and we hand it to the existing loadFile() untouched.
+     3. atlasGridAsRead() gives that grid the exact shape SheetJS returns when
+        reading an .xlsx (no actual write/read — that round trip was slow), and
+        we hand it to the existing loadFile().
    => Every reader and tool (detectUdqType, readUdq, PMR, ECM, Required
       Attachments, the metrics dashboard, file naming, etc.) behaves byte-for-
       byte the same as it does for a real ATLAS export. No tool code changes.
@@ -85,6 +86,22 @@ const ATLAS_UDQ_CONFIG = {
   // broad enough to return more than one record, the WMTR picker is shown. Set to
   // null to revert both to the full-pull + client-slice paths.
   requestNumberParam: "requestNumber",
+
+  // "Only what changed" refresh for the Metrics UDQ — OFF until the ATLAS team
+  // adds it. Asked for: GET /api/UDQ/{id}?<param>=<token> returns only the
+  // records changed since that token (any change, incl. nested daily updates,
+  // attachments, workflow), and every UDQ response carries a fresh token from
+  // ATLAS's own clock (header `stampHeader`, or field `stampField` when the body
+  // is {data:[...], <stampField>: "..."}). The Utility saves the token with its
+  // copy and hands it back untouched — it never uses its own clock — and merges
+  // the changed records into the copy by WMTR. A full pull still happens at
+  // least every `fullEveryHours` (picks up deleted / no-longer-visible requests).
+  changes: {
+    param: "",           // e.g. "changedSince"
+    stampHeader: "",     // e.g. "X-Changes-Token"
+    stampField: "",      // e.g. "changesToken"
+    fullEveryHours: 12,
+  },
 
   // COP daily-update write-back — the ONLY thing the Utility writes to ATLAS:
   // Daily Status History entries (Date + Notes/Comments) — add a new one, or
@@ -972,7 +989,7 @@ function atlasFindRecords(records, query) {
    FETCH — rides the ATLAS session cookie (same-origin). Detects the common
    "logged-out returns the HTML login page" case and reports it clearly.
    ------------------------------------------------------------------------- */
-async function atlasFetchUdqJson(id, extraQuery) {
+async function atlasFetchUdqJson(id, extraQuery, meta) {
   const url = atlasUdqUrl(id, extraQuery);
   let resp;
   try {
@@ -995,6 +1012,11 @@ async function atlasFetchUdqJson(id, extraQuery) {
   let data;
   try { data = JSON.parse(text); }
   catch (e) { throw new Error(`Couldn't read the ATLAS response as JSON (${e.message}).`); }
+  if (meta) {
+    const ch = ATLAS_UDQ_CONFIG.changes || {};
+    meta.stamp = (ch.stampHeader && resp.headers.get(ch.stampHeader)) ||
+      (ch.stampField && data && !Array.isArray(data) && data[ch.stampField] != null ? String(data[ch.stampField]) : "");
+  }
   if (!Array.isArray(data)) {
     if (data && Array.isArray(data.data)) data = data.data;       // tolerate {data:[...]}
     else throw new Error("Unexpected ATLAS response shape — expected a list of UDQ records.");
@@ -1007,13 +1029,23 @@ async function atlasFetchUdqJson(id, extraQuery) {
    ORCHESTRATION — fetch -> (slice) -> grid -> xlsx -> existing loadFile()
    ------------------------------------------------------------------------- */
 
-/** Load a grid through the normal pipeline by wrapping it as an in-memory file. */
-async function atlasLoadGridAsFile(grid, label) {
-  const buf = atlasGridToXlsxBuffer(grid);
-  const file = new File([buf], label, {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+/** The grid exactly as writing it to .xlsx and reading it back would give it
+    (cells inside a row -> text, blanks -> "", every row padded with null to the
+    widest row) — without the slow round trip. Checked cell-for-cell against
+    the real SheetJS round trip. */
+function atlasGridAsRead(grid) {
+  let w = 0;
+  for (const row of grid) if (row && row.length > w) w = row.length;
+  return grid.map((row) => {
+    const r = row || [], out = new Array(w);
+    for (let c = 0; c < w; c++) out[c] = c < r.length ? (r[c] == null ? "" : String(r[c])) : null;
+    return out;
   });
-  await loadFile(file);   // unchanged existing path: detect type, read, render
+}
+
+/** Load a grid through the normal pipeline (detect type, read, render). */
+async function atlasLoadGridAsFile(grid, label) {
+  await loadFile({ name: label }, atlasGridAsRead(grid));
 }
 
 function atlasSetStatus(msg, isErr) {
@@ -1229,17 +1261,95 @@ async function loadFromAtlasUdq(opts) {
   }
 }
 
-/** Pull the whole Metrics UDQ and load it. Throws on failure (the COP's
-    auto-pull needs to know); returns the record count. */
-async function atlasLoadMetrics() {
+/* -------------------------------------------------------------------------
+   SAVED COPY — the last Metrics pull is kept in this browser (IndexedDB, ~5 MB)
+   so the COP opens at once and refreshes in the background, and so a
+   "changed since" pull has something to merge into. Keyed by env + UDQ ID.
+   Any storage failure just means no saved copy.
+   ------------------------------------------------------------------------- */
+function atlasCacheDb() {
+  return new Promise((resolve, reject) => {
+    const rq = indexedDB.open("atlas-udq-cache", 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore("udq");
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror = () => reject(rq.error);
+  });
+}
+async function atlasCacheGet(key) {
+  try {
+    const db = await atlasCacheDb();
+    return await new Promise((resolve) => {
+      const rq = db.transaction("udq").objectStore("udq").get(key);
+      rq.onsuccess = () => resolve(rq.result || null);
+      rq.onerror = () => resolve(null);
+    });
+  } catch (e) { return null; }
+}
+async function atlasCachePut(key, val) {
+  try {
+    const db = await atlasCacheDb();
+    await new Promise((resolve) => {
+      const tx = db.transaction("udq", "readwrite");
+      tx.objectStore("udq").put(val, key);
+      tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
+    });
+  } catch (e) { /* no saved copy this time */ }
+}
+function atlasMetricsCacheKey() { return `metrics|${ATLAS_UDQ_CONFIG.env}|${atlasIds().metrics}`; }
+
+/** "Only what changed" pulls are set up (ATLAS_UDQ_CONFIG.changes). */
+function atlasChangesOn() {
+  const ch = ATLAS_UDQ_CONFIG.changes || {};
+  return !!(ch.param && (ch.stampHeader || ch.stampField));
+}
+
+/** The saved copy of the last Metrics pull: { records, at, fullAt, stamp } or null. */
+async function atlasSavedMetrics() {
+  if (!atlasIds().metrics) return null;
+  const saved = await atlasCacheGet(atlasMetricsCacheKey());
+  return saved && Array.isArray(saved.records) && saved.records.length ? saved : null;
+}
+
+/** Pull the Metrics UDQ from ATLAS — only what changed since the saved copy
+    when ATLAS supports it, else everything — save it, and return the usable
+    records. Throws on failure. opts.quiet: leave the status line alone. */
+async function atlasPullMetricsRecords(opts) {
+  const say = (m) => { if (!(opts && opts.quiet)) atlasSetStatus(m); };
   const id = atlasIds().metrics;
   if (!id) throw new Error(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Metrics UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`);
-  atlasSetStatus("Fetching Metrics UDQ from ATLAS…");
-  const recs = await atlasFetchUdqJson(id);
+  const ch = ATLAS_UDQ_CONFIG.changes || {};
+  const saved = atlasChangesOn() ? await atlasSavedMetrics() : null;
+  const delta = !!(saved && saved.stamp && Date.now() - (saved.fullAt || 0) < (ch.fullEveryHours || 12) * 3600000);
+  const meta = {};
+  let recs;
+  if (delta) {
+    say("Getting the latest changes from ATLAS…");
+    const changed = await atlasFetchUdqJson(id, `${encodeURIComponent(ch.param)}=${encodeURIComponent(saved.stamp)}`, meta);
+    const byWmtr = new Map(saved.records.map((r) => [String(r.GMTRNumber).trim(), r]));
+    for (const r of changed) if (r && String(r.GMTRNumber || "").trim()) byWmtr.set(String(r.GMTRNumber).trim(), r);
+    recs = Array.from(byWmtr.values());
+  } else {
+    say("Fetching Metrics UDQ from ATLAS…");
+    recs = await atlasFetchUdqJson(id, undefined, meta);
+  }
   const usable = recs.filter((r) => r && String(r.GMTRNumber || "").trim());
   if (!usable.length) throw new Error("ATLAS returned no usable records.");
-  await atlasLoadGridAsFile(atlasRecordsToGrid(usable), `ATLAS API — Metrics (${usable.length} records)`);
-  return usable.length;
+  const now = Date.now();
+  await atlasCachePut(atlasMetricsCacheKey(),
+    { records: usable, at: now, fullAt: delta ? saved.fullAt : now, stamp: meta.stamp || "" });
+  return usable;
+}
+
+/** Load Metrics records into the Utility (opens the COP). */
+async function atlasLoadMetricsRecords(recs, label) {
+  await atlasLoadGridAsFile(atlasRecordsToGrid(recs), label || `ATLAS API — Metrics (${recs.length} records)`);
+}
+
+/** Pull the Metrics UDQ and load it. Throws on failure; returns the record count. */
+async function atlasLoadMetrics() {
+  const recs = await atlasPullMetricsRecords();
+  await atlasLoadMetricsRecords(recs);
+  return recs.length;
 }
 
 /* -------------------------------------------------------------------------
@@ -1272,24 +1382,32 @@ async function loadFromAtlasXmasTree(opts) {
     return;
   }
 
+  // All services pull at once. opts.srfRecords: Metrics records just pulled —
+  // the same search as the SRF Christmas Tree UDQ — used instead of pulling SRF again.
+  status(`Fetching ${configured.map(([svc]) => svc).join(", ")} UDQ${configured.length === 1 ? "" : "s"} from ATLAS…`, false);
+  const pulled = await Promise.all(configured.map(([svc, key]) =>
+    (svc === "SRF" && opts && Array.isArray(opts.srfRecords) ? Promise.resolve(opts.srfRecords)
+      : atlasFetchUdqJson(String(cfg[key]).trim()))
+      .then((recs) => ({ svc, recs }), (err) => ({ svc, err }))));
   let ok = 0;
-  for (const [svc, key] of configured) {
+  const probs = [];
+  for (const { svc, recs, err } of pulled) {
     try {
-      status(`Fetching ${svc} UDQ from ATLAS…`, false);
-      const recs = await atlasFetchUdqJson(String(cfg[key]).trim());
+      if (err) throw err;
       const usable = (recs || []).filter((r) => r && String(r.GMTRNumber || "").trim());
-      if (!usable.length) { status(`ATLAS returned no records for the ${svc} UDQ.`, true); continue; }
+      if (!usable.length) { probs.push(`ATLAS returned no records for the ${svc} UDQ.`); continue; }
       const grid = atlasXmasTreeGrid(usable);
       const { records, untagged } = xtParseRecords(grid, svc);
       XTree.slots[svc] = { fileName: `ATLAS ${svc} UDQ`, records, untagged, grid };
       ok++;
     } catch (e) {
       console.error(e);
-      status(`Couldn't fetch the ${svc} UDQ: ${e.message || e}`, true);
+      probs.push(`Couldn't fetch the ${svc} UDQ: ${e.message || e}`);
     }
   }
+  if (probs.length) status(probs.join(" "), true);
   if (ok) {
-    status(`Fetched ${ok} service UDQ${ok === 1 ? "" : "s"} from ATLAS.`, false);
+    if (!probs.length) status(`Fetched ${ok} service UDQ${ok === 1 ? "" : "s"} from ATLAS.`, false);
     // opts.quiet (the COP's background pull): only redraw if the Christmas Tree is on screen.
     const quiet = opts && opts.quiet && AppState.activeTool !== "xmastree";
     if (!quiet && typeof renderWorkspace === "function") renderWorkspace();
@@ -1476,7 +1594,7 @@ if (typeof document !== "undefined") {
 /* Node/Jest export hook (browser ignores this) for offline testing. */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    atlasRecordsToGrid, atlasGridToXlsxBuffer, atlasFindRecords,
+    atlasRecordsToGrid, atlasGridToXlsxBuffer, atlasGridAsRead, atlasFindRecords,
     atlasCell, atlasFmtDate, atlasLast5, ATLAS_SCALAR_COLUMNS,
     // UDQ-ID resolution (built-in defaults + Settings overrides):
     ATLAS_UDQ_CONFIG, atlasBuiltinIds, atlasIdOverrides, atlasIds,

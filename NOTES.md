@@ -279,3 +279,17 @@ Arrived Warehouse or the warehouse actual date is filled.
   set up. User plan: a later release makes the feature permanent and REMOVES this switch.
   Devs now hand back 3 values: add address, edit address, Request ID field. Mockup rebuilt (dev notes
   + PUT toast). Change-tracker/email text drafted in chat was revised for add + edit.
+- v2.6.21 (2026-10-27) faster COP pull. Click Dashboard -> copAutoFetch: when nothing is loaded, shows the
+  SAVED COPY of the last Metrics pull at once (IndexedDB "atlas-udq-cache", key metrics|env|id; records +
+  ATLAS stamp), then pulls in the background (atlasPullMetricsRecords) and swaps in via copSwapInMetrics
+  (keeps hub tab incl. Metrics, dashCollapsed, MetricsUi window; never replaces a shipment opened mid-pull).
+  Fetched grids skip the xlsx write/read: atlasGridAsRead() = exact SheetJS round-trip shape (fuzz-tested
+  equal) -> loadFile(file, preGrid). Side effect: notes > 32,767 chars no longer break a fetch.
+  Christmas Tree: SRF slot reuses the Metrics records (user: same search), PR/PMCT/WS pull in parallel.
+  "Changed since" refresh READY but OFF: ATLAS_UDQ_CONFIG.changes {param, stampHeader|stampField,
+  fullEveryHours 12}. ATLAS returns a token from its OWN clock with every UDQ response; Utility saves it and
+  sends it back untouched (no client clock, no user entry); merges changed records by WMTR; full pull at
+  least every 12 h (catches deletions). With it on, every Dashboard click pulls (no 10-min wait).
+  Dev ask drafted in chat (user picked "modified since"; must refresh many times a day -> full date+time
+  token from ATLAS's clock, inclusive, small overlap OK, nested changes count).
+  Saved copy caveat: shared browser profile = next user briefly sees previous user's last pull.

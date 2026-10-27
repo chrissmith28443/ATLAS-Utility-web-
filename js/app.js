@@ -92,10 +92,13 @@ function workbookAllSheets(arrayBuffer) {
 
 /* ---------------- File loading ---------------- */
 
-async function loadFile(file) {
+/* preGrid: a grid fetched from ATLAS (json_udq.js), already in the exact shape a
+   read .xlsx gives — loaded as-is, with no workbook to read. `file` then only
+   needs a name. */
+async function loadFile(file, preGrid) {
   // An Ops Tracker dropped here belongs to the COP — take it without replacing
   // the loaded UDQ.
-  if (typeof copMaybeTrackerFile === "function" && await copMaybeTrackerFile(file)) return;
+  if (!preGrid && typeof copMaybeTrackerFile === "function" && await copMaybeTrackerFile(file)) return;
   const status = document.getElementById("loadStatus");
   status.classList.remove("err");
   status.textContent = `Reading ${file.name}…`;
@@ -109,8 +112,8 @@ async function loadFile(file) {
   if (typeof siReset === "function") siReset();          // clear line-item splits
   AppState.history = null;
   try {
-    const buf = await file.arrayBuffer();
-    const sheets = workbookAllSheets(buf);
+    const sheets = preGrid ? { names: ["UserDefinedQuery"], grids: { UserDefinedQuery: preGrid } }
+                           : workbookAllSheets(await file.arrayBuffer());
     const grid = (sheets.names.length ? sheets.grids[sheets.names[0]] : null) || [];
 
     AppState.fileName = file.name;

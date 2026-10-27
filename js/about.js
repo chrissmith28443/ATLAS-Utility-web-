@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.6.21",
+    title: "Dashboard opens faster",
+    notes: [
+      "Clicking Dashboard now shows the ATLAS data from your last pull straight away (the status line says when it was saved), then gets the latest from ATLAS in the background and swaps it in. You stay on the tab you're on, and the Metrics reporting window is kept.",
+      "Fetched data loads faster: it no longer goes through a behind-the-scenes Excel file first.",
+      "The Christmas Tree's SRF data now comes from the same pull as the Dashboard instead of a second download, and the PR, PMCT and WS pulls run at the same time.",
+      "A shipment you open while the Dashboard is still refreshing is no longer replaced when the refresh finishes.",
+      "Ready for ATLAS to send only what changed since your last pull. Once the ATLAS team adds that, every click on Dashboard gets the latest updates in seconds.",
+    ],
+  },
+  {
     version: "2.6.20",
     title: "COP: edit past daily updates; preview switch in Settings",
     notes: [

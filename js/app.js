@@ -53,6 +53,9 @@ const TOOLS = [
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },
+  // Reads the PR's Inventory List; shown only while a Property UDQ is loaded.
+  { id: "deltek",   group: "Property management",label: "Deltek PO Lines",     needs: "property", needsGrid: true,
+    hideOn: ["none", "srf", "metrics", "history", "unknown"], ready: true  },
   { id: "invpr",    group: "Property management",label: "Inventory Sheet",     needs: "property", ready: true  },
   { id: "invgen",   group: "Property management",label: "Inventory List Export", needs: "property", needsGrid: true, ready: true  },
   { id: "propo",    group: "Property management",label: "Purchase Order",       needs: "none",     ready: true  },
@@ -807,6 +810,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "topdocs") renderTopWorkspace(ws);
   else if (AppState.activeTool === "dd1149") renderDd1149Workspace(ws);
   else if (AppState.activeTool === "coreims") renderCoreimsWorkspace(ws);
+  else if (AppState.activeTool === "deltek") renderDeltekWorkspace(ws);
   else if (AppState.activeTool === "invpr") renderInvPrWorkspace(ws);
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
   else if (AppState.activeTool === "pmr") renderPmrWorkspace(ws);

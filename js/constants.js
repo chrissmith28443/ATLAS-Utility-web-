@@ -4,7 +4,7 @@
    ========================================================================= */
 
 const APP_NAME = "ATLAS Utility";
-const APP_VERSION = "Web 2.7.1";
+const APP_VERSION = "Web 2.7.2";
 
 /* Signers (Printed Name dropdown) */
 const SIGNERS = [
@@ -13,6 +13,22 @@ const SIGNERS = [
   { name: "Toby Hurdle", title: "Transportation Coordinator" },
   { name: "Shawn Ryan", title: "Transportation Coordinator" },
   { name: "Lee Tilman", title: "Global Materials Transportation Manager" },
+];
+
+/* Deltek PO Lines export (tools/deltek.js). DELTEK_UM_MAP: ATLAS Unit of
+   Measure (upper-cased) -> CostPoint U/M code (3 characters max, must exist in
+   CostPoint's U/M table). Anything not listed is exported upper-cased and
+   flagged in the tool panel. */
+const DELTEK_DEFAULT_ITEM = "MISCELLANEOUS ITEMS";
+const DELTEK_UM_MAP = {
+  EA: "EA", EACH: "EA", BOX: "BOX", CASE: "CS", DOZEN: "DZ",
+  PACKAGE: "PKG",   // no longer in ATLAS's list, but older requests carry it
+};
+/* ATLAS units CostPoint has no code for: sent as EA (the description names the
+   size) and listed in the panel. */
+const DELTEK_UM_AS_EA = [
+  "SET", "KT", "OUNCE", "BOTTLE", "PINT", "BAG", "GALLON", "POUND", "METER",
+  "LITER", "FOOT", "PALLET", "ROLL", "QUART", "OTHER", "MILLILITER",
 ];
 
 const PURPOSE_CHOICES = ["Donation", "Return After Repair", "Return For Repair", "Other"];

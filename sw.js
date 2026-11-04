@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.7.1-offline-link";
+const CACHE = "atlas-cache-v2.7.2-deltek-po-lines";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -12,12 +12,12 @@ const APP_SHELL = [
   "css/app.css?v=92",
   "icons/apple-touch-icon.png",
   "icons/favicon-32.png",
-  "js/app.js?v=103",
+  "js/app.js?v=104",
   "js/assets.js?v=64",
-  "js/about.js?v=165",
+  "js/about.js?v=167",
   "js/a11y.js?v=61",
   "js/backup.js?v=66",
-  "js/constants.js?v=156",
+  "js/constants.js?v=158",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=88",
   "js/pwa.js?v=62",
@@ -30,6 +30,8 @@ const APP_SHELL = [
   "js/tools/ci.js?v=66",
   "js/tools/coreims.js?v=62",
   "js/tools/coreims_template.js?v=61",
+  "js/tools/deltek.js?v=2",
+  "js/tools/deltek_template.js?v=1",
   "js/tools/dd1149.js?v=61",
   "js/tools/dd1149_template.js?v=61",
   "js/tools/ecm.js?v=64",

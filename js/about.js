@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.2",
+    title: "New: Deltek PO Lines export",
+    notes: [
+      "New Property management tool, Deltek PO Lines (shown only when a Property / PR request is loaded): builds the .xlsx the purchasing team imports into Deltek CostPoint's Manage Purchase Orders → Lines grid, one line per inventory item.",
+      "Fills only the five columns CostPoint needs: Item (MISCELLANEOUS ITEMS), U/M, Quantity, Gross Unit Cost (the item's Value(USD) unit price) and Notes (the description). Everything else is left for CostPoint or the buyer.",
+      "Quantity uses Qty Ordered, or Qty Requested when that's blank; U/M likewise. The panel says when it fell back, and maps ATLAS units to CostPoint's codes (Each → EA, Box → BOX, Case → CS, Dozen → DZ, Package → PKG). Units CostPoint has no code for (Set, Gallon, Bottle, Pound and the like) are sent as EA, and the panel lists which ones.",
+      "The panel previews every line with its extended cost and the total. Works the same for a dropped PR export or a PR fetched from ATLAS.",
+    ],
+  },
+  {
     version: "2.7.1",
     title: "Offline-mode link",
     notes: [

@@ -317,3 +317,17 @@ Arrived Warehouse or the warehouse actual date is filled.
   Offline mode persists across close/reopen (localStorage flag read on load).
 - OPEN: buddy access — atlas-utility.net is behind Cloudflare Access and ships the full TTI build; giving him
   access means adding his email (he could untick offline mode). A separate stripped build/hostname would avoid that.
+- v2.7.2 (2026-11-04) Deltek PO Lines export (js/tools/deltek.js + deltek_template.js = base64 of the
+  package's templates/deltek_po_lines.xlsx, CostPoint's line-grid export, 121 inline-string headers A1:DQ1).
+  Rail tool "deltek" (Property management, needs property + needsGrid, hideOn every other udqType).
+  Writes F Item (DELTEK_DEFAULT_ITEM), L U/M (Ordered -> Requested, through DELTEK_UM_MAP, unmapped
+  upper-cased + flagged), S Quantity (Ordered -> Requested, numeric), U Gross Unit Cost (Value(USD), numeric),
+  CG Notes (Description, trimmed). Columns found by template header name. Skips blank Description.
+  API field names (json_udq ATLAS_PROP_INVENTORY_COLUMNS): description, qtyOrdered, qtyRequested,
+  unitOfMeasureOrderedText, unitOfMeasureText ("Unit Of Measure Requested"), valueUsd.
+  Tested vs package oracle expected_lines_10027.csv (57 lines, 150,100.38) from the xlsx and from a JSON
+  fixture through the Property fetch path; identical sheet XML. DELTEK_UM_MAP is still only {EA}:
+  DELTEK_UM_MAP filled 2026-11-04 from CostPoint U/M lookup screenshots: EA, Each->EA, Box->BOX, Case->CS,
+  Dozen->DZ, Package->PKG. ATLAS values with NO CostPoint code yet: Set, KT, Ounce, Bottle, Pint, Bag, Gallon,
+  Pound, Meter, Liter, Foot, Pallet, Roll, Quart, Other, Milliliter -> Chris: send as EA (DELTEK_UM_AS_EA, noted in panel).
+  CostPoint U/M = 3 chars max (preprocessor PO_LN.PO_LN_UM_CD): longer values get a "too long" notice.

@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.3",
+    title: "Menu shows only the tools you can use",
+    notes: [
+      "The left menu no longer lists greyed-out tools. A tool appears once the UDQ it needs is loaded — the shipping documents with a Shipping (SRF) request, DD1149 / TOP / CoreIMS / Deltek and the rest with a Property (PR) request — and a section heading shows once anything in it can be used. Purchase Order, MCT Entry Letter and Inventory Crosswalk are always there. The Packet button appears with a Shipping request.",
+    ],
+  },
+  {
     version: "2.7.2",
     title: "New: Deltek PO Lines export",
     notes: [

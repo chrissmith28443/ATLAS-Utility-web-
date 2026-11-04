@@ -331,3 +331,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   Dozen->DZ, Package->PKG. ATLAS values with NO CostPoint code yet: Set, KT, Ounce, Bottle, Pint, Bag, Gallon,
   Pound, Meter, Liter, Foot, Pallet, Roll, Quart, Other, Milliliter -> Chris: send as EA (DELTEK_UM_AS_EA, noted in panel).
   CostPoint U/M = 3 chars max (preprocessor PO_LN.PO_LN_UM_CD): longer values get a "too long" notice.
+- v2.7.3 (2026-11-04, user): rail lists only USABLE tools — renderRail skips any tool that isn't enabled
+  (was: greyed-out/disabled buttons) and section headings appear lazily; Packet header button only with an
+  SRF. Deltek's own hideOn list removed (redundant now). Nothing loaded = Shipping: Purchase Order, MCT;
+  Property: Purchase Order; General: Inventory Crosswalk.

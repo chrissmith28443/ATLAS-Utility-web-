@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.4",
+    title: "Deltek export: PO header, pickers and the updated CostPoint layout",
+    notes: [
+      "The Deltek export now follows purchasing's updated CostPoint layout: the PO header table in rows 1–2, then the Lines table with its headers in row 4 and one line per item from row 5.",
+      "New pickers on the Deltek PO Lines panel: Date (defaults to today), Buyer Name (Toby Hurdle / TRLS II 03), PO Status and Line Status (both default to Pending; each line's status can be changed in the table), and CONUS / OCONUS, which must be chosen before the file can be generated.",
+      "Each line gets its line number, status, Description \"on XX/XX/XX\", the date in Due / Desired / Order / Original Due Date, Ship ID SGL and Ord Ref Type N, plus the item, U/M, quantity, unit cost and notes as before.",
+      "The PO header gets Type (Purchase Order), Buyer, Order Date, PO Status, Project (the request's Charge Code), Account 5201-035, Organization (by CONUS / OCONUS), Ship ID SGL and Taxable Status (All Items Non-Taxable).",
+    ],
+  },
+  {
     version: "2.7.3",
     title: "Menu shows only the tools you can use",
     notes: [

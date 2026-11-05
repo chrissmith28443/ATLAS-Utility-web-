@@ -4,7 +4,7 @@
    ========================================================================= */
 
 const APP_NAME = "ATLAS Utility";
-const APP_VERSION = "Web 2.7.3";
+const APP_VERSION = "Web 2.7.4";
 
 /* Signers (Printed Name dropdown) */
 const SIGNERS = [
@@ -20,6 +20,21 @@ const SIGNERS = [
    CostPoint's U/M table). Anything not listed is exported upper-cased and
    flagged in the tool panel. */
 const DELTEK_DEFAULT_ITEM = "MISCELLANEOUS ITEMS";
+/* Fixed values the Deltek export writes on every PO (header) or line. */
+const DELTEK_LINE_DESCRIPTION = "on XX/XX/XX";      // line Description
+const DELTEK_SHIP_ID = "SGL";                        // line + header Ship ID
+const DELTEK_ORD_REF_TYPE = "N";                     // line Ord Ref Type
+const DELTEK_PO_TYPE = "Purchase Order";             // header Type
+const DELTEK_ACCOUNT = "5201-035";                   // header Account
+const DELTEK_TAXABLE_STATUS = "All Items Non-Taxable";  // header Taxable Status
+/* Header Organization by the CONUS / OCONUS choice (required in the panel). */
+const DELTEK_ORGS = { CONUS: "1.40.01.02.0009", OCONUS: "1.40.03.02.0009" };
+/* Pickers: Buyer (header Buyer gets the code), PO Status, line Status. First = default. */
+const DELTEK_BUYERS = [
+  { name: "Toby Hurdle", code: "TRLS II 03" },
+];
+const DELTEK_PO_STATUSES = ["Pending", "Open"];
+const DELTEK_LINE_STATUSES = ["Pending", "Open"];
 const DELTEK_UM_MAP = {
   EA: "EA", EACH: "EA", BOX: "BOX", CASE: "CS", DOZEN: "DZ",
   PACKAGE: "PKG",   // no longer in ATLAS's list, but older requests carry it

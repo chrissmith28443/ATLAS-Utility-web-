@@ -335,3 +335,16 @@ Arrived Warehouse or the warehouse actual date is filled.
   (was: greyed-out/disabled buttons) and section headings appear lazily; Packet header button only with an
   SRF. Deltek's own hideOn list removed (redundant now). Nothing loaded = Shipping: Purchase Order, MCT;
   Property: Purchase Order; General: Inventory Crosswalk.
+- v2.7.4 (2026-11-05, user) Deltek export rebuilt on purchasing's UPDATED CostPoint layout (their file
+  UPDATED_Deltek_PO_10348_…xlsx). Template (deltek_template.js) = row 1 PO header-table headers (118, A–DN;
+  their row 19), row 4 Lines headers (116, A–DL; their row 1); styles from their file (xf 2 = date).
+  Output: row 2 PO header values, row 3 blank, rows 5+ lines. User said header "column 1 and 2" — read as
+  ROWS 1–2 (CostPoint paste is row-wise); confirm with user if a vertical layout was meant.
+  Header: Type=Purchase Order, Buyer=picker code (DELTEK_BUYERS; Toby Hurdle/TRLS II 03 — more to come),
+  Order Date=date picker, PO Status=picker (Pending|Open, more to come), Project=UDQ Charge Code (JSON
+  ChargeCode), Account 5201-035, Organization CONUS 1.40.01.02.0009 / OCONUS 1.40.03.02.0009 (radio, required),
+  Ship ID SGL, Taxable Status "All Items Non-Taxable". Their sample also had " " in BU/BV (Vendor Address
+  Line 2/3) — NOT written; ask if needed.
+  Lines: PO Line 1..n (PR inventory has no line-number column), Status (picker for all + per-line select),
+  Item, Description "on XX/XX/XX", U/M, Due/Desired/Order/Original Due Date = date picker, Quantity, Gross
+  Unit Cost, Ship ID SGL, Ord Ref Type N, Notes. Picker state = DeltekUi, per request, not saved.

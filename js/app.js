@@ -40,7 +40,6 @@ const TOOLS = [
   { id: "rfq",      group: "Shipping",           label: "RFQ Email",           needs: "srf",      ready: true  },
   { id: "ipc",      group: "Shipping",           label: "IPC",                 needs: "srf",      ready: true  },
   { id: "po",       group: "Shipping",           label: "Purchase Order",      needs: "none",     ready: true  },
-  { id: "invgen",   group: "Shipping",           label: "Inventory List Export", needs: "srf", needsGrid: true, ready: true  },
   { id: "mct",      group: "Shipping",           label: "MCT Entry Letter",    needs: "none",     ready: true  },
   // Close-out checklist for the loaded request: the Christmas Tree's checks run
   // against this one WMTR. Sits last in the group — it's what you press when the
@@ -1210,7 +1209,8 @@ function renderSliWorkspace(container) {
           The preview below mirrors the generated <span style="font-family:var(--mono)">.xlsx</span> and updates as you
           change the freight location, forwarding agent, or date. Hazmat (DG&nbsp;Yes/No), the $2,500 HTS-group rollup,
           and the embassy intermediate-consignee rule are applied automatically. Yellow cells are blanked/grouped fields
-          to review.
+          to review. The file's second tab, <b>Inventory List</b>, is this request's inventory on the ATLAS SRF
+          Inventory List template (package rows left out).
         </div>
 
         <div id="sliSummary" class="statusline"></div>

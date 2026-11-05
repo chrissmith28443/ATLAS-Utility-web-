@@ -1,6 +1,7 @@
 /* =========================================================================
    ATLAS Utility Web — invgen.js
-   Shipping / Property management › Inventory List Export.
+   Property management › Inventory List Export, and the SLI's second tab
+   (invgenAddSrfSheet — a Shipping request's inventory on the SRF template).
    Builds an ATLAS Inventory List template (SRF, PR, WS or PMCT) from the
    loaded/fetched WMTR's own Inventory List section, ready to upload into
    another request. Most common case: a procured PR → an SRF to ship it, so a
@@ -212,4 +213,115 @@ async function invgenRun() {
     console.error(e);
     say(`Error: ${e.message}`, true);
   }
+}
+
+/* -------------------------------------------------------------------------
+   SLI tab 2 (Shipping): this request's inventory on the ATLAS SRF Inventory
+   List template, added to the SLI workbook (JSZip) after its own sheet. Same
+   rows as Inventory List Export with SRF picked (package rows left out). The
+   template's styles are appended to the workbook's and its shared strings
+   made inline, so the tab looks like the template. Returns the item count —
+   0 (nothing added) without a UDQ spreadsheet or with no items.
+   ------------------------------------------------------------------------- */
+async function invgenAddSrfSheet(zip, sheetName) {
+  if (!AppState.grid || AppState.manualOnly) return 0;
+  const inv = invgenReadInventory(AppState.grid, false);
+  if (!inv.recs.length) return 0;
+  const fmt = INVCONV_FORMATS.find((f) => f.id === "SRF");
+  const built = await invconvBuild({ recs: inv.recs, labels: inv.labels, sourceLabel: "Shipping (SRF) request" }, fmt);
+  const src = await JSZip.loadAsync(built.b64, { base64: true });
+
+  const shared = _coreimsParseSharedStrings(await src.file("xl/sharedStrings.xml").async("string"));
+  const merged = _invgenMergeStyles(await zip.file("xl/styles.xml").async("string"),
+    await src.file("xl/styles.xml").async("string"));
+  const bump = (n) => String(parseInt(n, 10) + merged.xfOffset);
+  const sheet = (await src.file("xl/worksheets/sheet1.xml").async("string"))
+    .replace(/<c\b([^>]*?) t="s"([^>]*)>\s*<v>(\d+)<\/v>\s*<\/c>/g, (m, a, b, i) =>
+      `<c${a}${b} t="inlineStr"><is><t xml:space="preserve">${_invconvXmlEsc(shared[+i] || "")}</t></is></c>`)
+    .replace(/<(c|row)\b[^>]*>/g, (tag) => tag.replace(/ s="(\d+)"/, (m, n) => ` s="${bump(n)}"`))
+    .replace(/<col\b[^>]*>/g, (tag) => tag.replace(/ style="(\d+)"/, (m, n) => ` style="${bump(n)}"`))
+    .replace(/ tabSelected="1"/, "");
+
+  // A free sheet part, relationship id and sheet id.
+  let n = 2;
+  while (zip.file(`xl/worksheets/sheet${n}.xml`)) n++;
+  const part = `worksheets/sheet${n}.xml`;
+  const relsPath = "xl/_rels/workbook.xml.rels";
+  let rels = await zip.file(relsPath).async("string");
+  let rid = 1;
+  while (rels.indexOf(`Id="rId${rid}"`) !== -1) rid++;
+  rels = rels.replace("</Relationships>", () =>
+    `<Relationship Id="rId${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="${part}"/></Relationships>`);
+  let wb = await zip.file("xl/workbook.xml").async("string");
+  const sheetId = Math.max(0, ...Array.from(wb.matchAll(/<sheet\b[^>]*sheetId="(\d+)"/g), (m) => +m[1])) + 1;
+  wb = wb.replace("</sheets>", () => `<sheet name="${_invconvXmlEsc(sheetName)}" sheetId="${sheetId}" r:id="rId${rid}"/></sheets>`);
+  let ct = await zip.file("[Content_Types].xml").async("string");
+  ct = ct.replace("</Types>", () =>
+    `<Override PartName="/xl/${part}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`);
+
+  zip.file(`xl/${part}`, sheet);
+  zip.file("xl/styles.xml", merged.xml);
+  zip.file(relsPath, rels);
+  zip.file("xl/workbook.xml", wb);
+  zip.file("[Content_Types].xml", ct);
+
+  // docProps/app.xml lists the sheet names; add this one after the others.
+  const app = zip.file("docProps/app.xml");
+  if (app) {
+    let x = await app.async("string");
+    const wsM = x.match(/(<vt:lpstr>Worksheets<\/vt:lpstr><\/vt:variant><vt:variant><vt:i4>)(\d+)(<\/vt:i4>)/);
+    const topM = x.match(/<TitlesOfParts><vt:vector size="(\d+)" baseType="lpstr">([\s\S]*?)<\/vt:vector><\/TitlesOfParts>/);
+    if (wsM && topM) {
+      const names = topM[2].match(/<vt:lpstr>[\s\S]*?<\/vt:lpstr>/g) || [];
+      names.splice(+wsM[2], 0, `<vt:lpstr>${_invconvXmlEsc(sheetName)}</vt:lpstr>`);
+      x = x.replace(wsM[0], () => wsM[1] + (+wsM[2] + 1) + wsM[3])
+        .replace(topM[0], () => `<TitlesOfParts><vt:vector size="${names.length}" baseType="lpstr">${names.join("")}</vt:vector></TitlesOfParts>`);
+      zip.file("docProps/app.xml", x);
+    }
+  }
+  return inv.recs.length;
+}
+
+/* Append another workbook's fonts / fills / borders / number formats / cell
+   formats to styles.xml `dst`. Returns the merged XML and the index the
+   appended cell formats start at (add it to the source sheet's s="…"). */
+function _invgenMergeStyles(dst, src) {
+  const items = (xml, list, item) => {
+    const m = xml.match(new RegExp(`<${list}\\b[^>]*>([\\s\\S]*?)<\\/${list}>`));
+    return m ? (m[1].match(new RegExp(`<${item}\\b[^>]*\\/>|<${item}\\b[^>]*>[\\s\\S]*?<\\/${item}>`, "g")) || []) : [];
+  };
+  // Function replacers throughout: number formats contain "$", which a replacement string would expand.
+  const put = (xml, list, all) => xml.replace(new RegExp(`<${list}\\b[^>]*>[\\s\\S]*?<\\/${list}>|<${list}\\b[^>]*\\/>`),
+    () => `<${list} count="${all.length}">${all.join("")}</${list}>`);
+
+  // Custom number formats (id 164+) get new ids after the destination's.
+  const dstFmts = items(dst, "numFmts", "numFmt");
+  let nextId = Math.max(163, ...dstFmts.map((f) => +(f.match(/numFmtId="(\d+)"/) || [0, 0])[1])) + 1;
+  const fmtMap = {};
+  const addFmts = items(src, "numFmts", "numFmt").map((f) => {
+    const id = +(f.match(/numFmtId="(\d+)"/) || [0, 0])[1];
+    fmtMap[id] = nextId;
+    return f.replace(/numFmtId="\d+"/, `numFmtId="${nextId++}"`);
+  });
+
+  const off = {};
+  let out = dst;
+  for (const [list, item, key] of [["fonts", "font", "fontId"], ["fills", "fill", "fillId"], ["borders", "border", "borderId"]]) {
+    const have = items(out, list, item);
+    off[key] = have.length;
+    out = put(out, list, have.concat(items(src, list, item)));
+  }
+  if (addFmts.length) {
+    if (/<numFmts\b/.test(out)) out = put(out, "numFmts", dstFmts.concat(addFmts));
+    else out = out.replace(/<fonts\b/, () => `<numFmts count="${addFmts.length}">${addFmts.join("")}</numFmts><fonts`);
+  }
+  const xfs = items(out, "cellXfs", "xf");
+  const addXfs = items(src, "cellXfs", "xf").map((xf) => xf
+    .replace(/fontId="(\d+)"/, (m, n) => `fontId="${+n + off.fontId}"`)
+    .replace(/fillId="(\d+)"/, (m, n) => `fillId="${+n + off.fillId}"`)
+    .replace(/borderId="(\d+)"/, (m, n) => `borderId="${+n + off.borderId}"`)
+    .replace(/numFmtId="(\d+)"/, (m, n) => `numFmtId="${fmtMap[+n] !== undefined ? fmtMap[+n] : n}"`)
+    .replace(/xfId="\d+"/, 'xfId="0"'));
+  out = put(out, "cellXfs", xfs.concat(addXfs));
+  return { xml: out, xfOffset: xfs.length };
 }

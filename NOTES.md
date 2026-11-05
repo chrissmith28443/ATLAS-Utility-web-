@@ -354,3 +354,10 @@ Arrived Warehouse or the warehouse actual date is filled.
   User confirmed layout (header rows 1–2, lines header row 4, lines from row 5) and NO spaces in BU/BV.
 - v2.7.6 (2026-11-05, user): Deltek PO header Print Buyer Signature (DF) = "False" (text; DELTEK_PRINT_BUYER_SIGNATURE).
   Georges Elkhoury = TRLS II 04 (2026-11-05). Still no IDs: Hap Smith, Jonathan Cowart, Wendy Doiron, Adnan Tahir.
+- v2.7.7 (2026-11-05, user): SLI .xlsx gets tab 2 "Inventory List" = request inventory on the ATLAS SRF
+  Inventory List template (invgenAddSrfSheet in invgen.js, called at the end of sliWriteWorkbook, so the
+  packet SLI has it too). Same rows as Inventory List Export + SRF, package rows excluded; no tab without a
+  UDQ grid (manual entry / offline). Template sheet copied in: shared strings -> inline, styles appended
+  (_invgenMergeStyles: fonts/fills/borders/custom numFmts/cellXfs, s= offset). NB use function replacers —
+  number formats contain "$". Crosswalk carryover tab is NOT copied. Shipping "Inventory List Export" rail
+  entry removed (user); Property one kept. Tested with a synthetic SRF (no real SRF export in the session).

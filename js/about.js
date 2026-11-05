@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.7",
+    title: "SLI includes the inventory list",
+    notes: [
+      "The SLI file now has a second tab, Inventory List: the shipment's inventory on the ATLAS SRF Inventory List template — the same sheet Inventory List Export made with SRF picked (package rows left out). The SLI made by Generate packet gets it too.",
+      "Inventory List Export is no longer a separate tool under Shipping (it's in the SLI now). It stays under Property management for PR requests.",
+    ],
+  },
+  {
     version: "2.7.6",
     title: "Deltek export: Print Buyer Signature; Georges Elkhoury's buyer ID",
     notes: [

@@ -66,6 +66,7 @@ function deltekBuildModel(grid) {
   const endRow = inventoryEndRow(grid);
   const wmtr = shipValue(grid, shipMap, "WMTR Number");
   const chargeCode = shipValue(grid, shipMap, "Charge Code");
+  const ttiPoc = shipValue(grid, shipMap, "TTI POC Name");
 
   const cols = {};
   for (const [key, names] of Object.entries(DELTEK_SOURCES)) {
@@ -112,7 +113,7 @@ function deltekBuildModel(grid) {
   const total = roundHalfUp(lines.reduce((a, l) => a + (l.ext || 0), 0), 2);
 
   return {
-    wmtr, wmtr_last5: wmtrLast5(wmtr), chargeCode, cols, missing, lines, total,
+    wmtr, wmtr_last5: wmtrLast5(wmtr), chargeCode, ttiPoc, cols, missing, lines, total,
     fell, blankQty, unmapped: Array.from(unmapped).sort(), tooLong: Array.from(tooLong).sort(), asEa,
   };
 }
@@ -289,24 +290,44 @@ async function deltekWriteWorkbook(model, opts) {
 
 /* ---- Panel ---- */
 
+/** The DELTEK_BUYERS entry for the request's TTI POC (name match, any case/spacing), or null. */
+function deltekBuyerForPoc(poc) {
+  const k = normKey(poc);
+  return (k && DELTEK_BUYERS.find((b) => normKey(b.name) === k)) || null;
+}
+function deltekBuyer(name) {
+  return DELTEK_BUYERS.find((b) => b.name === name) || DELTEK_BUYERS[0];
+}
+
 /* Picker choices for the loaded request; reset when another request loads.
-   perLine: line index -> status chosen in the table (else lineStatus). */
+   buyer = a DELTEK_BUYERS name. perLine: line index -> status chosen in the
+   table (else lineStatus). */
 const DeltekUi = { key: null };
 function deltekUiFor(model) {
   const key = `${AppState.fileName}|${model.wmtr}`;
   if (DeltekUi.key !== key) {
     Object.assign(DeltekUi, {
-      key, date: todayISO(), buyer: DELTEK_BUYERS[0].code, poStatus: DELTEK_PO_STATUSES[0],
-      lineStatus: DELTEK_LINE_STATUSES[0], perLine: {}, region: "",
+      key, date: todayISO(), buyer: (deltekBuyerForPoc(model.ttiPoc) || DELTEK_BUYERS[0]).name,
+      poStatus: DELTEK_PO_STATUSES[0], lineStatus: DELTEK_LINE_STATUSES[0], perLine: {}, region: "",
     });
   }
   return DeltekUi;
 }
 function deltekOpts(ui) {
   return {
-    date: ui.date, buyer: ui.buyer, poStatus: ui.poStatus, region: ui.region,
+    date: ui.date, buyer: deltekBuyer(ui.buyer).code, poStatus: ui.poStatus, region: ui.region,
     lineStatus: (i) => ui.perLine[i] || ui.lineStatus,
   };
+}
+/** Buyer notes for the panel: TTI POC not on the list, chosen buyer has no code yet. */
+function deltekBuyerNotices(model, ui) {
+  const out = [];
+  if (model.ttiPoc && !deltekBuyerForPoc(model.ttiPoc) && ui.buyer === DELTEK_BUYERS[0].name) {
+    out.push(`TTI POC ${model.ttiPoc} isn't on the buyer list — defaulted to ${ui.buyer}; check the Buyer Name.`);
+  }
+  const b = deltekBuyer(ui.buyer);
+  if (!b.code) out.push(`No Deltek buyer ID for ${b.name} yet — Buyer is left blank; enter it in CostPoint.`);
+  return out;
 }
 
 function deltekModelForState() {
@@ -315,7 +336,8 @@ function deltekModelForState() {
 
 function renderDeltekWorkspace(container) {
   const m = (AppState.data && AppState.data.meta) || {};
-  const ui = deltekUiFor(deltekModelForState());
+  const model = deltekModelForState();
+  const ui = deltekUiFor(model);
   const opt = (list, cur) => list.map((v) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(v)}</option>`).join("");
   const panel = el(`
     <div class="panel">
@@ -333,7 +355,8 @@ function renderDeltekWorkspace(container) {
           </div>
           <div class="field">
             <label for="dkBuyer">Buyer Name</label>
-            <select id="dkBuyer">${DELTEK_BUYERS.map((b) => `<option value="${esc(b.code)}" ${b.code === ui.buyer ? "selected" : ""}>${esc(b.name)} / ${esc(b.code)}</option>`).join("")}</select>
+            <select id="dkBuyer">${DELTEK_BUYERS.map((b) => `<option value="${esc(b.name)}" ${b.name === ui.buyer ? "selected" : ""}>${esc(b.name)}${b.code ? " / " + esc(b.code) : " (no Deltek ID yet)"}</option>`).join("")}</select>
+            <div class="hint">Defaults to the request's TTI POC${model.ttiPoc ? ` (${esc(model.ttiPoc)})` : ""}.</div>
           </div>
           <div class="field">
             <label for="dkPoStatus">PO Status</label>
@@ -392,12 +415,12 @@ function updateDeltekPreview() {
     const fmtD = (iso) => (iso ? iso.slice(5, 7) + "/" + iso.slice(8, 10) + "/" + iso.slice(0, 4) : "—");
     summary.textContent = (blocked ? blocked + "\n" : "") +
       `${model.lines.length} line${model.lines.length === 1 ? "" : "s"} · extended total ${fmtMoney(model.total)}\n` +
-      `PO header: Buyer ${ui.buyer} · Order Date ${fmtD(ui.date)} · PO Status ${ui.poStatus} · ` +
+      `PO header: Buyer ${deltekBuyer(ui.buyer).code || "(blank)"} · Order Date ${fmtD(ui.date)} · PO Status ${ui.poStatus} · ` +
       `Project ${model.chargeCode || "—"} · Organization ${ui.region ? DELTEK_ORGS[ui.region] + " (" + ui.region + ")" : "—"}`;
   }
   const notes = document.getElementById("dkNotices");
   if (notes) {
-    notes.innerHTML = deltekNotices(model).map((t) => `<div class="statusline warn">${esc(t)}</div>`).join("");
+    notes.innerHTML = deltekBuyerNotices(model, ui).concat(deltekNotices(model)).map((t) => `<div class="statusline warn">${esc(t)}</div>`).join("");
   }
   const tbl = document.getElementById("dkTable");
   if (tbl) {

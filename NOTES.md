@@ -348,3 +348,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   Lines: PO Line 1..n (PR inventory has no line-number column), Status (picker for all + per-line select),
   Item, Description "on XX/XX/XX", U/M, Due/Desired/Order/Original Due Date = date picker, Quantity, Gross
   Unit Cost, Ship ID SGL, Ord Ref Type N, Notes. Picker state = DeltekUi, per request, not saved.
+- v2.7.5 (2026-11-05, user): Deltek buyer list = Toby Hurdle (TRLS II 03), Georges Elkhoury, Hap Smith, Jonathan
+  Cowart, Wendy Doiron, Adnan Tahir — IDs pending from Chris (code "" -> header Buyer blank + panel note).
+  Default = request's "TTI POC Name" (JSON TTIPOCName), name match ignoring case/spacing; else first + note.
+  User confirmed layout (header rows 1–2, lines header row 4, lines from row 5) and NO spaces in BU/BV.

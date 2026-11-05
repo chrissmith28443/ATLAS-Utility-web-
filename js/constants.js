@@ -4,7 +4,7 @@
    ========================================================================= */
 
 const APP_NAME = "ATLAS Utility";
-const APP_VERSION = "Web 2.7.4";
+const APP_VERSION = "Web 2.7.5";
 
 /* Signers (Printed Name dropdown) */
 const SIGNERS = [
@@ -29,9 +29,16 @@ const DELTEK_ACCOUNT = "5201-035";                   // header Account
 const DELTEK_TAXABLE_STATUS = "All Items Non-Taxable";  // header Taxable Status
 /* Header Organization by the CONUS / OCONUS choice (required in the panel). */
 const DELTEK_ORGS = { CONUS: "1.40.01.02.0009", OCONUS: "1.40.03.02.0009" };
-/* Pickers: Buyer (header Buyer gets the code), PO Status, line Status. First = default. */
+/* Pickers: Buyer (header Buyer gets the code; defaults to the request's TTI POC
+   when listed, else the first), PO Status, line Status (first = default).
+   A buyer with no code yet leaves Buyer blank and the panel says so. */
 const DELTEK_BUYERS = [
-  { name: "Toby Hurdle", code: "TRLS II 03" },
+  { name: "Toby Hurdle",      code: "TRLS II 03" },
+  { name: "Georges Elkhoury", code: "" },
+  { name: "Hap Smith",        code: "" },
+  { name: "Jonathan Cowart",  code: "" },
+  { name: "Wendy Doiron",     code: "" },
+  { name: "Adnan Tahir",      code: "" },
 ];
 const DELTEK_PO_STATUSES = ["Pending", "Open"];
 const DELTEK_LINE_STATUSES = ["Pending", "Open"];

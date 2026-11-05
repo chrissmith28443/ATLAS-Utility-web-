@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.5",
+    title: "Deltek export: buyer defaults to the TTI POC",
+    notes: [
+      "Buyer Name now lists Toby Hurdle, Georges Elkhoury, Hap Smith, Jonathan Cowart, Wendy Doiron and Adnan Tahir, and starts on the request's TTI POC.",
+      "Buyers whose Deltek buyer ID isn't set up yet are marked \"no Deltek ID yet\"; choosing one leaves the PO's Buyer blank, and the panel says to enter it in CostPoint. If the TTI POC isn't on the list, it starts on Toby Hurdle and says so.",
+    ],
+  },
+  {
     version: "2.7.4",
     title: "Deltek export: PO header, pickers and the updated CostPoint layout",
     notes: [

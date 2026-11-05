@@ -352,3 +352,5 @@ Arrived Warehouse or the warehouse actual date is filled.
   Cowart, Wendy Doiron, Adnan Tahir — IDs pending from Chris (code "" -> header Buyer blank + panel note).
   Default = request's "TTI POC Name" (JSON TTIPOCName), name match ignoring case/spacing; else first + note.
   User confirmed layout (header rows 1–2, lines header row 4, lines from row 5) and NO spaces in BU/BV.
+- v2.7.6 (2026-11-05, user): Deltek PO header Print Buyer Signature (DF) = "False" (text; DELTEK_PRINT_BUYER_SIGNATURE).
+  Georges Elkhoury = TRLS II 04 (2026-11-05). Still no IDs: Hap Smith, Jonathan Cowart, Wendy Doiron, Adnan Tahir.

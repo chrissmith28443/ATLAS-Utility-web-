@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.7.6",
+    title: "Deltek export: Print Buyer Signature; Georges Elkhoury's buyer ID",
+    notes: [
+      "The Deltek export's PO header now sets Print Buyer Signature to False.",
+      "Buyer Georges Elkhoury now fills in his Deltek buyer ID, TRLS II 04.",
+    ],
+  },
+  {
     version: "2.7.5",
     title: "Deltek export: buyer defaults to the TTI POC",
     notes: [

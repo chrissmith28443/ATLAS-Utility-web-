@@ -7,7 +7,8 @@
 
    PO header (row 2): Type, Buyer (picker), Order Date (date picker), PO Status
    (picker), Project (the request's Charge Code), Account, Organization
-   (CONUS / OCONUS, must be chosen), Ship ID, Taxable Status.
+   (CONUS / OCONUS, must be chosen), Ship ID, Taxable Status, Print Buyer
+   Signature (False).
    Each line: PO Line (1, 2, 3…), Status (picker, per line), Item, Description,
    U/M, Due / Desired / Order / Original Due Date (the picked date), Quantity,
    Gross Unit Cost, Ship ID, Ord Ref Type, Notes. Fixed values and picker
@@ -247,6 +248,7 @@ async function deltekWriteWorkbook(model, opts) {
     ["Organization", DELTEK_ORGS[opts.region], "s"],
     ["Ship ID", DELTEK_SHIP_ID, "s"],
     ["Taxable Status", DELTEK_TAXABLE_STATUS, "s"],
+    ["Print Buyer Signature", DELTEK_PRINT_BUYER_SIGNATURE, "s"],
   ], "PO header");
 
   let lineRows = "";

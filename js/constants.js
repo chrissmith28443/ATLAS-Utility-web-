@@ -4,7 +4,7 @@
    ========================================================================= */
 
 const APP_NAME = "ATLAS Utility";
-const APP_VERSION = "Web 2.7.5";
+const APP_VERSION = "Web 2.7.6";
 
 /* Signers (Printed Name dropdown) */
 const SIGNERS = [
@@ -27,6 +27,7 @@ const DELTEK_ORD_REF_TYPE = "N";                     // line Ord Ref Type
 const DELTEK_PO_TYPE = "Purchase Order";             // header Type
 const DELTEK_ACCOUNT = "5201-035";                   // header Account
 const DELTEK_TAXABLE_STATUS = "All Items Non-Taxable";  // header Taxable Status
+const DELTEK_PRINT_BUYER_SIGNATURE = "False";        // header Print Buyer Signature
 /* Header Organization by the CONUS / OCONUS choice (required in the panel). */
 const DELTEK_ORGS = { CONUS: "1.40.01.02.0009", OCONUS: "1.40.03.02.0009" };
 /* Pickers: Buyer (header Buyer gets the code; defaults to the request's TTI POC
@@ -34,7 +35,7 @@ const DELTEK_ORGS = { CONUS: "1.40.01.02.0009", OCONUS: "1.40.03.02.0009" };
    A buyer with no code yet leaves Buyer blank and the panel says so. */
 const DELTEK_BUYERS = [
   { name: "Toby Hurdle",      code: "TRLS II 03" },
-  { name: "Georges Elkhoury", code: "" },
+  { name: "Georges Elkhoury", code: "TRLS II 04" },
   { name: "Hap Smith",        code: "" },
   { name: "Jonathan Cowart",  code: "" },
   { name: "Wendy Doiron",     code: "" },

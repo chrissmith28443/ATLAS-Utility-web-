@@ -24,6 +24,57 @@ const ATLAS_CHANGELOG = [
     ],
   },
   {
+    version: "2.7.7",
+    title: "SLI includes the inventory list",
+    notes: [
+      "The SLI file now has a second tab, Inventory List: the shipment's inventory on the ATLAS SRF Inventory List template — the same sheet Inventory List Export made with SRF picked (package rows left out). The SLI made by Generate packet gets it too.",
+      "Inventory List Export is no longer a separate tool under Shipping (it's in the SLI now). It stays under Property management for PR requests.",
+    ],
+  },
+  {
+    version: "2.7.6",
+    title: "Deltek export: Print Buyer Signature; Georges Elkhoury's buyer ID",
+    notes: [
+      "The Deltek export's PO header now sets Print Buyer Signature to False.",
+      "Buyer Georges Elkhoury now fills in his Deltek buyer ID, TRLS II 04.",
+    ],
+  },
+  {
+    version: "2.7.5",
+    title: "Deltek export: buyer defaults to the TTI POC",
+    notes: [
+      "Buyer Name now lists Toby Hurdle, Georges Elkhoury, Hap Smith, Jonathan Cowart, Wendy Doiron and Adnan Tahir, and starts on the request's TTI POC.",
+      "Buyers whose Deltek buyer ID isn't set up yet are marked \"no Deltek ID yet\"; choosing one leaves the PO's Buyer blank, and the panel says to enter it in CostPoint. If the TTI POC isn't on the list, it starts on Toby Hurdle and says so.",
+    ],
+  },
+  {
+    version: "2.7.4",
+    title: "Deltek export: PO header, pickers and the updated CostPoint layout",
+    notes: [
+      "The Deltek export now follows purchasing's updated CostPoint layout: the PO header table in rows 1–2, then the Lines table with its headers in row 4 and one line per item from row 5.",
+      "New pickers on the Deltek PO Lines panel: Date (defaults to today), Buyer Name (Toby Hurdle / TRLS II 03), PO Status and Line Status (both default to Pending; each line's status can be changed in the table), and CONUS / OCONUS, which must be chosen before the file can be generated.",
+      "Each line gets its line number, status, Description \"on XX/XX/XX\", the date in Due / Desired / Order / Original Due Date, Ship ID SGL and Ord Ref Type N, plus the item, U/M, quantity, unit cost and notes as before.",
+      "The PO header gets Type (Purchase Order), Buyer, Order Date, PO Status, Project (the request's Charge Code), Account 5201-035, Organization (by CONUS / OCONUS), Ship ID SGL and Taxable Status (All Items Non-Taxable).",
+    ],
+  },
+  {
+    version: "2.7.3",
+    title: "Menu shows only the tools you can use",
+    notes: [
+      "The left menu no longer lists greyed-out tools. A tool appears once the UDQ it needs is loaded — the shipping documents with a Shipping (SRF) request, DD1149 / TOP / CoreIMS / Deltek and the rest with a Property (PR) request — and a section heading shows once anything in it can be used. Purchase Order, MCT Entry Letter and Inventory Crosswalk are always there. The Packet button appears with a Shipping request.",
+    ],
+  },
+  {
+    version: "2.7.2",
+    title: "New: Deltek PO Lines export",
+    notes: [
+      "New Property management tool, Deltek PO Lines (shown only when a Property / PR request is loaded): builds the .xlsx the purchasing team imports into Deltek CostPoint's Manage Purchase Orders → Lines grid, one line per inventory item.",
+      "Fills only the five columns CostPoint needs: Item (MISCELLANEOUS ITEMS), U/M, Quantity, Gross Unit Cost (the item's Value(USD) unit price) and Notes (the description). Everything else is left for CostPoint or the buyer.",
+      "Quantity uses Qty Ordered, or Qty Requested when that's blank; U/M likewise. The panel says when it fell back, and maps ATLAS units to CostPoint's codes (Each → EA, Box → BOX, Case → CS, Dozen → DZ, Package → PKG). Units CostPoint has no code for (Set, Gallon, Bottle, Pound and the like) are sent as EA, and the panel lists which ones.",
+      "The panel previews every line with its extended cost and the total. Works the same for a dropped PR export or a PR fetched from ATLAS.",
+    ],
+  },
+  {
     version: "2.7.1",
     title: "Offline-mode link",
     notes: [

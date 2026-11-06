@@ -42,7 +42,6 @@ const TOOLS = [
   { id: "rfq",      group: "Shipping",           label: "RFQ Email",           needs: "srf",      ready: true  },
   { id: "ipc",      group: "Shipping",           label: "IPC",                 needs: "srf",      ready: true  },
   { id: "po",       group: "Shipping",           label: "Purchase Order",      needs: "none",     ready: true  },
-  { id: "invgen",   group: "Shipping",           label: "Inventory List Export", needs: "srf", needsGrid: true, ready: true  },
   { id: "mct",      group: "Shipping",           label: "MCT Entry Letter",    needs: "none",     ready: true  },
   // Close-out checklist for the loaded request: the Christmas Tree's checks run
   // against this one WMTR. Sits last in the group — it's what you press when the
@@ -55,6 +54,7 @@ const TOOLS = [
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },
+  { id: "deltek",   group: "Property management",label: "Deltek PO Lines",     needs: "property", needsGrid: true, ready: true  },
   { id: "invpr",    group: "Property management",label: "Inventory Sheet",     needs: "property", ready: true  },
   { id: "invgen",   group: "Property management",label: "Inventory List Export", needs: "property", needsGrid: true, ready: true  },
   { id: "propo",    group: "Property management",label: "Purchase Order",       needs: "none",     ready: true  },
@@ -641,19 +641,38 @@ function renderRail() {
     // A tool can opt out of the rail for specific UDQ types (e.g. Required
     // Attachments hides on Metrics, where the dashboard embeds it).
     if (tool.hideOn && [].concat(tool.hideOn).indexOf(AppState.udqType) !== -1) continue;
+    // needs "none": always available (UDQ optional — details entered manually).
+    // needs "any":  available whenever any UDQ is loaded.
+    // otherwise:    available only for the matching UDQ type.
+    const typeOk = tool.needs === "none"
+      ? true
+      : tool.needs === "history"
+        ? !!(AppState.history || (typeof bundledHistoryAvailable === "function" && bundledHistoryAvailable()))
+        : tool.needs === "any"
+          ? AppState.udqType !== "none"
+          : Array.isArray(tool.needs)
+            ? tool.needs.includes(AppState.udqType)
+            : AppState.udqType === tool.needs;
+    // Manual entry (no UDQ) serves Shipping AND Property documents from one set of
+    // details, so Property tools unlock too. needsGrid tools read the raw UDQ
+    // spreadsheet, so they stay off in manual entry.
+    const manualOk = AppState.manualOnly && tool.needs === "property";
+    const enabled = tool.ready && (typeOk || manualOk) && !(tool.needsGrid && AppState.manualOnly);
+    // Only usable tools are listed (no greyed-out entries): a tool appears once
+    // its UDQ is loaded, and a section heading once anything in it can be used.
+    if (!enabled) continue;
     if (tool.group !== lastGroup) {
       if (tool.group === "Shipping") {
         const pkOk = AppState.udqType === "srf";
         const head = el(`
           <div class="railhead">
             <h3>${esc(tool.group)}</h3>
-            <button class="rail-packet ${AppState.activeTool === "packet" ? "active" : ""}"
-                    ${pkOk ? "" : "disabled"} title="Generate a multi-document packet">
+            ${pkOk ? `<button class="rail-packet ${AppState.activeTool === "packet" ? "active" : ""}" title="Generate a multi-document packet">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>
               </svg>Packet
-            </button>
+            </button>` : ""}
           </div>`);
         if (pkOk) {
           head.querySelector(".rail-packet").addEventListener("click", () => {
@@ -672,28 +691,9 @@ function renderRail() {
       lastGroup = tool.group;
     }
     if (tool.id === "packet") continue; // rendered as the distinct header button above
-    // needs "none": always available (UDQ optional — details entered manually).
-    // needs "any":  available whenever any UDQ is loaded.
-    // otherwise:    available only for the matching UDQ type.
-    const typeOk = tool.needs === "none"
-      ? true
-      : tool.needs === "history"
-        ? !!(AppState.history || (typeof bundledHistoryAvailable === "function" && bundledHistoryAvailable()))
-        : tool.needs === "any"
-          ? AppState.udqType !== "none"
-          : Array.isArray(tool.needs)
-            ? tool.needs.includes(AppState.udqType)
-            : AppState.udqType === tool.needs;
-    // Manual entry (no UDQ) serves Shipping AND Property documents from one set of
-    // details, so Property tools unlock too. needsGrid tools read the raw UDQ
-    // spreadsheet, so they stay off in manual entry.
-    const manualOk = AppState.manualOnly && tool.needs === "property";
-    const enabled = tool.ready && (typeOk || manualOk) && !(tool.needsGrid && AppState.manualOnly);
     const btn = el(`
-      <button class="toolbtn ${AppState.activeTool === tool.id && enabled ? "active" : ""} ${enabled ? "ready" : ""}"
-              ${enabled ? "" : "disabled"} data-tool="${tool.id}">
+      <button class="toolbtn ready ${AppState.activeTool === tool.id ? "active" : ""}" data-tool="${tool.id}">
         <span class="dot"></span>${esc(tool.label)}
-        ${tool.ready ? "" : `<span class="soon">SOON</span>`}
       </button>`);
     if (enabled) {
       btn.addEventListener("click", () => {
@@ -809,6 +809,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "topdocs") renderTopWorkspace(ws);
   else if (AppState.activeTool === "dd1149") renderDd1149Workspace(ws);
   else if (AppState.activeTool === "coreims") renderCoreimsWorkspace(ws);
+  else if (AppState.activeTool === "deltek") renderDeltekWorkspace(ws);
   else if (AppState.activeTool === "invpr") renderInvPrWorkspace(ws);
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
   else if (AppState.activeTool === "pmr") renderPmrWorkspace(ws);
@@ -1213,7 +1214,8 @@ function renderSliWorkspace(container) {
           The preview below mirrors the generated <span style="font-family:var(--mono)">.xlsx</span> and updates as you
           change the freight location, forwarding agent, or date. Hazmat (DG&nbsp;Yes/No), the $2,500 HTS-group rollup,
           and the embassy intermediate-consignee rule are applied automatically. Yellow cells are blanked/grouped fields
-          to review.
+          to review. The file's second tab, <b>Inventory List</b>, is this request's inventory on the ATLAS SRF
+          Inventory List template (package rows left out).
         </div>
 
         <div id="sliSummary" class="statusline"></div>

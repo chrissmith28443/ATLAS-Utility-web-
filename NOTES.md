@@ -317,8 +317,52 @@ Arrived Warehouse or the warehouse actual date is filled.
   Offline mode persists across close/reopen (localStorage flag read on load).
 - OPEN: buddy access — atlas-utility.net is behind Cloudflare Access and ships the full TTI build; giving him
   access means adding his email (he could untick offline mode). A separate stripped build/hostname would avoid that.
+- v2.7.2 (2026-11-04) Deltek PO Lines export (js/tools/deltek.js + deltek_template.js = base64 of the
+  package's templates/deltek_po_lines.xlsx, CostPoint's line-grid export, 121 inline-string headers A1:DQ1).
+  Rail tool "deltek" (Property management, needs property + needsGrid, hideOn every other udqType).
+  Writes F Item (DELTEK_DEFAULT_ITEM), L U/M (Ordered -> Requested, through DELTEK_UM_MAP, unmapped
+  upper-cased + flagged), S Quantity (Ordered -> Requested, numeric), U Gross Unit Cost (Value(USD), numeric),
+  CG Notes (Description, trimmed). Columns found by template header name. Skips blank Description.
+  API field names (json_udq ATLAS_PROP_INVENTORY_COLUMNS): description, qtyOrdered, qtyRequested,
+  unitOfMeasureOrderedText, unitOfMeasureText ("Unit Of Measure Requested"), valueUsd.
+  Tested vs package oracle expected_lines_10027.csv (57 lines, 150,100.38) from the xlsx and from a JSON
+  fixture through the Property fetch path; identical sheet XML. DELTEK_UM_MAP is still only {EA}:
+  DELTEK_UM_MAP filled 2026-11-04 from CostPoint U/M lookup screenshots: EA, Each->EA, Box->BOX, Case->CS,
+  Dozen->DZ, Package->PKG. ATLAS values with NO CostPoint code yet: Set, KT, Ounce, Bottle, Pint, Bag, Gallon,
+  Pound, Meter, Liter, Foot, Pallet, Roll, Quart, Other, Milliliter -> Chris: send as EA (DELTEK_UM_AS_EA, noted in panel).
+  CostPoint U/M = 3 chars max (preprocessor PO_LN.PO_LN_UM_CD): longer values get a "too long" notice.
+- v2.7.3 (2026-11-04, user): rail lists only USABLE tools — renderRail skips any tool that isn't enabled
+  (was: greyed-out/disabled buttons) and section headings appear lazily; Packet header button only with an
+  SRF. Deltek's own hideOn list removed (redundant now). Nothing loaded = Shipping: Purchase Order, MCT;
+  Property: Purchase Order; General: Inventory Crosswalk.
+- v2.7.4 (2026-11-05, user) Deltek export rebuilt on purchasing's UPDATED CostPoint layout (their file
+  UPDATED_Deltek_PO_10348_…xlsx). Template (deltek_template.js) = row 1 PO header-table headers (118, A–DN;
+  their row 19), row 4 Lines headers (116, A–DL; their row 1); styles from their file (xf 2 = date).
+  Output: row 2 PO header values, row 3 blank, rows 5+ lines. User said header "column 1 and 2" — read as
+  ROWS 1–2 (CostPoint paste is row-wise); confirm with user if a vertical layout was meant.
+  Header: Type=Purchase Order, Buyer=picker code (DELTEK_BUYERS; Toby Hurdle/TRLS II 03 — more to come),
+  Order Date=date picker, PO Status=picker (Pending|Open, more to come), Project=UDQ Charge Code (JSON
+  ChargeCode), Account 5201-035, Organization CONUS 1.40.01.02.0009 / OCONUS 1.40.03.02.0009 (radio, required),
+  Ship ID SGL, Taxable Status "All Items Non-Taxable". Their sample also had " " in BU/BV (Vendor Address
+  Line 2/3) — NOT written; ask if needed.
+  Lines: PO Line 1..n (PR inventory has no line-number column), Status (picker for all + per-line select),
+  Item, Description "on XX/XX/XX", U/M, Due/Desired/Order/Original Due Date = date picker, Quantity, Gross
+  Unit Cost, Ship ID SGL, Ord Ref Type N, Notes. Picker state = DeltekUi, per request, not saved.
+- v2.7.5 (2026-11-05, user): Deltek buyer list = Toby Hurdle (TRLS II 03), Georges Elkhoury, Hap Smith, Jonathan
+  Cowart, Wendy Doiron, Adnan Tahir — IDs pending from Chris (code "" -> header Buyer blank + panel note).
+  Default = request's "TTI POC Name" (JSON TTIPOCName), name match ignoring case/spacing; else first + note.
+  User confirmed layout (header rows 1–2, lines header row 4, lines from row 5) and NO spaces in BU/BV.
+- v2.7.6 (2026-11-05, user): Deltek PO header Print Buyer Signature (DF) = "False" (text; DELTEK_PRINT_BUYER_SIGNATURE).
+  Georges Elkhoury = TRLS II 04 (2026-11-05). Still no IDs: Hap Smith, Jonathan Cowart, Wendy Doiron, Adnan Tahir.
+- v2.7.7 (2026-11-05, user): SLI .xlsx gets tab 2 "Inventory List" = request inventory on the ATLAS SRF
+  Inventory List template (invgenAddSrfSheet in invgen.js, called at the end of sliWriteWorkbook, so the
+  packet SLI has it too). Same rows as Inventory List Export + SRF, package rows excluded; no tab without a
+  UDQ grid (manual entry / offline). Template sheet copied in: shared strings -> inline, styles appended
+  (_invgenMergeStyles: fonts/fills/borders/custom numFmts/cellXfs, s= offset). NB use function replacers —
+  number formats contain "$". Crosswalk carryover tab is NOT copied. Shipping "Inventory List Export" rail
+  entry removed (user); Property one kept. Tested with a synthetic SRF (no real SRF export in the session).
 
-## Procurement + Property dashboards, DPM weekly slide (v2.8.0, 2026-11-06) — NOT pushed yet
+## Procurement + Property dashboards, DPM weekly slide (v2.8.0, 2026-11-06) — pushed 2026-11-06 (merged after 2.7.2–2.7.7)
 - For Jon (new DPM on tRLS II, replacing Hap). Source files: Desktop\PR Dashboard\ (PM Weekly Update.pptx = his
   quad slide; UDQ_WMTR_PR / UDQ_WMTR_PMCT samples; PR Tracker.xlsx = ops tracker, sheets Active / Closed).
 - js/tools/pmdash.js: hub tabs "proc" (Procurement) + "prop" (Property (TOP)) after Shipments. Data = XTree.slots.PR /

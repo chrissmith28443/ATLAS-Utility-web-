@@ -688,6 +688,8 @@ async function sliWriteWorkbook(model) {
     else if (name === "xl/calcChain.xml") continue; // Excel rebuilds on open
     else outZip.file(name, await entry.async("uint8array"));
   }
+  // Tab 2: the request's inventory on the ATLAS SRF Inventory List template (invgen.js).
+  if (typeof invgenAddSrfSheet === "function") await invgenAddSrfSheet(outZip, "Inventory List");
   return await outZip.generateAsync({ type: "base64" });
 }
 

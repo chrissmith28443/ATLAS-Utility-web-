@@ -15,6 +15,45 @@ const SIGNERS = [
   { name: "Lee Tilman", title: "Global Materials Transportation Manager" },
 ];
 
+/* Deltek PO Lines export (tools/deltek.js). DELTEK_UM_MAP: ATLAS Unit of
+   Measure (upper-cased) -> CostPoint U/M code (3 characters max, must exist in
+   CostPoint's U/M table). Anything not listed is exported upper-cased and
+   flagged in the tool panel. */
+const DELTEK_DEFAULT_ITEM = "MISCELLANEOUS ITEMS";
+/* Fixed values the Deltek export writes on every PO (header) or line. */
+const DELTEK_LINE_DESCRIPTION = "on XX/XX/XX";      // line Description
+const DELTEK_SHIP_ID = "SGL";                        // line + header Ship ID
+const DELTEK_ORD_REF_TYPE = "N";                     // line Ord Ref Type
+const DELTEK_PO_TYPE = "Purchase Order";             // header Type
+const DELTEK_ACCOUNT = "5201-035";                   // header Account
+const DELTEK_TAXABLE_STATUS = "All Items Non-Taxable";  // header Taxable Status
+const DELTEK_PRINT_BUYER_SIGNATURE = "False";        // header Print Buyer Signature
+/* Header Organization by the CONUS / OCONUS choice (required in the panel). */
+const DELTEK_ORGS = { CONUS: "1.40.01.02.0009", OCONUS: "1.40.03.02.0009" };
+/* Pickers: Buyer (header Buyer gets the code; defaults to the request's TTI POC
+   when listed, else the first), PO Status, line Status (first = default).
+   A buyer with no code yet leaves Buyer blank and the panel says so. */
+const DELTEK_BUYERS = [
+  { name: "Toby Hurdle",      code: "TRLS II 03" },
+  { name: "Georges Elkhoury", code: "TRLS II 04" },
+  { name: "Hap Smith",        code: "" },
+  { name: "Jonathan Cowart",  code: "" },
+  { name: "Wendy Doiron",     code: "" },
+  { name: "Adnan Tahir",      code: "" },
+];
+const DELTEK_PO_STATUSES = ["Pending", "Open"];
+const DELTEK_LINE_STATUSES = ["Pending", "Open"];
+const DELTEK_UM_MAP = {
+  EA: "EA", EACH: "EA", BOX: "BOX", CASE: "CS", DOZEN: "DZ",
+  PACKAGE: "PKG",   // no longer in ATLAS's list, but older requests carry it
+};
+/* ATLAS units CostPoint has no code for: sent as EA (the description names the
+   size) and listed in the panel. */
+const DELTEK_UM_AS_EA = [
+  "SET", "KT", "OUNCE", "BOTTLE", "PINT", "BAG", "GALLON", "POUND", "METER",
+  "LITER", "FOOT", "PALLET", "ROLL", "QUART", "OTHER", "MILLILITER",
+];
+
 const PURPOSE_CHOICES = ["Donation", "Return After Repair", "Return For Repair", "Other"];
 const MODE_CHOICES = ["Air", "Ocean", "Ground"];
 

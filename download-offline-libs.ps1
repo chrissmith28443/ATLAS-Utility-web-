@@ -8,6 +8,7 @@ $files = [ordered]@{
   'xlsx.full.min.js' = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
   'jszip.min.js'     = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
   'pdf-lib.min.js'   = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'
+  'pptxgen.min.js'   = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js'
 }
 foreach ($name in $files.Keys) {
   $out = Join-Path $vendor $name

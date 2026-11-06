@@ -317,3 +317,27 @@ Arrived Warehouse or the warehouse actual date is filled.
   Offline mode persists across close/reopen (localStorage flag read on load).
 - OPEN: buddy access — atlas-utility.net is behind Cloudflare Access and ships the full TTI build; giving him
   access means adding his email (he could untick offline mode). A separate stripped build/hostname would avoid that.
+
+## Procurement + Property dashboards, DPM weekly slide (v2.8.0, 2026-11-06) — NOT pushed yet
+- For Jon (new DPM on tRLS II, replacing Hap). Source files: Desktop\PR Dashboard\ (PM Weekly Update.pptx = his
+  quad slide; UDQ_WMTR_PR / UDQ_WMTR_PMCT samples; PR Tracker.xlsx = ops tracker, sheets Active / Closed).
+- js/tools/pmdash.js: hub tabs "proc" (Procurement) + "prop" (Property (TOP)) after Shipments. Data = XTree.slots.PR /
+  .PMCT grids (same UDQs as the Christmas Tree). Opening a tab -> pmAutoPull -> loadFromAtlasXmasTree({services:["PR","PMCT"]})
+  (slots now carry `at`; no re-pull within 10 min; dropped files (no `at`) are never auto-replaced; Refresh forces).
+- Active vs Closed = COP rule (Completed / RTI / Invoiced / Cancelled*). Drafts hidden unless ticked.
+- PR rules: estimate due = WORKDAY(max(compliance approved, status since), 3, holidays) while TTI Estimate Preparation;
+  PO due = WORKDAY(estimate approved, 1) while Sourcing with no Purchase Order attachment (Christmas Tree rules).
+  PO date = first Purchase Order attachment; POD = first Proof of Delivery attachment. Flags: red flag, est/PO overdue,
+  past RDD / RDD <=14d, PO attached but still Sourcing, no Activity Tracker update >14d, TOP required + POD but no PMCT.
+- PMCT rules: value = Value of Cargo (USD) else inventory qty x value; delivered = OLDEST "Delivered - POD Received"
+  stamp; backlog buckets <=15 / 16-30 / >30 days since delivery + >= $200K. PMCT -> source PR/SRF = 5-digit numbers in
+  Request Title + Requestor Ref.# ("TOP-TTI-10092", "PR 10092", "...-10064-SRF"). "TOP required, no PMCT" list only
+  looks at PRs delivered/closed since PM_TOP_LINK_FROM (2026-01-01).
+- Weekly slide: pptxgenjs 3.12.0 (pptxgen.min.js, uses the app's JSZip) loaded on click from js/vendor then
+  cdn.jsdelivr.net (NOT on cdnjs; jsdelivr added to sw.js RUNTIME_HOSTS + offline downloader). User approved the new
+  dependency 2026-11-06. Quads: Procurement + Property auto + notes; PLS + Significant Program Actions = Jon's notes
+  (user: Jon can type notes into EVERY quadrant). Notes in localStorage atlas.pmdash.slide (in Backup). Export sizes
+  text to fit (font step-down, then "+N more"). Verified by rendering the real .pptx through PowerPoint COM.
+- Ops tracker vs UDQ (answered in chat): ATLAS has Operator, Description, Compliance/Estimate dates, PO (attachment),
+  TOP Required, status notes (Activity Tracker). Missing from ATLAS: PO Execution Date field, POD Received Date field,
+  PMCT ID link on the PR, TOP Sent to End User Date, TOP Receipt Date, DTRA Acceptance Date.

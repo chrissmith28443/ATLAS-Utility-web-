@@ -1371,13 +1371,15 @@ async function loadFromAtlasXmasTree(opts) {
   const cfg = atlasIds().christmasTree || {};
   const all = [["SRF", "srf"], ["PR", "pr"], ["PMCT", "pmct"], ["WS", "ws"]];
   const want = opts && opts.service ? String(opts.service).toUpperCase() : null;
-  const services = want ? all.filter(([svc]) => svc === want) : all;
+  // opts.services: a list (Procurement / Property tabs pull just ["PR", "PMCT"]).
+  const wantList = opts && Array.isArray(opts.services) ? opts.services.map((s) => String(s).toUpperCase()) : null;
+  const services = want ? all.filter(([svc]) => svc === want) : wantList ? all.filter(([svc]) => wantList.indexOf(svc) !== -1) : all;
   const configured = services.filter(([, key]) => String(cfg[key] || "").trim());
 
   const status = (m, err) => (typeof xtSetStatus === "function" ? xtSetStatus(m, err) : atlasSetStatus(m, err));
 
   if (!configured.length) {
-    const which = want ? `the ${want} Christmas Tree UDQ ID is` : "any Christmas Tree UDQ IDs are";
+    const which = want ? `the ${want} Christmas Tree UDQ ID is` : wantList ? `the ${wantList.join(" / ")} Christmas Tree UDQ IDs are` : "any Christmas Tree UDQ IDs are";
     status(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} ${which} configured. Set the SRF / PR / PMCT / WS IDs in Settings \u25b8 ATLAS data source (or in ATLAS_UDQ_CONFIG). For now, drag the UDQ exports onto the drop zone above.`, true);
     return;
   }
@@ -1398,7 +1400,7 @@ async function loadFromAtlasXmasTree(opts) {
       if (!usable.length) { probs.push(`ATLAS returned no records for the ${svc} UDQ.`); continue; }
       const grid = atlasXmasTreeGrid(usable);
       const { records, untagged } = xtParseRecords(grid, svc);
-      XTree.slots[svc] = { fileName: `ATLAS ${svc} UDQ`, records, untagged, grid };
+      XTree.slots[svc] = { fileName: `ATLAS ${svc} UDQ`, records, untagged, grid, at: Date.now() };   // at: Procurement / Property tabs' freshness check
       ok++;
     } catch (e) {
       console.error(e);
@@ -1408,8 +1410,10 @@ async function loadFromAtlasXmasTree(opts) {
   if (probs.length) status(probs.join(" "), true);
   if (ok) {
     if (!probs.length) status(`Fetched ${ok} service UDQ${ok === 1 ? "" : "s"} from ATLAS.`, false);
-    // opts.quiet (the COP's background pull): only redraw if the Christmas Tree is on screen.
-    const quiet = opts && opts.quiet && AppState.activeTool !== "xmastree";
+    // opts.quiet (the COP's background pull): only redraw if the Christmas Tree (or the
+    // Procurement / Property tabs, which read the same PR / PMCT slots) is on screen.
+    const quiet = opts && opts.quiet && AppState.activeTool !== "xmastree" &&
+      !(typeof pmIsTool === "function" && pmIsTool(AppState.activeTool));
     if (!quiet && typeof renderWorkspace === "function") renderWorkspace();
   }
   return ok;

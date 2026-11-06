@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.0",
+    title: "Procurement and Property dashboards + weekly quad slide",
+    notes: [
+      "Two new Dashboard tabs: Procurement (PRs) and Property (TOP / PMCT). Opening either one pulls the PR and PMCT UDQs from ATLAS automatically (the same UDQs the Christmas Tree uses). Outside ATLAS, drop the two UDQ exports on the tab.",
+      "Active requests show first; finished ones (Completed, Ready To Invoice, Invoiced, Cancelled) are on the Closed tab with a \"closed in\" period. Drafts are hidden unless \"Show drafts\" is ticked.",
+      "Procurement: open PRs and value, cost estimates due and POs expected in the next 7 days, past-RDD, over-$100K and needs-attention tiles (click one to filter), a step-by-step pipeline, every open PR plotted by buyer and value, and a details table with milestones, linked PMCTs and the Activity Tracker history.",
+      "Property: open TOPs and property value, the TOP backlog by days since delivery (within 15 / 16–30 / over 30 days, $200K and over), open TOPs by owner, the oldest open TOPs, and delivered PRs that need a TOP but have no PMCT yet.",
+      "Weekly slide: builds the DPM's four-quadrant update (Procurement, Property, Personnel Logistics Services, Significant Program Actions) as an editable PowerPoint. Procurement and Property fill from ATLAS; type notes into any quadrant — they're saved in this browser and included in Backup.",
+    ],
+  },
+  {
     version: "2.7.1",
     title: "Offline-mode link",
     notes: [

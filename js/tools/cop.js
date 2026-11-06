@@ -3116,7 +3116,7 @@ function copPrint(rows, isActive) {
    Metrics (the Metrics dashboard), PMR, Export-Controlled and the Christmas
    Tree are tabs inside it. Tab ids are the TOOLS ids (app.js, hub: true).
    ------------------------------------------------------------------------- */
-const COP_HUB_TOOLS = ["cop", "pmr", "ecm", "xmastree"];     // workspace tools ("metrics" = the dashboard)
+const COP_HUB_TOOLS = ["cop", "proc", "prop", "pmr", "ecm", "xmastree"];     // workspace tools ("metrics" = the dashboard)
 function copIsHubTool(id) { return COP_HUB_TOOLS.indexOf(id) !== -1; }
 /** True while any COP tab is on screen (the Metrics tab = no tool on a Metrics UDQ). */
 function copHubActive() {
@@ -3126,6 +3126,8 @@ function copHubSelect(id) {
   if (id === "metrics") { AppState.activeTool = null; AppState.dashCollapsed = false; }
   else { AppState.activeTool = id; AppState.dashCollapsed = true; }
   renderRail(); renderDashboard(); renderWorkspace();
+  // Procurement / Property tabs pull the PR + PMCT UDQs as soon as they open (pmdash.js).
+  if (typeof pmIsTool === "function" && pmIsTool(id)) pmAutoPull();
   requestAnimationFrame(() => {
     const nav = document.querySelector(".cop-hub");
     if (nav) nav.scrollIntoView({ behavior: "smooth", block: "start" });

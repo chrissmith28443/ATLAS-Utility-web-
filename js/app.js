@@ -28,6 +28,8 @@ const TOOLS = [
   // A Metrics UDQ opens on the COP (loadFile). "metrics" = the Metrics
   // dashboard, which shows when no tool is active on a Metrics UDQ.
   { id: "cop",      group: "COP", hub: true,     label: "Shipments",           needs: "none",     ready: true  },
+  { id: "proc",     group: "COP", hub: true,     label: "Procurement",         needs: "none",     ready: true  },
+  { id: "prop",     group: "COP", hub: true,     label: "Property (TOP)",      needs: "none",     ready: true  },
   { id: "metrics",  group: "COP", hub: true,     label: "Metrics",             needs: "metrics",  ready: true  },
   { id: "pmr",      group: "COP", hub: true,     label: "PMR",                 needs: "metrics",  ready: true  },
   { id: "ecm",      group: "COP", hub: true,     label: "Export-Controlled",   needs: "metrics",  ready: true  },
@@ -811,6 +813,8 @@ function renderWorkspace() {
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
   else if (AppState.activeTool === "pmr") renderPmrWorkspace(ws);
   else if (AppState.activeTool === "cop") renderCopWorkspace(ws);
+  else if (AppState.activeTool === "proc") renderProcWorkspace(ws);
+  else if (AppState.activeTool === "prop") renderPropWorkspace(ws);
   else if (AppState.activeTool === "reqatt") renderReqattWorkspace(ws);
   else if (AppState.activeTool === "audit") renderRecordAuditWorkspace(ws);
   else if (AppState.activeTool === "ecm") renderEcmWorkspace(ws);
@@ -825,7 +829,8 @@ function renderWorkspace() {
   // own class so it doesn't disturb the user's loader-view (show/hide) preference.
   // Inventory Crosswalk has its own drop zone too.
   document.body.classList.toggle("xt-hide-dropzone",
-    AppState.activeTool === "xmastree" || AppState.activeTool === "invconv");
+    AppState.activeTool === "xmastree" || AppState.activeTool === "invconv" ||
+    AppState.activeTool === "proc" || AppState.activeTool === "prop");
   const offline = typeof offlineOn === "function" && offlineOn();
   // Per-document parent-items toggle (CI, PL, Placards, RFQ, Packet).
   if (!offline && typeof mpInjectDocToggle === "function") mpInjectDocToggle(ws, AppState.activeTool);

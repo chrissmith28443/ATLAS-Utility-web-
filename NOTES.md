@@ -404,3 +404,46 @@ Arrived Warehouse or the warehouse actual date is filled.
   bucket "unk" ("Delivered – date unknown", amber flag, card shown only when > 0).
 - Slide: "Use the dashboard filters" checkbox (PmUi.slideFiltered, session only) builds from each tab's filters;
   footer lists them. "Past RDD" tile filter now red-only (matches its count).
+
+## v2.8.2 decisions (2026-11-07) — NOT yet committed/pushed at time of writing
+- Supersedes parts of 2.8.1: PO issued = Activity Tracker "PR – PO Issued" ONLY (mandated entry; past-Sourcing PR
+  without one = record fix). PO due skips holidays. Country = CTR Country. Slide footer removed. Info bubbles (ⓘ) on
+  every tile/step/chart/table, off via Settings › General (dashInfo). Refresh = icon.
+- PR↔PMCT link = a row in the Linked Request List (either side). NO other field checked (Linkage Type check dropped).
+  Every PR with TOP Required = Yes, any status except Draft/Cancelled, needs a linked PMCT, else record fix.
+- PMCT process (user, 2026-11-07): PMCTs skip DTRA review (auto DTRA Approved) — just a TOP-document repository.
+  Two dates, from Activity entries only (status dates unreliable): "PMCT – TOP submitted for signature" (package to
+  gov; status set to Delivered) and "PMCT – Signed TOP returned to TTI" (signed TOP back; status set to Completed).
+  Open steps: "TOP being prepared" -> "Out for signature" (entry present or status Delivered). Backlog ages = days out
+  for signature. Flags: Delivered/closed with no submitted entry; Completed with no Signed TOP returned entry; signed
+  back but PMCT still open. PMCT Delivery Date field no longer used. Sample data has no "submitted" entries yet.
+- Dashboard tabs: Christmas Tree hidden (TOOLS hubHidden; code kept). PMR + Export-Controlled = sub-tabs under
+  Metrics (TOOLS hubUnder: "metrics"; copHubTabs draws the sub-row). Future idea: a Christmas Tree view/export under
+  Metrics for Wendy.
+- New PLS tab (TOOLS "pls"; pmRenderPls in pmdash.js). PLS UDQ: record ids "PLS-…", title = Team/Event Name,
+  Destination Country/City, Start/End Date, Total Cost in USD, col-B lists (Participants, Itinerary, one list per
+  vendor service, TTI-procured Ticket, Workflow Logs, Linked Request List); no Activity Tracker / attachments.
+  Steps: DTRA Program Review -> TTI Estimate Preparation -> DTRA Estimate Review / Fulfillment Review -> In
+  Progress -> Completed / Ready To Invoice / Invoiced. Slide PLS quadrant fills from it when loaded (else notes only).
+- PLS estimates NOT tracked for now (user, 2026-11-07): no estimate due dates, on-time rate or "trip soon, estimate
+  not approved". PLS flags: Trip ended still In Progress, missing dates / cost / TTI POC, red flag.
+- PLS ATLAS pull: Settings › ATLAS UDQ IDs has a PLS field (atlasIds().pls, empty built-in). pmPullPls() converts
+  the JSON with a generic pmJsonToGrid — UNTESTED (no PLS JSON sample yet). If it can't read the layout it says so
+  and keeps the dropped file. Ask for a JSON sample when the ID exists.
+- Dashboard rail button now starts every dashboard pull at once: copAutoFetch (Metrics/SRF) + pmAutoPull (PR, PMCT,
+  PLS). Christmas Tree UDQ IDs stay in Settings but aren't pulled (WS no longer pulled).
+- T-R4 dropped: TOP package = cover letter (Word/PDF) + inventory (Excel), PDF once signed. DD1149 = consumables,
+  not a TOP. No form guess on PMCTs.
+- View settings ("less is more"): View button on Procurement / Property / PLS. localStorage atlas.pmdash.view =
+  { kind: { "t:id" | "p:id" | "c:colKey": bool } } — overrides only; PM_VIEW_OFF holds the recommended hidden set.
+  Recommended = everything on Jon's slide + a few essentials: Proc tiles Open / Estimates due / POs expected / Need
+  attention, buyer chart + Next 7 days; Prop tiles Open / Out for signature / Out > 30 / Need attention, owner chart +
+  backlog; PLS tiles Open / Trips 30 days / Traveling now / Estimate with DTRA / Need attention, timeline only (full
+  width). Lanes off everywhere. Hidden columns: Proc In status / RDD / Latest update; Prop Country / Latest update;
+  PLS In status. PR / title columns are locked on. Backed up via backup.js.
+- Activity Tracker stages left in ATLAS (user, 2026-11-07): PR – RFQ/RFP Issued, TTI POC Status Check, PMCT – TOP
+  submitted for signature, PMCT – Signed TOP returned to TTI, PR – Completed, PR – PO Issued. Older stages still on
+  open records in the sample: PR – In Production / Fulfillment (81 entries), PR – On Hold, PR – Received, PR – Vendor
+  Selected, PR – Shipped by Vendor, SR - Delivered - POD Received (PMCT 10179).
+- PR delivery = the PR's Delivery Date field ONLY (user, 2026-11-07). No POD logic: a PR can have many PODs (one per
+  PO). Column / detail / export say "Delivered"; Past RDD stops once Delivery Date is filled.

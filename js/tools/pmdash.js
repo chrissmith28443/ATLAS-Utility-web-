@@ -36,7 +36,48 @@ const PM_AUTO_PULL_MIN = 10;       // don't re-pull within this many minutes
 const PM_SLIDE_KEY = "atlas.pmdash.slide";
 const PM_PPTX_SRC = ["js/vendor/pptxgen.min.js", "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"];
 
-const PM_TOOLS = ["proc", "prop"];
+const PM_TOOLS = ["proc", "prop", "pls"];
+const PM_PLS_SOON_DAYS = 14;       // slide: "Trips starting ≤ 14 days" list
+
+/* View settings — which tiles (t:), panels (p:) and table columns (c:) show on each tab.
+   PM_VIEW_OFF = hidden in the recommended view (anything on Jon's slide stays on).
+   The user's changes are saved per browser (atlas.pmdash.view) as { kind: { id: true|false } }. */
+const PM_VIEW_KEY = "atlas.pmdash.view";
+const PM_VIEW_OFF = {
+  proc: ["t:rdd", "t:big", "p:lanes", "c:statusSince", "c:rdd", "c:latest"],
+  prop: ["t:big", "t:flag", "p:lanes", "c:country", "c:latest"],
+  pls: ["t:ended", "p:lanes", "p:actions", "c:statusSince"],
+};
+const PM_VIEW_ITEMS = {
+  proc: { tiles: [["open", "Open PRs"], ["est", `Estimates due ≤ ${PM_SOON_DAYS} days`], ["po", `POs expected ≤ ${PM_SOON_DAYS} days`], ["rdd", "Past RDD"], ["big", "Over $100K"], ["attn", "Need attention"]],
+    panels: [["lanes", "Step lanes"], ["chart", "Open PRs by buyer (chart)"], ["actions", `Next ${PM_SOON_DAYS} days (list)`]] },
+  prop: { tiles: [["open", "Open TOPs"], ["out", "Out for signature"], ["o30", "Out > 30 days"], ["big", "$200K and over"], ["flag", "Red flags"], ["attn", "Need attention"]],
+    panels: [["lanes", "Step lanes"], ["chart", "Open TOPs by owner (chart)"], ["actions", "TOP backlog (list)"]] },
+  pls: { tiles: [["open", "Open PLS"], ["trips", "Trips in next 30 days"], ["now", "Traveling now"], ["dtra", "Estimate with DTRA"], ["ended", "Trip ended, still In Progress"], ["attn", "Need attention"]],
+    panels: [["lanes", "Step lanes"], ["chart", "Trips — next 60 days (timeline)"], ["actions", "Trips to close out (list)"]] },
+};
+const PM_VIEW_LOCKED = ["num", "title"];   // table columns that always show
+function pmViewGet() {
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem(PM_VIEW_KEY) || "null"); } catch (e) { v = null; }
+  return v && typeof v === "object" ? v : {};
+}
+function pmShow(kind, id) {
+  const o = (pmViewGet()[kind] || {})[id];
+  return typeof o === "boolean" ? o : (PM_VIEW_OFF[kind] || []).indexOf(id) === -1;
+}
+function pmViewSet(kind, id, on) {
+  const v = pmViewGet(), k = v[kind] = v[kind] || {};
+  const def = (PM_VIEW_OFF[kind] || []).indexOf(id) === -1;
+  if (on === def) delete k[id]; else k[id] = on;
+  try { localStorage.setItem(PM_VIEW_KEY, JSON.stringify(v)); } catch (e) { /* storage off */ }
+}
+function pmViewReset(kind) {
+  const v = pmViewGet(); delete v[kind];
+  try { localStorage.setItem(PM_VIEW_KEY, JSON.stringify(v)); } catch (e) { /* storage off */ }
+}
+function pmViewChanged(kind) { return Object.keys(pmViewGet()[kind] || {}).length > 0; }
+const PM_VIEW_BTN = (kind) => `<button class="copx-btn ghost ${PmUi.viewEdit === kind ? "on" : ""}" type="button" id="pmViewBtn" aria-expanded="${PmUi.viewEdit === kind}" title="Choose which tiles, panels and columns show">View${pmViewChanged(kind) ? " ·&nbsp;custom" : ""}</button>`;
 function pmIsTool(id) { return PM_TOOLS.indexOf(id) !== -1; }
 
 /* Lanes (pipeline steps). Colours = one blue ramp (ordinal), drafts neutral. */
@@ -47,19 +88,22 @@ const PM_PR_LANES = [
   { id: "sourcing", label: "Sourcing (PO pending)", color: "#184f95" },
   { id: "exec",     label: "PO issued / delivery",  color: "#1e2a4a" },
 ];
+/* PMCTs skip DTRA review (they go straight to DTRA Approved) — they hold the TOP package.
+   Two open steps, from Activity Tracker entries: TOP being prepared -> out for government signature. */
 const PM_TOP_LANES = [
   { id: "draft",     label: "Draft",                     color: "#aab4c3" },
-  { id: "review",    label: "In review",                 color: "#5598e7" },
-  { id: "approved",  label: "Approved, not delivered",   color: "#2a78d6" },
-  { id: "delivered", label: "Delivered, TOP open",       color: "#1e2a4a" },
+  { id: "approved",  label: "TOP being prepared",        color: "#2a78d6" },
+  { id: "delivered", label: "Out for signature",         color: "#1e2a4a" },
 ];
-/* TOP backlog buckets — days since delivery (Jon's slide). */
+const PM_TOP_SENT_RE = /top submitted for signature/i;     // Activity "PMCT – TOP submitted for signature"
+const PM_TOP_BACK_RE = /signed top returned/i;            // Activity "PMCT – Signed TOP returned to TTI"
+/* TOP backlog buckets — days out for signature (Jon's slide). */
 const PM_AGE = [
-  { id: "pre", label: "Not yet delivered", color: "#8c97a8" },
+  { id: "pre", label: "Not yet sent", color: "#8c97a8" },
   { id: "a15", label: "Within 15 days",    color: "#3987e5" },
   { id: "a30", label: "16–30 days",        color: "#1c5cab" },
   { id: "a31", label: "Over 30 days",      color: "#c62828" },
-  { id: "unk", label: "Delivered – date unknown", color: "#d08a00" },   // Delivered status but no delivery date anywhere
+  { id: "unk", label: "Sent – date unknown", color: "#d08a00" },   // Delivered status but no "TOP submitted for signature" entry
 ];
 const PM_AGE_UNK = PM_AGE[PM_AGE.length - 1];
 /** Age buckets worth showing for these rows ("date unknown" only when something is in it). */
@@ -73,13 +117,29 @@ function pmPrLane(status) {
   if (/estimate|100k/.test(s)) return "estimate";
   return "review";
 }
-function pmTopLane(status) {
+function pmTopLane(status, sigSent) {
   const s = norm(status).toLowerCase();
   if (/^draft/.test(s)) return "draft";
-  if (/^delivered/.test(s)) return "delivered";
-  if (/review/.test(s)) return "review";
+  if (sigSent || /^delivered/.test(s)) return "delivered";        // Delivered status = sent for signature
   return "approved";
 }
+/* PLS (Personnel Logistics Services) steps — same blue ramp. */
+const PM_PLS_LANES = [
+  { id: "draft",    label: "Draft",                  color: "#aab4c3" },
+  { id: "review",   label: "DTRA program review",    color: "#5598e7" },
+  { id: "estimate", label: "TTI estimate prep",      color: "#2a78d6" },
+  { id: "approval", label: "Estimate with DTRA",     color: "#184f95" },
+  { id: "booked",   label: "Approved / in progress", color: "#1e2a4a" },
+];
+function pmPlsLane(status) {
+  const s = norm(status).toLowerCase();
+  if (/^draft/.test(s)) return "draft";
+  if (/^tti estimate/.test(s)) return "estimate";
+  if (/estimate review|fulfillment/.test(s)) return "approval";
+  if (/in progress/.test(s)) return "booked";
+  return "review";
+}
+function pmLanesFor(kind) { return kind === "proc" ? PM_PR_LANES : kind === "pls" ? PM_PLS_LANES : PM_TOP_LANES; }
 function pmIsClosed(status) { return /^(completed|ready to invoice|invoiced|cancel)/i.test(norm(status)); }
 
 /* ---- small helpers ---- */
@@ -138,10 +198,11 @@ function pmSection(grid, rr, rEnd, re) {
   return { hdr: [], rows: [] };
 }
 
-function pmBlocks(grid) {
+function pmBlocks(grid, idRe) {
+  const re = idRe || /^WMTR-/i;                                   // PLS records start "PLS-"
   const max = gridMaxRow(grid);
   const starts = [];
-  for (let r = 2; r <= max; r++) if (/^WMTR-/i.test(norm(gridCell(grid, r, 1)))) starts.push(r);
+  for (let r = 2; r <= max; r++) if (re.test(norm(gridCell(grid, r, 1)))) starts.push(r);
   return starts.map((rr, i) => ({ rr, rEnd: i + 1 < starts.length ? starts[i + 1] : max + 1 }));
 }
 
@@ -164,18 +225,22 @@ function pmBase(grid, H, rr, rEnd, svc) {
   const statusSince = same.length ? same[0].dt : (wfl.find((e) => e.dt) || {}).dt || submitted || null;
   const dateCompleted = xtParseDate(S("Date Completed"));
   const closeStamp = wfl.find((e) => e.dt && pmIsClosed(e.status));
+  // Linked Request List: B Request Type · C Request Number · D Linkage Type · F Status.
+  const links = pmSection(grid, rr, rEnd, /^linked request list$/i).rows
+    .map((r) => ({ type: norm(r[0]).toUpperCase(), num: pmNum(r[1]), ltype: norm(r[2]), status: norm(r[4]) }))
+    .filter((l) => l.num);
   return {
     svc, wmtr, num: pmNum(wmtr), status, closed: pmIsClosed(status),
     title: norm(S("Request Title")), poc: norm(S("TTI POC Name")) || "Unassigned",
     alt: norm(S("TTI Alternate POC Name")),
-    country: pmCountry(S("Country of Destination") || S("CTR Country")),
+    country: pmCountry(S("CTR Country")),
     program: norm(S("CTR Program")),
     ref: norm(S("Requestor Ref.#")),
     redFlag: /^true$/i.test(norm(S("Red Flag"))), redFlagNote: norm(S("Red Flag Comments")),
     topReq: /^(yes|true)$/i.test(norm(S("Transfer of Property (TOP) Required?"))),
     topComments: norm(S("TOP Comments")),
     rdd: xtParseDate(S("NLT Completion Date")),
-    submitted, statusSince, wfl, att, acts, latest,
+    submitted, statusSince, wfl, att, acts, latest, links,
     lastUpdate: acts.length ? acts.find((a) => a.date)?.date || null : null,
     closedDate: dateCompleted || (closeStamp ? closeStamp.dt : null),
     S,
@@ -193,9 +258,8 @@ function pmParsePr(grid) {
     const newest = (n) => { const e = b.wfl.find((x) => eq(x.status, n) && x.dt); return e ? e.dt : null; };
     const oldest = (n) => { const m = b.wfl.filter((x) => eq(x.status, n) && x.dt); return m.length ? m[m.length - 1].dt : null; };
     const approvedCosts = b.wfl.filter((x) => eq(x.status, "DTRA Estimate Review (Approved)") && x.cost);
-    const pos = b.att.filter((a) => /purchase order/i.test(a.type) && a.at).map((a) => a.at).sort((x, y) => x - y);
-    const pods = b.att.filter((a) => /proof of delivery/i.test(a.type) && a.at).map((a) => a.at).sort((x, y) => x - y);
-    const poAct = pmActDate(b.acts, /po issued/i);                  // Activity Tracker "PR – PO Issued"
+    // PO issued comes ONLY from Activity Tracker "PR – PO Issued" entries (one per PO; a PR can need several).
+    const poActs = b.acts.filter((a) => a.date && /po issued/i.test(a.stage)).map((a) => a.date).sort((x, y) => x - y);
     const r = Object.assign(b, {
       lane: pmPrLane(b.status),
       cost: toFloat(b.S("Total Cost in USD")) || 0,
@@ -204,12 +268,12 @@ function pmParsePr(grid) {
       estSubmitted: oldest("DTRA Estimate Review"),
       estApproved: newest("DTRA Estimate Review (Approved)"),
       ct100k: newest("CT Program > 100K Approval (Approved)"),
-      // PO issued: the earlier of the Activity Tracker "PO Issued" stage and the PO file upload
-      // (a PO can't be uploaded before it's issued), else the oldest Production or Delivery log.
-      poDate: [poAct, pos[0]].filter(Boolean).sort((x, y) => x - y)[0] || oldest("Production or Delivery"),
-      poAttached: !!poAct || pos.length > 0,
-      // POD: the Delivery Date field, else the Activity Tracker "Delivered - POD Received" stage, else the POD file upload.
-      podDate: xtParseDate(b.S("Delivery Date")) || pmActDate(b.acts, /delivered - pod received/i) || pods[0] || null,
+      poDate: poActs[0] || null,
+      poCount: poActs.length,
+      // Past sourcing (Production or Delivery now, or ever on a finished PR) = should have a PO Issued entry.
+      poExpected: pmPrLane(b.status) === "exec" || (b.closed && !/^cancel/i.test(b.status) && !!oldest("Production or Delivery")),
+      // Delivered = the PR's Delivery Date field only (a PR can have many PODs, one per PO — those aren't used).
+      delivDate: xtParseDate(b.S("Delivery Date")) || null,
     });
     // Estimate due = 3 business days after compliance approval (Christmas Tree PR rule);
     // re-estimates count from when the request came back to TTI.
@@ -217,10 +281,11 @@ function pmParsePr(grid) {
       const base = [r.complianceApproved, r.statusSince].filter(Boolean).sort((x, y) => y - x)[0];
       r.estDue = base ? xtWorkday(base, 3, true) : null;
     }
-    // PO due = 1 business day after the estimate is approved (Christmas Tree PO rule).
-    if (r.lane === "sourcing" && !r.poAttached) {
+    // PO due = 1 business day (weekends + holidays skipped) after the estimate is approved. Applies for as long
+    // as the PR sits in Sourcing — a PR with several POs stays here until all are issued.
+    if (r.lane === "sourcing") {
       const base = r.estApproved || r.statusSince;
-      r.poDue = base ? xtWorkday(base, 1, false) : null;
+      r.poDue = base ? xtWorkday(base, 1, true) : null;
     }
     delete r.S;
     out.push(r);
@@ -242,22 +307,13 @@ function pmParsePmct(grid) {
       const vi = inv.hdr.findIndex((h) => /^value/i.test(h));
       if (qi >= 0 && vi >= 0) value = inv.rows.reduce((s, x) => s + toFloat(x[qi]) * toFloat(x[vi]), 0);
     }
-    const delivered = b.wfl.filter((e) => /^delivered - pod received$/i.test(e.status) && e.dt);
-    const pod = b.att.filter((a) => /proof of delivery|in lieu of pod/i.test(a.type + " " + a.note) && a.at).map((a) => a.at).sort((x, y) => x - y);
-    const text = `${b.title} ${b.ref}`;
-    const nums = Array.from(new Set((text.match(/\b\d{5}\b/g) || []).filter((n) => n !== b.num)));
+    // The two TOP dates come ONLY from Activity Tracker entries (status dates can't be relied on):
+    // sent to the government for signature, and signed TOP received back.
+    const sigSent = pmActDate(b.acts, PM_TOP_SENT_RE), sigBack = pmActDate(b.acts, PM_TOP_BACK_RE);
     const r = Object.assign(b, {
-      lane: pmTopLane(b.status),
+      lane: pmTopLane(b.status, sigSent),
       value: value || 0,
-      // Delivered: the Delivery Date field, else the oldest "Delivered - POD Received" log, else the POD file upload.
-      delivered: xtParseDate(b.S("Delivery Date")) || (delivered.length ? delivered[delivered.length - 1].dt : (pod[0] || null)),
-      // TOP hand-off milestones, from Activity Tracker stages.
-      xferScheduled: pmActDate(b.acts, /transfer scheduled/i),
-      xferAcked: pmActDate(b.acts, /acknowledged by receiving/i),
-      xferDone: pmActDate(b.acts, /transfer completed/i),
-      srcNums: nums,
-      srfNums: nums.filter((n) => new RegExp(`${n}-SRF`, "i").test(text)),
-      form: /1150/.test(`${b.topComments} ${b.title}`) ? "DD1150" : /1149/.test(`${b.topComments} ${b.title}`) ? "DD1149" : "TOP",
+      sigSent, sigBack, sigDays: sigSent && sigBack ? pmDays(sigSent, sigBack) : null,
     });
     delete r.S;
     out.push(r);
@@ -275,8 +331,8 @@ function pmPrFlags(r, today) {
     else if (d <= PM_SOON_DAYS) f.push({ lvl: "amber", key: "estdue", text: `Estimate due ${d === 0 ? "today" : pmFmt(r.estDue)}` });
   }
   if (r.poDue && pmDays(today, r.poDue) < 0) f.push({ lvl: "red", key: "podue", text: `PO overdue (due ${pmFmt(r.poDue)})` });
-  if (r.lane === "sourcing" && r.poAttached) f.push({ lvl: "amber", key: "status", text: "PO issued — status still Sourcing" });
-  if (r.rdd && !r.podDate && r.lane !== "draft") {
+  if (r.poExpected && !r.poCount) f.push({ lvl: "amber", key: "nopo", fix: true, text: "No \"PO Issued\" entry in the Activity Tracker" });
+  if (r.rdd && !r.delivDate && r.lane !== "draft") {
     const d = pmDays(today, r.rdd);
     if (d < 0) f.push({ lvl: "red", key: "rdd", text: `Past RDD (${pmFmt(r.rdd)})` });
     else if (d <= PM_RDD_SOON_DAYS) f.push({ lvl: "amber", key: "rdd", text: d === 0 ? "RDD today" : `RDD in ${pmPlural(d, "day")}` });
@@ -285,69 +341,229 @@ function pmPrFlags(r, today) {
     if (!r.lastUpdate) f.push({ lvl: "amber", key: "stale", text: "No Activity Tracker updates" });
     else if (pmDays(r.lastUpdate, today) > PM_STALE_DAYS) f.push({ lvl: "amber", key: "stale", text: `No update in ${pmDays(r.lastUpdate, today)} days` });
   }
-  if (r.topReq && r.podDate && !r.pmcts.length) f.push({ lvl: "amber", key: "notop", text: "TOP required — no PMCT yet" });
+  // Every PR with TOP Required = Yes needs a PMCT in the Linked Request List (any status but Draft / Cancelled).
+  if (r.topReq && r.lane !== "draft" && !/^cancel/i.test(r.status) && !r.pmcts.length)
+    f.push({ lvl: "amber", key: "notop", fix: true, text: "TOP required — no PMCT linked" });
   return f;
 }
 function pmTopFlags(r, today) {
   const f = [];
   if (r.redFlag) f.push({ lvl: "red", key: "flag", text: `Red flag${r.redFlagNote ? ": " + r.redFlagNote : ""}` });
+  const cancelled = /^cancel/i.test(r.status);
+  if (!r.sigSent && !cancelled && (r.lane === "delivered" || r.closed))
+    f.push({ lvl: "amber", key: "nosent", fix: true, text: "No \"TOP submitted for signature\" Activity entry" });
+  if (r.closed && !cancelled && !r.sigBack)
+    f.push({ lvl: "amber", key: "noback", fix: true, text: "No \"Signed TOP returned to TTI\" Activity entry" });
+  if (!r.closed && r.sigBack)
+    f.push({ lvl: "amber", key: "signed", text: `Signed TOP back ${pmFmt(r.sigBack)} — PMCT not Completed` });
   if (r.lane === "delivered") {
-    if (!r.delivered) f.push({ lvl: "amber", key: "nodate", text: "Delivered – date unknown" });
-    if (r.age > 30) f.push({ lvl: "red", key: "a31", text: `Open ${r.age} days since delivery` });
-    else if (r.age > 15) f.push({ lvl: "amber", key: "a30", text: `Open ${r.age} days since delivery` });
+    if (!r.sigBack && r.age > 30) f.push({ lvl: "red", key: "a31", text: `Out for signature ${r.age} days` });
+    else if (!r.sigBack && r.age > 15) f.push({ lvl: "amber", key: "a30", text: `Out for signature ${r.age} days` });
     if (!r.value) f.push({ lvl: "amber", key: "novalue", text: "No property value recorded" });
   }
-  if (r.lane !== "draft") {
-    if (!r.lastUpdate) f.push({ lvl: "amber", key: "stale", text: "No Activity Tracker updates" });
-    else if (pmDays(r.lastUpdate, today) > PM_STALE_DAYS) f.push({ lvl: "amber", key: "stale", text: `No update in ${pmDays(r.lastUpdate, today)} days` });
+  // A TOP package comes from a PR (TTI procurement) or an SRF (DTRA-owned equipment) — it must be linked to one.
+  if (r.lane !== "draft" && !cancelled && !r.srcLinks.length) f.push({ lvl: "amber", key: "nolink", fix: true, text: "No linked PR or SRF" });
+  // No Activity Tracker "stale" check: PMCTs don't need periodic updates.
+  return f;
+}
+
+/* ---- PLS ----
+   A PLS record carries titled col-B lists (Participants, Itinerary, one list per vendor service
+   — Lodging, Ground Transportation, TTI-procured Ticket, … — Workflow Logs, Linked Request List). */
+const PM_PLS_TITLE = /(\blist|\blogs|ticket)$|^(other services|additional requestors|ground transportation)/i;
+const PM_PLS_HDR = /^(name|line item id|status|start date|request type)$/i;
+function pmPlsSections(grid, rr, rEnd) {
+  const take = (r) => { const v = []; for (let c = 2; c <= 16; c++) v.push(normWs(gridCell(grid, r, c))); return v; };
+  const out = [];
+  let cur = null;
+  for (let r = rr + 1; r < rEnd; r++) {
+    const v = take(r);
+    if (!v.some(Boolean)) continue;
+    const title = v[0] && !v.slice(1).some(Boolean) && !/^\d+$/.test(v[0]) &&
+      (PM_PLS_TITLE.test(v[0]) || PM_PLS_HDR.test(normWs(gridCell(grid, r + 1, 2))));
+    if (title) { cur = { title: v[0], hdr: take(r + 1), rows: [] }; out.push(cur); r++; continue; }
+    if (cur) cur.rows.push(v);
   }
+  return out;
+}
+function pmParsePls(grid) {
+  // Header lookup that ignores spacing / punctuation ("Team/Event Name" = "Team Event Name") — for the ATLAS JSON pull.
+  const H0 = buildHeaderMap(grid, 1), loose = {};
+  const squash = (k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const k of Object.keys(H0)) if (!(squash(k) in loose)) loose[squash(k)] = H0[k];
+  const H = new Proxy(H0, { get: (t, k) => (t[k] != null ? t[k] : loose[squash(k)]) });
+  const out = [];
+  const eq = (a, n) => norm(a).toLowerCase() === n.toLowerCase();
+  for (const { rr, rEnd } of pmBlocks(grid, /^PLS-/i)) {
+    const b = pmBase(grid, H, rr, rEnd, "PLS");
+    const S = b.S;
+    b.wfl = b.wfl.filter((e) => e.dt);                               // lists after the log aren't log rows
+    const secs = pmPlsSections(grid, rr, rEnd);
+    const part = secs.find((x) => /^participants/i.test(x.title));
+    const ni = part ? part.hdr.findIndex((h) => /^number of participants$/i.test(h)) : -1;
+    const newest = (n) => { const e = b.wfl.find((x) => eq(x.status, n)); return e ? e.dt : null; };
+    const approvedCosts = b.wfl.filter((x) => eq(x.status, "DTRA Estimate Review (Approved)") && x.cost);
+    const country = pmCountry(S("Destination Country")), city = norm(S("Destination City"));
+    const r = Object.assign(b, {
+      lane: pmPlsLane(b.status),
+      title: norm(S("Team/Event Name")),
+      program: norm(S("CT Funding Program")),
+      country, city, dest: city ? `${country}, ${city}` : country,
+      start: xtParseDate(S("Start Date")), end: xtParseDate(S("End Date")),
+      cost: toFloat(S("Total Cost in USD")) || 0,
+      approved: approvedCosts.length ? approvedCosts[0].cost : null,
+      dtr: norm(S("Associated DTR/IR Number")), travelType: norm(S("Type Of Travel")), purpose: norm(S("Purpose of Travel/Request Summary")),
+      requestor: norm(S("CT Requestor Name")), ctpm: norm(S("CT Project Manager Name")), clin: norm(S("Contract CLIN")),
+      travelers: part ? part.rows.filter((x) => x[0]).reduce((s, x) => s + Math.max(1, ni >= 0 ? toFloat(x[ni]) || 0 : 0), 0) : 0,
+      services: secs.filter((x) => /^line item id$/i.test(x.hdr[0]) && x.rows.length).map((x) => ({ name: x.title.replace(/\s+list$/i, ""), n: x.rows.length })),
+      programApproved: newest("DTRA Program Review (Approved)"),
+      estApproved: newest("DTRA Estimate Review (Approved)"),
+    });
+    // PLS estimates aren't tracked (no due dates / turnaround) for now — user, 2026-11-07.
+    delete r.S;
+    out.push(r);
+  }
+  return out;
+}
+function pmPlsFlags(r, today) {
+  const f = [];
+  if (r.redFlag) f.push({ lvl: "red", key: "flag", text: `Red flag${r.redFlagNote ? ": " + r.redFlagNote : ""}` });
+  if (r.closed || r.lane === "draft") return f;
+  if (r.lane === "booked" && r.end && pmDays(r.end, today) > 0) f.push({ lvl: "amber", key: "ended", text: `Trip ended ${pmFmt(r.end)} — still In Progress` });
+  if (!r.start || !r.end) f.push({ lvl: "amber", key: "nodates", fix: true, text: "No Start / End Date" });
+  if (r.lane === "booked" && !r.cost) f.push({ lvl: "amber", key: "nocost", fix: true, text: "Approved, but no Total Cost" });
+  if (r.poc === "Unassigned") f.push({ lvl: "amber", key: "nopoc", fix: true, text: "No TTI POC" });
   return f;
 }
 
 /** Everything both tabs need, rebuilt only when a slot changes. */
 let _pmCache = null;
 function pmData() {
-  const prSlot = XTree.slots.PR, pmSlot = XTree.slots.PMCT;
+  const prSlot = XTree.slots.PR, pmSlot = XTree.slots.PMCT, plsSlot = PmPls.slot;
   const key = new Date().toDateString();
-  if (_pmCache && _pmCache.pr === prSlot && _pmCache.pm === pmSlot && _pmCache.key === key) return _pmCache.data;
+  if (_pmCache && _pmCache.pr === prSlot && _pmCache.pm === pmSlot && _pmCache.pls === plsSlot && _pmCache.key === key) return _pmCache.data;
   const today = pmToday();
   const prs = prSlot && prSlot.grid ? pmParsePr(prSlot.grid) : [];
   const tops = pmSlot && pmSlot.grid ? pmParsePmct(pmSlot.grid) : [];
-  const prByNum = {};
-  for (const p of prs) prByNum[p.num] = p;
-  for (const p of prs) p.pmcts = [];
+  const pls = plsSlot && plsSlot.grid ? pmParsePls(plsSlot.grid) : [];
+  for (const r of pls) {
+    r.phase = !r.start ? "" : pmDays(today, r.start) > 0 ? "upcoming" : (!r.end || pmDays(r.end, today) <= 0) ? "now" : "ended";
+    r.flags = pmPlsFlags(r, today);
+  }
+  // PR <-> PMCT links come ONLY from the Linked Request List (either side may hold the row).
+  // A row is all it takes — no other field (Linkage Type etc.) is checked.
+  const prByNum = {}, topByNum = {};
+  for (const p of prs) { prByNum[p.num] = p; p.pmcts = []; }
+  for (const t of tops) { topByNum[t.num] = t; t.srcPr = []; }
+  const pair = (p, t) => {
+    if (!p || !t) return;
+    if (t.srcPr.indexOf(p.num) === -1) t.srcPr.push(p.num);
+    if (!/^cancel/i.test(t.status) && p.pmcts.indexOf(t) === -1) p.pmcts.push(t);
+  };
+  for (const p of prs) for (const l of p.links) if (l.type === "PMCT") pair(p, topByNum[l.num]);
+  for (const t of tops) for (const l of t.links) if (l.type === "PR") pair(prByNum[l.num], t);
   for (const t of tops) {
-    t.srcPr = t.srcNums.filter((n) => prByNum[n] && t.srfNums.indexOf(n) === -1);
-    t.source = t.srcPr.length ? `PR ${t.srcPr[0]}` : t.srfNums.length ? `SRF ${t.srfNums[0]}` : t.srcNums.length ? `#${t.srcNums[0]}` : "";
-    if (!/^cancel/i.test(t.status)) for (const n of t.srcPr) prByNum[n].pmcts.push(t);
-    t.age = t.lane === "delivered" && t.delivered ? pmDays(t.delivered, today) : null;
+    const srfs = t.links.filter((l) => l.type === "SRF").map((l) => l.num);
+    t.srcLinks = t.srcPr.map((n) => `PR ${n}`).concat(srfs.map((n) => `SRF ${n}`));
+    t.source = t.srcLinks.join(", ");
+    // Days out for signature: sent -> signed TOP back (or today while still out).
+    t.age = t.lane === "delivered" && t.sigSent ? pmDays(t.sigSent, t.sigBack || today) : null;
     t.bucket = t.lane !== "delivered" ? "pre" : t.age == null ? "unk" : t.age > 30 ? "a31" : t.age > 15 ? "a30" : "a15";
   }
   for (const p of prs) p.flags = pmPrFlags(p, today);
   for (const t of tops) t.flags = pmTopFlags(t, today);
-  // Delivered (or closed) PRs that need a TOP but no PMCT points at them — every PR, no start date.
-  const noTop = prs.filter((p) => p.topReq && !p.pmcts.length && !/^cancel/i.test(p.status) && (p.podDate || p.closedDate));
-  const data = { prs, tops, noTop, today, prSlot, pmSlot };
-  _pmCache = { pr: prSlot, pm: pmSlot, key, data };
+  // PRs that need a TOP but have no PMCT in the Linked Request List — every PR, no start date.
+  const noTop = prs.filter((p) => p.flags.some((f) => f.key === "notop"));
+  const data = { prs, tops, noTop, pls, today, prSlot, pmSlot, plsSlot };
+  _pmCache = { pr: prSlot, pm: pmSlot, pls: plsSlot, key, data };
   return data;
 }
 
 /* -------------------------------------------------------------------------
-   AUTO-PULL — opening either tab pulls both UDQs from ATLAS (background).
+   PLS UDQ — dropped for now (no ATLAS pull wired yet). Any drop zone on the
+   three tabs routes a PLS export here and PR / PMCT exports to the Christmas Tree slots.
+   ------------------------------------------------------------------------- */
+const PmPls = { slot: null, status: "", err: false };
+function pmPlsStatus(msg, err) {
+  PmPls.status = msg || ""; PmPls.err = !!err;
+  const s = document.getElementById("pmPlsStatus");
+  if (s) { s.textContent = PmPls.status; s.classList.toggle("err", PmPls.err); }
+}
+function pmIsPlsGrid(grid) { return /^pls number$/i.test(normWs(gridCell(grid, 1, 1))); }
+async function pmIngest(files) {
+  const list = Array.from(files || []).filter((f) => /\.xlsx?$/i.test(f.name));
+  const rest = [];
+  for (const f of list) {
+    let grid = null;
+    try { grid = workbookToGrid(await f.arrayBuffer()); } catch (e) { rest.push(f); continue; }
+    if (!pmIsPlsGrid(grid)) { rest.push(f); continue; }
+    const n = pmBlocks(grid, /^PLS-/i).length;
+    if (!n) { pmPlsStatus(`No PLS records found in "${f.name}".`, true); continue; }
+    PmPls.slot = { fileName: f.name, grid, at: 0 };
+    pmPlsStatus(`Loaded ${n} PLS records from ${f.name}.`, false);
+  }
+  if (rest.length && typeof xtIngestFiles === "function") await xtIngestFiles(rest);
+  else renderWorkspace();
+}
+
+/* PLS from ATLAS — Settings › ATLAS data source › PLS UDQ. The PLS JSON layout isn't known yet, so it's
+   turned into the export layout generically: scalar fields -> header row 1 (CamelCase split into words),
+   each list of objects -> a titled col-B section. Header lookups in pmParsePls ignore spacing / punctuation.
+   If nothing usable comes out, the loaded data is kept and the status says so (needs a JSON sample). */
+function pmPlsId() { try { return typeof atlasIds === "function" ? String(atlasIds().pls || "").trim() : ""; } catch (e) { return ""; } }
+function pmJsonToGrid(recs) {
+  const human = (k) => String(k).replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z])([A-Z][a-z])/g, "$1 $2").replace(/\s+/g, " ").trim();
+  const flat = (v) => v == null || typeof v !== "object";
+  const val = (v) => v == null ? null : flat(v) ? String(v) : null;
+  const idKey = ["PLSNumber", "PlsNumber", "GMTRNumber", "RequestNumber"].find((k) => recs.some((r) => r && r[k])) || "";
+  const keys = [];
+  for (const r of recs) for (const k of Object.keys(r || {})) if (k !== idKey && flat(r[k]) && keys.indexOf(k) === -1) keys.push(k);
+  const grid = [["PLS Number"].concat(keys.map(human))];
+  for (const r of recs) {
+    if (!r || !idKey || !r[idKey]) continue;
+    grid.push([String(r[idKey]).trim()].concat(keys.map((k) => val(r[k]))));
+    for (const k of Object.keys(r)) {
+      const arr = r[k];
+      if (!Array.isArray(arr) || !arr.length || typeof arr[0] !== "object") continue;
+      const ik = [];
+      for (const it of arr) for (const kk of Object.keys(it || {})) if (flat(it[kk]) && ik.indexOf(kk) === -1) ik.push(kk);
+      grid.push([null, human(k)]);
+      grid.push([null].concat(ik.map(human)));
+      for (const it of arr) grid.push([null].concat(ik.map((kk) => val((it || {})[kk]))));
+    }
+  }
+  return grid;
+}
+async function pmPullPls() {
+  try {
+    const recs = await atlasFetchUdqJson(pmPlsId());
+    const grid = pmJsonToGrid((recs || []).filter(Boolean));
+    const n = pmParsePls(grid).filter((r) => r.status).length;
+    if (!n) { pmPlsStatus("Pulled the PLS UDQ from ATLAS, but couldn't read its layout yet — keep dropping the PLS export until the Utility is updated for it.", true); return; }
+    PmPls.slot = { fileName: "ATLAS PLS UDQ", grid, at: Date.now() };
+    pmPlsStatus("", false);
+  } catch (e) { console.error(e); pmPlsStatus(`Couldn't pull the PLS UDQ from ATLAS — ${e.message || e}`, true); }
+}
+
+/* -------------------------------------------------------------------------
+   AUTO-PULL — clicking Dashboard (or opening one of these tabs) pulls the PR, PMCT
+   and PLS UDQs from ATLAS in the background. Dropped files are left alone.
    ------------------------------------------------------------------------- */
 const PmPull = { busy: false };
 function pmFresh(slot) { return slot && slot.at && Date.now() - slot.at < PM_AUTO_PULL_MIN * 60000; }
 async function pmAutoPull(force) {
   if (PmPull.busy || typeof loadFromAtlasXmasTree !== "function") return;
-  const pr = XTree.slots.PR, pm = XTree.slots.PMCT;
-  if (!force) {
-    if (pmFresh(pr) && pmFresh(pm)) return;                     // pulled moments ago
-    if ((pr && !pr.at) || (pm && !pm.at)) return;               // working from dropped files — leave them
-  }
+  const pr = XTree.slots.PR, pm = XTree.slots.PMCT, pl = PmPls.slot;
+  const needPm = force || !((pmFresh(pr) && pmFresh(pm)) || (pr && !pr.at) || (pm && !pm.at));
+  const needPls = !!pmPlsId() && (force || !(pmFresh(pl) || (pl && !pl.at)));
+  if (!needPm && !needPls) return;
   PmPull.busy = true;
   if (pmIsTool(AppState.activeTool)) renderWorkspace();
-  try { await loadFromAtlasXmasTree({ services: ["PR", "PMCT"], quiet: true }); }
-  catch (e) { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT UDQs from ATLAS — ${e.message || e}`, true); }
+  await Promise.all([
+    needPm ? loadFromAtlasXmasTree({ services: ["PR", "PMCT"], quiet: true })
+      .catch((e) => { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT UDQs from ATLAS — ${e.message || e}`, true); }) : null,
+    needPls ? pmPullPls() : null,
+  ]);
   PmPull.busy = false;
   if (pmIsTool(AppState.activeTool)) renderWorkspace();
 }
@@ -358,10 +574,66 @@ async function pmAutoPull(force) {
 const PmUi = {
   proc: { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
   prop: { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
+  pls:  { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
   slide: false,
   slideFiltered: false,     // weekly slide: use each tab's filters instead of the whole contract
+  viewEdit: "",             // tab whose View settings panel is open
 };
 function pmRerender() { if (pmIsTool(AppState.activeTool)) renderWorkspace(); }
+
+/* -------------------------------------------------------------------------
+   INFO BUBBLES — "how this is calculated" (Settings › General can turn them off).
+   ------------------------------------------------------------------------- */
+const PM_CLOSED_TXT = "Active = every status except Completed, Ready To Invoice, Invoiced and Cancelled. Drafts count only when \"Show drafts\" is ticked.";
+const PM_INFO = {
+  prOpen: `<b>Open PRs</b><br>${PM_CLOSED_TXT}<br>$ = sum of <b>Total Cost in USD</b>.`,
+  estDue: `<b>Estimates due</b><br>PRs in <b>TTI Estimate Preparation</b>. Due date = the later of the newest <b>DTRA Compliance Review (Approved)</b> log date and the date the PR entered this status, + 3 business days (weekends and holidays skipped).<br>Counted when due within ${PM_SOON_DAYS} days or overdue.`,
+  poDue: `<b>POs expected</b><br>PRs in <b>Sourcing</b>. Due date = the newest <b>DTRA Estimate Review (Approved)</b> log date (or the date it entered Sourcing), + 1 business day (weekends and holidays skipped).<br>Counted when due within ${PM_SOON_DAYS} days or overdue. A PR stays here until its status moves past Sourcing, so one with several POs counts until all are issued.`,
+  rdd: `<b>Past RDD</b><br>PRs whose <b>NLT Completion Date</b> has passed and that have no <b>Delivery Date</b> yet.<br>$ = their Total Cost in USD.`,
+  bigPr: `<b>Over $100K</b><br>PRs with <b>Total Cost in USD</b> of $100,000 or more.`,
+  prAttn: `<b>Need attention</b><br>PRs with at least one pill in the Attention column: red flag, estimate or PO overdue, past or near RDD, no Activity Tracker update in ${PM_STALE_DAYS} days, no PO Issued entry, or TOP required with no linked PMCT.`,
+  topOpen: `<b>Open TOPs</b><br>${PM_CLOSED_TXT}<br>$ = sum of property value: <b>Value of Cargo (USD)</b> (if blank, inventory Quantity × Value(USD)).`,
+  topDelivered: `<b>Out for signature</b><br>Open PMCTs with an Activity Tracker <b>PMCT – TOP submitted for signature</b> entry (or status <b>Delivered</b>) — the TOP package is with the government, waiting for the signed TOP.`,
+  top30: `<b>Out &gt; 30 days</b><br>TOPs out for signature more than 30 days: today (or the <b>PMCT – Signed TOP returned to TTI</b> date) − the <b>PMCT – TOP submitted for signature</b> date. TOPs with no "submitted" entry aren't counted — they show as "Sent – date unknown".`,
+  bigTop: `<b>$200K and over</b><br>Open TOPs (any step) with a property value of $200,000 or more.`,
+  redFlag: `<b>Red flags</b><br>PMCTs with <b>Red Flag</b> = True.`,
+  topAttn: `<b>Need attention</b><br>TOPs with at least one pill in the Attention column: red flag, out for signature 16+ days, signed TOP back but PMCT not Completed, a missing <b>TOP submitted for signature</b> or <b>Signed TOP returned to TTI</b> Activity entry, no property value, or no linked PR or SRF.`,
+  dotPlot: `<b>Open PRs by buyer</b><br>One row per <b>TTI POC Name</b>, sorted by their total $. Each dot is one PR placed at its <b>Total Cost in USD</b> (log scale from $1K; hollow = no cost yet), coloured by step.<br>Right side = number of PRs · total $.`,
+  topBars: `<b>Open TOPs by owner</b><br>One bar per <b>TTI POC Name</b>. Each segment counts that owner's TOPs by days out for signature (from the <b>TOP submitted for signature</b> Activity entry). Bars are scaled to the owner with the most TOPs.<br>Right side = number of TOPs · total property value.`,
+  next7: `<b>Next ${PM_SOON_DAYS} days</b><br>Cost estimates due and POs expected use the same rules as the tiles above (overdue included, soonest first).<br>"Waiting on CT Program &gt; $100K" lists PRs whose status contains 100K, with days since they entered that status.`,
+  backlog: `<b>TOP backlog</b><br>Tiles count TOPs out for signature by days since the <b>PMCT – TOP submitted for signature</b> Activity entry: 0–15, 16–30, over 30.<br>Oldest open TOPs = the 6 with the most days.<br>"TOP required — no PMCT" = PRs (any status but Draft / Cancelled) with <b>TOP Required = Yes</b> and no PMCT in either request's <b>Linked Request List</b>.`,
+  prTable: `<b>Columns</b><br><b>In status</b> = days since the newest Workflow Log entry matching the current status.<br><b>Next due</b> = estimate or PO due date (rules on the tiles).<br><b>Latest update</b> = newest Activity Tracker entry with a note.<br><b>PO</b> = first Activity Tracker <b>PR – PO Issued</b> date. <b>Delivered</b> = the PR's <b>Delivery Date</b> field.<br><b>Record fixes</b> = data the TTI POC needs to correct in ATLAS.`,
+  topTable: `<b>Columns</b><br><b>From</b> = PRs / SRFs in the <b>Linked Request List</b>.<br><b>Sent for signature</b> = Activity entry <b>PMCT – TOP submitted for signature</b>. <b>Signed TOP back</b> = Activity entry <b>PMCT – Signed TOP returned to TTI</b>. <b>Days out</b> = days between them (or to today).<br><b>Latest update</b> = newest Activity Tracker entry with a note.<br><b>Record fixes</b> = data the TTI POC needs to correct in ATLAS.`,
+  slide: `<b>Weekly slide</b><br>Counts every active, non-draft PR, TOP and PLS on the contract — or only what the tab filters show when "Use the dashboard filters" is ticked. The charts show the top 7 buyers / owners by count. The PLS quadrant fills once a PLS UDQ is loaded. Notes are typed below.`,
+  plsOpen: `<b>Open PLS</b><br>${PM_CLOSED_TXT}<br>$ = sum of <b>Total Cost in USD</b>.`,
+  plsDtra: `<b>Estimate with DTRA</b><br>PLS in <b>DTRA Estimate Review</b> or <b>Fulfillment Review</b> — TTI's estimate is waiting on approval.<br>Below = days the oldest one has waited (since it entered that status).`,
+  plsTrips: `<b>Trips in the next 30 days</b><br>Open PLS whose <b>Start Date</b> is today or within 30 days.<br>Below = travelers: one per <b>Participants List</b> row (or that row's <b>Number of Participants</b> when it's more than 1).`,
+  plsNow: `<b>Traveling now</b><br>Open PLS where today is between the <b>Start Date</b> and <b>End Date</b>.`,
+  plsAttn: `<b>Need attention</b><br>PLS with at least one pill in the Attention column: red flag, trip ended but still In Progress, or record fixes (no Start / End Date, approved with no Total Cost, no TTI POC).`,
+  plsTimeline: `<b>Trips — next 60 days</b><br>One bar per open PLS from its <b>Start Date</b> to <b>End Date</b>, coloured by step. Trips already underway show from the left edge. The red line is today.`,
+  plsActions: `<b>Trip ended, still In Progress</b><br>Open PLS in <b>In Progress</b> whose <b>End Date</b> has passed — the PLS should move to Completed.`,
+  plsTable: `<b>Columns</b><br><b>Travelers</b> = Participants List rows (or a row's Number of Participants when more than 1).<br><b>In status</b> = days since the newest Workflow Log entry matching the current status.<br><b>Record fixes</b> = data the TTI POC needs to correct in ATLAS.`,
+  lane: {
+    pr_draft: "ATLAS status <b>Draft</b>.",
+    pr_review: "Every open status not in another step — e.g. DTRA Compliance Review, DTRA Program Review, TTI Quality Review.<br>Count · total of Total Cost in USD · the 3 most common statuses.",
+    pr_estimate: "Statuses containing <b>Estimate</b> or <b>100K</b> — TTI Estimate Preparation, DTRA Estimate Review, CT Program &gt; 100K Approval.<br>Count · total of Total Cost in USD · the 3 most common statuses.",
+    pr_sourcing: "Status <b>Sourcing</b>. A PR stays here until all its POs are issued.<br>Count · total of Total Cost in USD.",
+    pr_exec: "Statuses containing Production, Delivery, Shipped or Received — e.g. <b>Production or Delivery</b>.<br>Count · total of Total Cost in USD.",
+    top_draft: "ATLAS status <b>Draft</b>.",
+    top_approved: "Open PMCTs (normally <b>DTRA Approved</b> — PMCTs skip DTRA review) with no <b>TOP submitted for signature</b> Activity entry yet.<br>Count · total property value.",
+    top_delivered: "Open PMCTs with a <b>PMCT – TOP submitted for signature</b> Activity entry, or status <b>Delivered</b>.<br>Count · total property value.",
+    pls_draft: "ATLAS status <b>Draft</b>.",
+    pls_review: "<b>DTRA Program Review</b> (and any other status not in another step).<br>Count · total of Total Cost in USD.",
+    pls_estimate: "<b>TTI Estimate Preparation</b> — TTI is preparing the cost estimate.<br>Count · total of Total Cost in USD.",
+    pls_approval: "<b>DTRA Estimate Review</b> or <b>Fulfillment Review</b> — estimate waiting on approval.<br>Count · total of Total Cost in USD.",
+    pls_booked: "<b>In Progress</b> — estimate approved, trip booked or underway.<br>Count · total of Total Cost in USD.",
+  },
+};
+function pmInfoOn() { try { return typeof AtlasSettings === "undefined" || AtlasSettings.get().dashInfo !== false; } catch (e) { return true; } }
+function pmInfo(html) {
+  if (!html || !pmInfoOn()) return "";
+  return `<span class="pmx-info" data-tip="${esc(html)}" role="img" aria-label="How this is calculated">i</span>`;
+}
 
 const PMX_CSS = `
 .pmx{--pm-r1:#86b6ef;--pm-r2:#3987e5;--pm-r3:#1c5cab;--pm-r4:#0d366b;--pm-grid:#e3e8ef}
@@ -371,6 +643,14 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-tools{display:flex;gap:8px;align-items:center;margin-left:auto;padding-bottom:6px;flex-wrap:wrap}
 .pmx-tools .copx-btn{min-height:32px;padding:6px 14px}
 .pmx-src{font-size:11.5px;color:var(--ax-muted)}
+.pmx-tools .copx-btn.pmx-icon{padding:6px 9px;display:inline-flex;align-items:center;justify-content:center}
+.pmx-icon svg.spin{animation:pmx-spin 1s linear infinite}
+@keyframes pmx-spin{to{transform:rotate(360deg)}}
+.pmx-info{display:inline-flex;align-items:center;justify-content:center;flex:none;width:15px;height:15px;border-radius:50%;border:1.4px solid currentColor;
+  font:italic 700 10px Georgia,serif;color:var(--ax-muted);cursor:help;margin-left:6px;vertical-align:middle;opacity:.85}
+.pmx-info:hover{opacity:1;color:var(--ax-blue)}
+.pmx-kpi .k .pmx-info{margin-left:auto}
+.pmx-lane .lh .pmx-info{margin-left:auto;color:#fff}
 .pmx-filters{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:14px}
 .pmx-filters .copx-f{min-width:180px}
 .pmx-filters .copx-f.q{flex:1;min-width:220px}
@@ -392,7 +672,17 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-lane .m{font-size:12px;color:var(--ax-ink2);margin-bottom:6px}
 .pmx-lane .st{font-size:11px;color:var(--ax-muted);display:flex;justify-content:space-between;gap:6px}
 .pmx-grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+.pmx-grid2.one{grid-template-columns:minmax(0,1fr)}
 @media (max-width:1100px){.pmx-grid2{grid-template-columns:1fr}}
+.pmx-tools .copx-btn.on{border-color:var(--ax-blue);box-shadow:0 0 0 2px var(--ax-blue)}
+.pmx-view{border:1px solid var(--ax-line);border-radius:10px;background:var(--ax-card);padding:12px 16px;margin:0 0 16px}
+.pmx-view .vh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.pmx-view .vh h3{margin:0;font-size:14px;font-weight:600}
+.pmx-view .vh .sub{font-size:11.5px;color:var(--ax-muted)}
+.pmx-view .vh .acts{margin-left:auto;display:flex;gap:8px}
+.pmx-view h4{margin:10px 0 4px;font-size:11.5px;font-weight:700;color:var(--ax-muted);text-transform:uppercase;letter-spacing:.04em}
+.pmx-view .grp{display:flex;flex-wrap:wrap;gap:4px 18px}
+.pmx-view .grp label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
 .pmx-panel{border:1px solid var(--ax-line);border-radius:10px;padding:12px 14px;background:var(--ax-card);min-width:0}
 .pmx-panel h3{margin:0 0 2px;font-size:14px;font-weight:600}
 .pmx-panel .sub{font-size:11.5px;color:var(--ax-muted);margin-bottom:8px}
@@ -406,6 +696,9 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-svg circle{stroke:var(--ax-card);stroke-width:2;cursor:pointer}
 .pmx-svg circle:hover{stroke:var(--ax-ink)}
 .pmx-svg circle.zero{fill:var(--ax-card)!important;stroke:var(--ax-muted);stroke-width:1.5}
+.pmx-svg .tb{cursor:pointer}
+.pmx-svg .tb:hover rect{stroke:var(--ax-ink);stroke-width:1.5}
+.pmx-svg .now{stroke:var(--ax-red);stroke-width:1.5;stroke-dasharray:3 3}
 .pmx-bars{display:flex;flex-direction:column;gap:7px}
 .pmx-bar{display:grid;grid-template-columns:130px minmax(0,1fr) 110px;gap:10px;align-items:center;font-size:12px}
 .pmx-bar .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -510,9 +803,16 @@ function pmTip(e, html) {
 }
 function pmWireTips(root) {
   root.querySelectorAll("[data-tip]").forEach((n) => {
-    n.addEventListener("mousemove", (e) => pmTip(e, n.getAttribute("data-tip")));
+    n.addEventListener("mousemove", (e) => { e.stopPropagation(); pmTip(e, n.getAttribute("data-tip")); });
     n.addEventListener("mouseleave", () => pmTip(null));
   });
+  // Info bubbles also open on click / tap (and must not trigger the tile they sit on).
+  root.querySelectorAll(".pmx-info").forEach((n) => n.addEventListener("click", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const r = n.getBoundingClientRect();
+    pmTip({ clientX: r.left, clientY: r.bottom }, n.getAttribute("data-tip"));
+    setTimeout(() => document.addEventListener("click", () => pmTip(null), { once: true }), 0);
+  }));
 }
 
 /* -------------------------------------------------------------------------
@@ -520,6 +820,170 @@ function pmWireTips(root) {
    ------------------------------------------------------------------------- */
 function renderProcWorkspace(container) { pmRender(container, "proc"); }
 function renderPropWorkspace(container) { pmRender(container, "prop"); }
+function renderPlsWorkspace(container) { pmRenderPls(container); }
+
+/* PLS tab — same layout as Procurement / Property, fed by a dropped PLS UDQ. */
+function pmRenderPls(container) {
+  pmTip(null);
+  const ui = PmUi.pls;
+  const root = el(`<div class="copx pmx"><style>${typeof COPX_CSS !== "undefined" ? COPX_CSS : ""}${PMX_CSS}</style></div>`);
+  container.appendChild(root);
+  const D = pmData();
+  if (!D.plsSlot) { root.appendChild(pmPlsEmptyCard()); return; }
+  const all = D.pls;
+  const active = all.filter((r) => !r.closed), closed = all.filter((r) => r.closed);
+  const drafts = active.filter((r) => r.lane === "draft").length;
+  const isActive = ui.view !== "closed";
+  const tabs = el(`<div class="pmx-top"><div class="copx-tabs" role="tablist">
+    <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active PLS (${active.length - (ui.drafts ? 0 : drafts)})</button>
+    <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed PLS (${closed.length})</button></div>
+    <div class="pmx-tools"><span class="pmx-src">PLS UDQ · ${esc(D.plsSlot.fileName)}</span>
+      <button class="copx-btn ghost" type="button" id="pmPlsLoad" title="Load a newer PLS UDQ export">Load newer PLS UDQ</button>
+      <input type="file" id="pmPlsFile" accept=".xlsx,.xls" hidden>
+      ${PM_VIEW_BTN("pls")}
+      <button class="copx-btn ${PmUi.slide ? "blue" : "green"}" type="button" id="pmSlideBtn">${PmUi.slide ? "Close weekly slide" : "Weekly slide"}</button></div>
+  </div>`);
+  tabs.querySelectorAll("button[data-v]").forEach((b) => b.addEventListener("click", () => { ui.view = b.dataset.v; ui.quick = ""; ui.open = new Set(); pmRerender(); }));
+  const fi = tabs.querySelector("#pmPlsFile");
+  tabs.querySelector("#pmPlsLoad").addEventListener("click", () => fi.click());
+  fi.addEventListener("change", () => pmIngest(fi.files));
+  pmWireViewBtn(tabs, "pls");
+  tabs.querySelector("#pmSlideBtn").addEventListener("click", () => { PmUi.slide = !PmUi.slide; pmRerender(); });
+  root.appendChild(tabs);
+  root.appendChild(el(`<div class="pmx-status ${PmPls.err ? "err" : ""}" id="pmPlsStatus" style="margin-top:-8px">${esc(PmPls.status || "")}</div>`));
+  if (PmUi.viewEdit === "pls") root.appendChild(pmViewPanel("pls", isActive));
+  if (PmUi.slide) root.appendChild(pmSlideCard(D));
+
+  const base = isActive ? active.filter((r) => ui.drafts || r.lane !== "draft") : pmClosedWindow(closed, ui.period);
+  const rows = pmFilter(base, ui, "pls");
+  const card = el(`<section class="copx-card">
+    <div class="copx-hd"><h2>${isActive ? "Personnel Logistics Services — Active PLS" : "Personnel Logistics Services — Closed PLS"}</h2>
+      <span class="n">${rows.length === base.length ? `${base.length} PLS` : `${rows.length} of ${base.length} PLS`} · ${pmMoney(pmSum(rows, "cost"))}</span>
+      <div class="acts"><button class="copx-btn" id="pmExport" type="button">Export to Excel</button></div></div>
+    <div class="copx-rule"></div></section>`);
+  root.appendChild(card);
+  card.querySelector("#pmExport").addEventListener("click", () => pmExportXlsx("pls", rows, isActive));
+  card.appendChild(pmFilterBar("pls", isActive ? active : closed, isActive, drafts));
+  if (isActive) {
+    const viewBase = pmFilter(base, Object.assign({}, ui, { quick: "", attn: false }), "pls");
+    card.appendChild(pmPlsKpis(viewBase));
+    pmPanels(card, "pls", () => pmLanes(viewBase, ui, "pls"), () => pmPlsTimeline(viewBase), () => pmPlsActions(viewBase));
+  }
+  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2>${isActive ? "PLS details" : "Closed"}${pmInfo(PM_INFO.plsTable)}</h2>
+    <span class="n">Click a row for travel, services and milestones · click a header to sort</span></div><div class="copx-rule"></div></section>`);
+  root.appendChild(tcard);
+  tcard.appendChild(pmTable("pls", rows, isActive));
+  pmWireTips(root);
+}
+function pmPlsEmptyCard() {
+  const card = el(`<section class="copx-card">
+    <div class="copx-hd"><h2>Personnel Logistics Services (PLS)</h2></div><div class="copx-rule"></div>
+    <p class="copx-msg">This tab runs on the PLS UDQ. It doesn't pull from ATLAS yet — drop the PLS UDQ export below (it stays loaded until the page is reloaded).</p>
+    <div class="pmx-drop" id="pmDrop" tabindex="0" role="button">Drop the PLS UDQ export (.xlsx) here, or click to browse</div>
+    <input type="file" id="pmFile" accept=".xlsx,.xls" multiple hidden>
+    <div class="pmx-status ${PmPls.err ? "err" : ""}" id="pmPlsStatus">${esc(PmPls.status || "")}</div>
+  </section>`);
+  pmWireDrop(card.querySelector("#pmDrop"), card.querySelector("#pmFile"));
+  return card;
+}
+function pmPlsKpis(rows) {
+  const today = pmToday();
+  const dtra = rows.filter((r) => r.lane === "approval");
+  const oldest = dtra.reduce((m, r) => Math.max(m, r.statusSince ? pmDays(r.statusSince, today) : 0), 0);
+  const trips = rows.filter((r) => r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= 30);
+  const now = rows.filter((r) => r.phase === "now");
+  const ended = rows.filter((r) => r.flags.some((f) => f.key === "ended"));
+  const attn = rows.filter((r) => r.flags.length);
+  return pmKpiGrid("pls", [
+    { id: "open", label: "Open PLS", v: rows.length, s: `${pmMoney(pmSum(rows, "cost"))} total cost`, info: PM_INFO.plsOpen },
+    { id: "trips", key: "trip30", label: "Trips in next 30 days", v: trips.length, s: `${pmPlural(pmSum(trips, "travelers"), "traveler")}`, info: PM_INFO.plsTrips },
+    { id: "now", key: "now", label: "Traveling now", v: now.length, s: now.length ? pmPlural(pmSum(now, "travelers"), "traveler") : "&nbsp;", info: PM_INFO.plsNow },
+    { id: "dtra", key: "lane:approval", label: "Estimate with DTRA", v: dtra.length, s: dtra.length ? `oldest ${pmPlural(oldest, "day")}` : "&nbsp;", info: PM_INFO.plsDtra },
+    { id: "ended", key: "ended", label: "Trip ended, still In Progress", v: ended.length, s: "&nbsp;", info: PM_INFO.plsActions },
+    { id: "attn", key: "attn", label: "Need attention", v: attn.length, s: `${attn.filter((r) => r.flags.some((f) => f.lvl === "red")).length} with a red item`, info: PM_INFO.plsAttn },
+  ]);
+}
+/* Trips — next 60 days: one bar per open PLS from Start Date to End Date, coloured by step. */
+function pmPlsTimeline(rows) {
+  const today = pmToday(), SPAN = 60, MAXR = 18;
+  const panel = el(`<div class="pmx-panel"><h3>Trips — next 60 days${pmInfo(PM_INFO.plsTimeline)}</h3>
+    <div class="sub">Start to end date · coloured by step · click a bar to open it in the table</div>
+    <div class="pmx-legend">${PM_PLS_LANES.filter((l) => l.id !== "draft").map((l) => `<span><i class="pmx-dot" style="background:${l.color}"></i>${esc(l.label)}</span>`).join("")}</div></div>`);
+  const trips = rows.filter((r) => r.start && pmDays(today, r.start) <= SPAN && (r.end ? pmDays(today, r.end) >= 0 : pmDays(today, r.start) >= 0))
+    .sort((a, b) => a.start - b.start || (a.end || a.start) - (b.end || b.start));
+  if (!trips.length) { panel.appendChild(el(`<div class="pmx-empty">No trips in the next 60 days in this view.</div>`)); return panel; }
+  const shown = trips.slice(0, MAXR);
+  const W = 720, L = 190, R = 12, T = 22, RH = 20, H = T + shown.length * RH + 6;
+  const x = (d) => L + Math.max(0, Math.min(SPAN, d)) / SPAN * (W - L - R);
+  let svg = "";
+  for (let d = 0; d <= SPAN; d += 7) {
+    const day = xtAddDays(today, d);
+    svg += `<line class="gl" x1="${x(d)}" x2="${x(d)}" y1="${T - 4}" y2="${H - 4}"/><text class="ax" x="${x(d)}" y="${T - 8}" text-anchor="middle">${esc(pmFmt(day))}</text>`;
+  }
+  shown.forEach((r, i) => {
+    const y = T + i * RH;
+    const s = pmDays(today, r.start), e = pmDays(today, r.end || r.start);
+    const lane = PM_PLS_LANES.find((l) => l.id === r.lane) || PM_PLS_LANES[0];
+    const x1 = x(s), x2 = Math.max(x(e + 1), x1 + 4);
+    const lbl = `${r.num} · ${r.title}`;
+    const tip = `<b>${esc(r.num)} · ${esc(r.title)}</b><br>${esc(r.dest)}<br>${esc(pmFmt(r.start, true))} – ${esc(pmFmt(r.end, true))} · ${pmPlural(r.travelers, "traveler")}<br>${esc(r.status)} · ${pmMoney(r.cost, true)} · ${esc(r.poc)}`;
+    svg += `<text class="nm" x="${L - 8}" y="${y + 13}" text-anchor="end">${esc(lbl.length > 30 ? lbl.slice(0, 29) + "…" : lbl)}</text>
+      <g class="tb" data-num="${esc(r.num)}" data-tip="${esc(tip)}"><rect x="0" y="${y}" width="${W}" height="${RH}" fill="transparent"/>
+      <rect x="${x1}" y="${y + 5}" width="${x2 - x1}" height="10" rx="4" fill="${lane.color}"/></g>`;
+  });
+  svg += `<line class="now" x1="${x(0)}" x2="${x(0)}" y1="${T - 4}" y2="${H - 4}"/>`;
+  panel.appendChild(el(`<svg class="pmx-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Trips in the next 60 days">${svg}</svg>`));
+  if (trips.length > MAXR) panel.appendChild(el(`<div class="sub" style="margin-top:6px">+${trips.length - MAXR} more — see the table</div>`));
+  panel.querySelectorAll(".tb").forEach((g) => g.addEventListener("click", () => pmOpenRow("pls", g.dataset.num)));
+  return panel;
+}
+function pmPlsActions(rows) {
+  const ended = rows.filter((r) => r.flags.some((f) => f.key === "ended")).sort((a, b) => a.end - b.end);
+  const panel = el(`<div class="pmx-panel pmx-act"><h3>Trips to close out${pmInfo(PM_INFO.plsActions)}</h3><div class="sub">Click an item to open it in the table</div>
+    <h4><span>Trip ended, still In Progress</span><span>${ended.length}</span></h4>${pmActList("pls", ended, () => null, (r) => `ended ${pmFmt(r.end)}`, "None.")}
+  </div>`);
+  panel.querySelectorAll("li[data-num]").forEach((li) => li.addEventListener("click", () => pmOpenRow("pls", li.getAttribute("data-num"))));
+  return panel;
+}
+
+/* View settings panel (opened by the View button): tick what shows on this tab. Saved per browser. */
+function pmViewPanel(kind, isActive) {
+  const it = PM_VIEW_ITEMS[kind];
+  const cols = pmCols(kind, isActive).filter((c) => PM_VIEW_LOCKED.indexOf(c.k) === -1);
+  const box = (id, label) => `<label><input type="checkbox" data-vid="${esc(id)}" ${pmShow(kind, id) ? "checked" : ""}> ${esc(label)}</label>`;
+  const p = el(`<section class="pmx-view" aria-label="View settings">
+    <div class="vh"><h3>View settings</h3><span class="sub">Tick what you want on this tab. Your choices are saved in this browser and become your default view.</span>
+      <div class="acts"><button class="copx-btn ghost" type="button" id="pmViewReset" ${pmViewChanged(kind) ? "" : "disabled"}>Reset to recommended</button>
+        <button class="copx-btn blue" type="button" id="pmViewDone">Done</button></div></div>
+    ${isActive ? `<h4>Summary tiles</h4><div class="grp">${it.tiles.map(([id, l]) => box("t:" + id, l)).join("")}</div>
+      <h4>Panels</h4><div class="grp">${it.panels.map(([id, l]) => box("p:" + id, l)).join("")}</div>`
+    : `<div class="sub" style="font-size:11.5px;color:var(--ax-muted)">Tiles and panels are on the Active tab.</div>`}
+    <h4>Table columns${isActive ? "" : " (closed)"}</h4><div class="grp">${cols.map((c) => box("c:" + c.k, c.l)).join("")}</div>
+  </section>`);
+  p.querySelectorAll("input[data-vid]").forEach((cb) => cb.addEventListener("change", () => {
+    const id = cb.dataset.vid;
+    pmViewSet(kind, id, cb.checked);
+    pmRerender();
+    const n = document.querySelector(`.pmx-view input[data-vid="${id}"]`); if (n) n.focus();
+  }));
+  p.querySelector("#pmViewReset").addEventListener("click", () => { pmViewReset(kind); pmRerender(); });
+  p.querySelector("#pmViewDone").addEventListener("click", () => { PmUi.viewEdit = ""; pmRerender(); });
+  return p;
+}
+function pmWireViewBtn(tabs, kind) {
+  tabs.querySelector("#pmViewBtn").addEventListener("click", () => { PmUi.viewEdit = PmUi.viewEdit === kind ? "" : kind; pmRerender(); });
+}
+/** Lanes row + the chart / list pair, each only if switched on in View settings (one panel = full width). */
+function pmPanels(card, kind, lanes, chart, actions) {
+  if (pmShow(kind, "p:lanes")) card.appendChild(lanes());
+  const parts = [];
+  if (pmShow(kind, "p:chart")) parts.push(chart());
+  if (pmShow(kind, "p:actions")) parts.push(actions());
+  if (!parts.length) return;
+  const g = el(`<div class="pmx-grid2${parts.length === 1 ? " one" : ""}"></div>`);
+  parts.forEach((x) => g.appendChild(x));
+  card.appendChild(g);
+}
 
 function pmRender(container, kind) {
   pmTip(null);
@@ -544,21 +1008,25 @@ function pmRender(container, kind) {
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active ${noun}s (${active.length - (ui.drafts ? 0 : drafts)})</button>
     <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed ${noun}s (${closed.length})</button></div>
     <div class="pmx-tools"><span class="pmx-src">${esc(isPr ? "PR" : "PMCT")} UDQ · ${esc(pulled)}${PmPull.busy ? " · refreshing…" : ""}</span>
-      <button class="copx-btn ghost" type="button" id="pmRefresh" ${PmPull.busy ? "disabled" : ""}>Refresh</button>
+      <button class="copx-btn ghost pmx-icon" type="button" id="pmRefresh" title="Refresh — pull the PR and PMCT UDQs from ATLAS again" aria-label="Refresh from ATLAS" ${PmPull.busy ? "disabled" : ""}>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" class="${PmPull.busy ? "spin" : ""}"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+      ${PM_VIEW_BTN(kind)}
       <button class="copx-btn ${PmUi.slide ? "blue" : "green"}" type="button" id="pmSlideBtn">${PmUi.slide ? "Close weekly slide" : "Weekly slide"}</button></div>
   </div>`);
   tabs.querySelectorAll("button[data-v]").forEach((b) => b.addEventListener("click", () => {
     ui.view = b.dataset.v; ui.quick = ""; ui.open = new Set(); pmRerender();
   }));
   tabs.querySelector("#pmRefresh").addEventListener("click", () => pmAutoPull(true));
+  pmWireViewBtn(tabs, kind);
   tabs.querySelector("#pmSlideBtn").addEventListener("click", () => { PmUi.slide = !PmUi.slide; pmRerender(); });
   root.appendChild(tabs);
   root.appendChild(el(`<div class="pmx-status ${XTree.statusErr ? "err" : ""}" id="xtStatus" style="margin-top:-8px">${esc(XTree.status || "")}</div>`));
+  if (PmUi.viewEdit === kind) root.appendChild(pmViewPanel(kind, isActive));
 
   if (PmUi.slide) root.appendChild(pmSlideCard(D));
 
   const base = isActive ? active.filter((r) => ui.drafts || r.lane !== "draft") : pmClosedWindow(closed, ui.period);
-  const rows = pmFilter(base, ui, isPr);
+  const rows = pmFilter(base, ui, kind);
 
   const card = el(`<section class="copx-card">
     <div class="copx-hd"><h2>${isPr ? (isActive ? "Procurement — Active PRs" : "Procurement — Closed PRs") : (isActive ? "Property — Open TOPs (PMCT)" : "Property — Closed TOPs (PMCT)")}</h2>
@@ -570,16 +1038,14 @@ function pmRender(container, kind) {
   card.appendChild(pmFilterBar(kind, isActive ? active : closed, isActive, drafts));
 
   if (isActive) {
-    const viewBase = pmFilter(base, Object.assign({}, ui, { quick: "", attn: false }), isPr);  // tiles count what the filters show, before a tile is picked
+    const viewBase = pmFilter(base, Object.assign({}, ui, { quick: "", attn: false }), kind);  // tiles count what the filters show, before a tile is picked
     card.appendChild(isPr ? pmPrKpis(viewBase, ui) : pmTopKpis(viewBase, ui));
-    card.appendChild(pmLanes(viewBase, ui, isPr));
-    const g = el(`<div class="pmx-grid2"></div>`);
-    g.appendChild(isPr ? pmPrDotPlot(viewBase) : pmTopBars(viewBase));
-    g.appendChild(isPr ? pmPrActions(viewBase) : pmTopActions(viewBase, D));
-    card.appendChild(g);
+    pmPanels(card, kind, () => pmLanes(viewBase, ui, kind),
+      () => isPr ? pmPrDotPlot(viewBase) : pmTopBars(viewBase),
+      () => isPr ? pmPrActions(viewBase) : pmTopActions(viewBase, D));
   }
 
-  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2>${isActive ? (isPr ? "PR details" : "TOP details") : "Closed"}</h2>
+  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2>${isActive ? (isPr ? "PR details" : "TOP details") : "Closed"}${pmInfo(isPr ? PM_INFO.prTable : PM_INFO.topTable)}</h2>
     <span class="n">Click a row for dates, linked requests and the update history · click a header to sort</span></div><div class="copx-rule"></div></section>`);
   root.appendChild(tcard);
   tcard.appendChild(pmTable(kind, rows, isActive));
@@ -603,7 +1069,7 @@ function pmEmptyCard(kind) {
   return card;
 }
 function pmWireDrop(drop, input) {
-  const take = (files) => { if (files && files.length && typeof xtIngestFiles === "function") xtIngestFiles(files); };
+  const take = (files) => { if (files && files.length) pmIngest(files); };   // PLS -> PLS tab; PR / PMCT -> Christmas Tree slots
   drop.addEventListener("click", () => input.click());
   drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
   input.addEventListener("change", () => take(input.files));
@@ -621,12 +1087,13 @@ function pmClosedWindow(rows, period) {
   return rows.filter((r) => r.closedDate && r.closedDate >= from);
 }
 
-function pmFilter(rows, ui, isPr) {
+function pmFilter(rows, ui, kind) {
+  const isPr = kind === "proc";
   const q = norm(ui.q).toLowerCase();
   let out = rows.filter((r) => {
     if (ui.poc && r.poc !== ui.poc) return false;
     if (ui.attn && !r.flags.length) return false;
-    if (q && ![r.wmtr, r.title, r.poc, r.status, r.country, r.program, r.latest ? r.latest.note : "", r.source || ""].join(" ").toLowerCase().includes(q)) return false;
+    if (q && ![r.wmtr, r.title, r.poc, r.status, r.country, r.city || "", r.dtr || "", r.program, r.latest ? r.latest.note : "", r.source || ""].join(" ").toLowerCase().includes(q)) return false;
     return true;
   });
   const k = ui.quick;
@@ -638,6 +1105,8 @@ function pmFilter(rows, ui, isPr) {
     else if (k === "estdue") out = out.filter((r) => r.flags.some((f) => f.key === "estdue"));
     else if (k === "podue") out = out.filter((r) => r.poDue && pmDays(pmToday(), r.poDue) <= PM_SOON_DAYS);
     else if (k === "rdd") out = out.filter((r) => r.flags.some((f) => f.key === "rdd" && f.lvl === "red"));   // matches the "Past RDD" tile
+    else if (k === "trip30") out = out.filter((r) => r.start && pmDays(pmToday(), r.start) >= 0 && pmDays(pmToday(), r.start) <= 30);
+    else if (k === "now") out = out.filter((r) => r.phase === "now");
     else out = out.filter((r) => r.flags.some((f) => f.key === k));
   }
   // sort
@@ -648,7 +1117,7 @@ function pmFilter(rows, ui, isPr) {
       if (v instanceof Date) return v.getTime();
       if (s.k === "latest") return r.lastUpdate ? r.lastUpdate.getTime() : 0;
       if (s.k === "flags") return r.flags.filter((f) => f.lvl === "red").length * 100 + r.flags.length;
-      if (s.k === "lane") return (isPr ? PM_PR_LANES : PM_TOP_LANES).findIndex((l) => l.id === r.lane);
+      if (s.k === "lane") return pmLanesFor(kind).findIndex((l) => l.id === r.lane);
       return v == null ? "" : v;
     };
     out = out.slice().sort((a, b) => { const x = val(a), y = val(b); return (x > y ? 1 : x < y ? -1 : 0) * s.d; });
@@ -665,9 +1134,9 @@ function pmFilterBar(kind, pool, isActive, drafts) {
   if (ui.poc && pocs.indexOf(ui.poc) === -1) ui.poc = "";
   const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t)}</option>`;
   const bar = el(`<div class="pmx-filters">
-    <div class="copx-f"><label for="pmPoc">${kind === "proc" ? "Buyer (TTI POC)" : "Owner (TTI POC)"}</label>
+    <div class="copx-f"><label for="pmPoc">${kind === "proc" ? "Buyer (TTI POC)" : kind === "pls" ? "TTI POC" : "Owner (TTI POC)"}</label>
       <select id="pmPoc">${opt("", "Everyone", !ui.poc)}${pocs.map((p) => opt(p, p, p === ui.poc)).join("")}</select></div>
-    <div class="copx-f q"><label for="pmQ">Search</label><input type="search" id="pmQ" placeholder="WMTR, title, country, note…" value="${esc(ui.q)}"></div>
+    <div class="copx-f q"><label for="pmQ">Search</label><input type="search" id="pmQ" placeholder="${kind === "pls" ? "PLS number, team / event, country, city, DTR…" : "WMTR, title, country, note…"}" value="${esc(ui.q)}"></div>
     ${isActive ? `<label class="copx-chk"><input type="checkbox" id="pmAttn" ${ui.attn ? "checked" : ""}> Needs attention only</label>
       <label class="copx-chk"><input type="checkbox" id="pmDrafts" ${ui.drafts ? "checked" : ""}> Show drafts (${drafts})</label>`
     : `<div class="copx-f"><label for="pmPeriod">Closed in</label><select id="pmPeriod">
@@ -688,9 +1157,9 @@ function pmFilterBar(kind, pool, isActive, drafts) {
 function pmKpiGrid(kind, tiles) {
   const ui = PmUi[kind];
   const g = el(`<div class="pmx-kpis"></div>`);
-  for (const t of tiles) {
+  for (const t of tiles.filter((x) => !x.id || pmShow(kind, "t:" + x.id))) {
     const b = el(`<button type="button" class="pmx-kpi ${ui.quick === t.key ? "on" : ""}" ${t.key ? "" : 'style="cursor:default"'}>
-      <div class="k">${t.dot ? `<i class="pmx-dot" style="background:${t.dot}"></i>` : ""}${esc(t.label)}</div>
+      <div class="k">${t.dot ? `<i class="pmx-dot" style="background:${t.dot}"></i>` : ""}${esc(t.label)}${pmInfo(t.info)}</div>
       <div class="v">${esc(String(t.v))}</div><div class="s">${t.s || "&nbsp;"}</div></button>`);
     if (t.key) b.addEventListener("click", () => { ui.quick = ui.quick === t.key ? "" : t.key; pmRerender(); });
     g.appendChild(b);
@@ -708,12 +1177,12 @@ function pmPrKpis(rows, ui) {
   const attn = rows.filter((r) => r.flags.length);
   const late = (n) => n ? `<b class="r">${n} overdue</b>` : "none overdue";
   return pmKpiGrid("proc", [
-    { label: "Open PRs", v: rows.length, s: `${pmMoney(pmSum(rows, "cost"))} total value` },
-    { key: "estdue", label: `Estimates due ≤ ${PM_SOON_DAYS} days`, v: est.length, s: late(estLate) },
-    { key: "podue", label: `POs expected ≤ ${PM_SOON_DAYS} days`, v: po.length, s: late(poLate) },
-    { key: "rdd", label: "Past RDD", v: rdd.length, s: rdd.length ? pmMoney(pmSum(rdd, "cost")) : "&nbsp;" },
-    { key: "big", label: "Over $100K", v: big.length, s: pmMoney(pmSum(big, "cost")) },
-    { key: "attn", label: "Need attention", v: attn.length, s: `${attn.filter((r) => r.flags.some((f) => f.lvl === "red")).length} with a red item` },
+    { id: "open", label: "Open PRs", v: rows.length, s: `${pmMoney(pmSum(rows, "cost"))} total value`, info: PM_INFO.prOpen },
+    { id: "est", key: "estdue", label: `Estimates due ≤ ${PM_SOON_DAYS} days`, v: est.length, s: late(estLate), info: PM_INFO.estDue },
+    { id: "po", key: "podue", label: `POs expected ≤ ${PM_SOON_DAYS} days`, v: po.length, s: late(poLate), info: PM_INFO.poDue },
+    { id: "rdd", key: "rdd", label: "Past RDD", v: rdd.length, s: rdd.length ? pmMoney(pmSum(rdd, "cost")) : "&nbsp;", info: PM_INFO.rdd },
+    { id: "big", key: "big", label: "Over $100K", v: big.length, s: pmMoney(pmSum(big, "cost")), info: PM_INFO.bigPr },
+    { id: "attn", key: "attn", label: "Need attention", v: attn.length, s: `${attn.filter((r) => r.flags.some((f) => f.lvl === "red")).length} with a red item`, info: PM_INFO.prAttn },
   ]);
 }
 function pmTopKpis(rows, ui) {
@@ -722,18 +1191,18 @@ function pmTopKpis(rows, ui) {
   const big = rows.filter((r) => r.value >= PM_BIG_TOP);
   const attn = rows.filter((r) => r.flags.length);
   return pmKpiGrid("prop", [
-    { label: "Open TOPs", v: rows.length, s: `${pmMoney(pmSum(rows, "value"))} property value` },
-    { key: "lane:delivered", label: "Delivered, TOP open", v: dl.length, s: pmMoney(pmSum(dl, "value")) },
-    { key: "age:a31", label: "Open > 30 days", dot: "#c62828", v: o30.length, s: pmMoney(pmSum(o30, "value")) },
-    { key: "big", label: "$200K and over", v: big.length, s: pmMoney(pmSum(big, "value")) },
-    { key: "flag", label: "Red flags", v: rows.filter((r) => r.redFlag).length, s: "&nbsp;" },
-    { key: "attn", label: "Need attention", v: attn.length, s: `${attn.filter((r) => r.flags.some((f) => f.lvl === "red")).length} with a red item` },
+    { id: "open", label: "Open TOPs", v: rows.length, s: `${pmMoney(pmSum(rows, "value"))} property value`, info: PM_INFO.topOpen },
+    { id: "out", key: "lane:delivered", label: "Out for signature", v: dl.length, s: pmMoney(pmSum(dl, "value")), info: PM_INFO.topDelivered },
+    { id: "o30", key: "age:a31", label: "Out > 30 days", dot: "#c62828", v: o30.length, s: pmMoney(pmSum(o30, "value")), info: PM_INFO.top30 },
+    { id: "big", key: "big", label: "$200K and over", v: big.length, s: pmMoney(pmSum(big, "value")), info: PM_INFO.bigTop },
+    { id: "flag", key: "flag", label: "Red flags", v: rows.filter((r) => r.redFlag).length, s: "&nbsp;", info: PM_INFO.redFlag },
+    { id: "attn", key: "attn", label: "Need attention", v: attn.length, s: `${attn.filter((r) => r.flags.some((f) => f.lvl === "red")).length} with a red item`, info: PM_INFO.topAttn },
   ]);
 }
 
-function pmLanes(rows, ui, isPr) {
-  const lanes = (isPr ? PM_PR_LANES : PM_TOP_LANES).filter((l) => l.id !== "draft" || ui.drafts);
-  const kind = isPr ? "proc" : "prop";
+function pmLanes(rows, ui, kind) {
+  const isPr = kind === "proc", money = kind === "prop" ? "value" : "cost";
+  const lanes = pmLanesFor(kind).filter((l) => l.id !== "draft" || ui.drafts);
   const wrap = el(`<div class="pmx-lanes"></div>`);
   for (const l of lanes) {
     const rs = rows.filter((r) => r.lane === l.id);
@@ -743,8 +1212,8 @@ function pmLanes(rows, ui, isPr) {
       .map((s) => `<div class="st"><span>${esc(s)}</span><b>${by[s]}</b></div>`).join("");
     const key = "lane:" + l.id;
     const b = el(`<button type="button" class="pmx-lane ${ui.quick === key ? "on" : ""}">
-      <div class="lh"><i class="pmx-dot" style="background:${l.color};box-shadow:0 0 0 2px #fff"></i>${esc(l.label)}</div>
-      <div class="lb"><div class="n">${rs.length}</div><div class="m">${pmMoney(pmSum(rs, isPr ? "cost" : "value"))}</div>${st}</div></button>`);
+      <div class="lh"><i class="pmx-dot" style="background:${l.color};box-shadow:0 0 0 2px #fff"></i>${esc(l.label)}${pmInfo(PM_INFO.lane[(isPr ? "pr_" : kind === "pls" ? "pls_" : "top_") + l.id])}</div>
+      <div class="lb"><div class="n">${rs.length}</div><div class="m">${pmMoney(pmSum(rs, money))}</div>${st}</div></button>`);
     b.addEventListener("click", () => { PmUi[kind].quick = PmUi[kind].quick === key ? "" : key; pmRerender(); });
     wrap.appendChild(b);
   }
@@ -753,7 +1222,7 @@ function pmLanes(rows, ui, isPr) {
 
 /* Open PRs by buyer — each dot is one PR at its value (log scale), coloured by step. */
 function pmPrDotPlot(rows) {
-  const panel = el(`<div class="pmx-panel"><h3>Open PRs by buyer</h3>
+  const panel = el(`<div class="pmx-panel"><h3>Open PRs by buyer${pmInfo(PM_INFO.dotPlot)}</h3>
     <div class="sub">Each dot is one PR at its current total cost · hover for details, click to open it below</div></div>`);
   const lanes = PM_PR_LANES.filter((l) => rows.some((r) => r.lane === l.id));
   panel.appendChild(el(`<div class="pmx-legend">${lanes.map((l) => `<span><i class="pmx-dot" style="background:${l.color}"></i>${esc(l.label)}</span>`).join("")}
@@ -762,33 +1231,46 @@ function pmPrDotPlot(rows) {
   const by = {};
   for (const r of rows) (by[r.poc] = by[r.poc] || []).push(r);
   const names = Object.keys(by).sort((a, b) => pmSum(by[b], "cost") - pmSum(by[a], "cost"));
-  const W = 640, L = 120, R = 92, ZW = 30, rowH = 30, top = 8, H = top + names.length * rowH + 24;
+  const W = 640, L = 120, R = 92, ZW = 30, top = 8, DR = 5.5, GAP = 2 * DR + 2;   // GAP = min centre distance (no overlap)
   const max = Math.max(1e3, ...rows.map((r) => r.cost));
   const lo = 3, hi = Math.max(4, Math.ceil(Math.log10(max)));
   const x0 = L + ZW + 22, x1 = W - R - 8;
   const X = (v) => x0 + (Math.log10(Math.max(v, 1e3)) - lo) / (hi - lo) * (x1 - x0);
+  // Beeswarm: each dot takes the nearest vertical spot (0, ±3, ±6 …) where it touches no other dot;
+  // a buyer row grows taller when it needs more room.
+  const placed = names.map((n) => {
+    const pts = [];
+    for (const r of by[n].slice().sort((a, b) => a.cost - b.cost)) {
+      const x = r.cost > 0 ? X(r.cost) : L + ZW / 2;
+      let dy = 0;
+      for (let s = 0; s < 200; s++) {
+        dy = s === 0 ? 0 : (s % 2 ? -1 : 1) * Math.ceil(s / 2) * 3;
+        if (pts.every((p) => (p.x - x) ** 2 + (p.dy - dy) ** 2 >= GAP * GAP)) break;
+      }
+      pts.push({ r, x, dy });
+    }
+    const spread = Math.max(0, ...pts.map((p) => Math.abs(p.dy)));
+    return { n, pts, h: Math.max(30, 2 * spread + 2 * DR + 12) };
+  });
+  const H = top + placed.reduce((s, p) => s + p.h, 0) + 24;
   let svg = `<svg class="pmx-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Open PRs by buyer and value">`;
   for (let p = lo; p <= hi; p++) {
     const x = X(Math.pow(10, p));
     svg += `<line class="gl" x1="${x}" x2="${x}" y1="${top}" y2="${H - 22}"/><text class="ax" x="${x}" y="${H - 8}" text-anchor="middle">${pmMoney(Math.pow(10, p))}</text>`;
   }
   svg += `<text class="ax" x="${L + ZW / 2}" y="${H - 8}" text-anchor="middle">$0</text>`;
-  names.forEach((n, i) => {
-    const cy = top + i * rowH + rowH / 2;
+  let yAt = top;
+  for (const { n, pts, h } of placed) {
+    const cy = yAt + h / 2; yAt += h;
     svg += `<line class="gl" x1="${L}" x2="${x1}" y1="${cy}" y2="${cy}" stroke-dasharray="2 3"/>`;
     svg += `<text class="nm" x="${L - 8}" y="${cy + 4}" text-anchor="end">${esc(n.length > 18 ? pmShortName(n) : n)}</text>`;
-    const list = by[n].slice().sort((a, b) => a.cost - b.cost);
-    let lastX = -99, k = 0;
-    for (const r of list) {
-      const x = r.cost > 0 ? X(r.cost) : L + ZW / 2;
-      k = Math.abs(x - lastX) < 9 ? k + 1 : 0; lastX = x;
-      const dy = k === 0 ? 0 : (k % 2 ? -1 : 1) * Math.min(9, 4 * Math.ceil(k / 2) + 2);
+    for (const { r, x, dy } of pts) {
       const lane = PM_PR_LANES.find((l) => l.id === r.lane);
       const tip = `<b>${esc(r.num)}</b> · ${esc(r.title)}<br>${esc(r.status)} · ${pmMoney(r.cost, true)}${r.flags.length ? "<br>" + r.flags.map((f) => esc(f.text)).join("<br>") : ""}`;
-      svg += `<circle data-num="${esc(r.num)}" data-tip="${esc(tip)}" class="${r.cost > 0 ? "" : "zero"}" cx="${x.toFixed(1)}" cy="${(cy + dy).toFixed(1)}" r="6" fill="${lane.color}"/>`;
+      svg += `<circle data-num="${esc(r.num)}" data-tip="${esc(tip)}" class="${r.cost > 0 ? "" : "zero"}" cx="${x.toFixed(1)}" cy="${(cy + dy).toFixed(1)}" r="${DR}" fill="${lane.color}"/>`;
     }
     svg += `<text x="${W - 4}" y="${cy + 4}" text-anchor="end"><tspan font-weight="700" fill="currentColor">${by[n].length}</tspan> · ${pmMoney(pmSum(by[n], "cost"))}</text>`;
-  });
+  }
   svg += `</svg>`;
   const host = el(`<div>${svg}</div>`);
   host.querySelectorAll("circle").forEach((c) => c.addEventListener("click", () => pmOpenRow("proc", c.getAttribute("data-num"))));
@@ -798,8 +1280,8 @@ function pmPrDotPlot(rows) {
 
 /* Open TOPs by owner — stacked by how long since delivery; $ at the end. */
 function pmTopBars(rows) {
-  const panel = el(`<div class="pmx-panel"><h3>Open TOPs by owner</h3>
-    <div class="sub">Count of open TOP packages by days since delivery · property value at right</div>
+  const panel = el(`<div class="pmx-panel"><h3>Open TOPs by owner${pmInfo(PM_INFO.topBars)}</h3>
+    <div class="sub">Count of open TOP packages by days out for signature · property value at right</div>
     <div class="pmx-legend">${pmAgesFor(rows).map((a) => `<span><i class="pmx-dot" style="background:${a.color}"></i>${esc(a.label)}</span>`).join("")}</div></div>`);
   if (!rows.length) { panel.appendChild(el(`<div class="pmx-empty">No open TOPs in this view.</div>`)); return panel; }
   const by = {};
@@ -837,7 +1319,7 @@ function pmPrActions(rows) {
   const po = rows.filter((r) => r.poDue && pmDays(today, r.poDue) <= PM_SOON_DAYS).sort((a, b) => a.poDue - b.poDue);
   const ct = rows.filter((r) => /100k/i.test(r.status)).sort((a, b) => a.statusSince - b.statusSince);
   const lbl = (r, d, late) => d ? (late ? `${pmDays(d, today)}d overdue` : pmFmt(d)) : "";
-  const panel = el(`<div class="pmx-panel pmx-act"><h3>Next ${PM_SOON_DAYS} days</h3><div class="sub">Click an item to open it in the table</div>
+  const panel = el(`<div class="pmx-panel pmx-act"><h3>Next ${PM_SOON_DAYS} days${pmInfo(PM_INFO.next7)}</h3><div class="sub">Click an item to open it in the table</div>
     <h4><span>Cost estimates due</span><span>${est.length}</span></h4>${pmActList("proc", est, (r) => r.estDue, lbl, "None due.")}
     <h4><span>POs expected</span><span>${po.length}</span></h4>${pmActList("proc", po, (r) => r.poDue, lbl, "None expected.")}
     ${ct.length ? `<h4><span>Waiting on CT Program &gt; $100K approval</span><span>${ct.length}</span></h4>${pmActList("proc", ct, (r) => null, (r) => `${pmDays(r.statusSince, today)}d · ${pmMoney(r.cost)}`, "")}` : ""}
@@ -852,13 +1334,13 @@ function pmTopActions(rows, D) {
     <div class="v" style="${red && rs.length ? "color:var(--ax-red)" : ""}">${rs.length}</div><div class="s">${pmMoney(pmSum(rs, "value"))}</div></button>`;
   const by = (b) => rows.filter((r) => r.bucket === b);
   const oldest = rows.filter((r) => r.lane === "delivered").sort((a, b) => (b.age || 0) - (a.age || 0)).slice(0, 6);
-  const noTop = D.noTop.slice().sort((a, b) => (a.podDate || a.closedDate) - (b.podDate || b.closedDate));
-  const panel = el(`<div class="pmx-panel pmx-act"><h3>TOP backlog</h3><div class="sub">Delivered property whose TOP isn't closed, by days since delivery</div>
+  const noTop = D.noTop.slice().sort((a, b) => parseInt(a.num, 10) - parseInt(b.num, 10));
+  const panel = el(`<div class="pmx-panel pmx-act"><h3>TOP backlog${pmInfo(PM_INFO.backlog)}</h3><div class="sub">TOP packages with the government, by days out for signature</div>
     <div class="pmx-ages">${tile("age:a15", "Within 15 days", by("a15"), "#3987e5")}${tile("age:a30", "16–30 days", by("a30"), "#1c5cab")}
       ${tile("age:a31", "More than 30 days", by("a31"), "#c62828", true)}${by("unk").length ? tile("age:unk", PM_AGE_UNK.label, by("unk"), PM_AGE_UNK.color) : ""}</div>
     <h4><span>Oldest open TOPs</span><span>${oldest.length}</span></h4>${pmActList("prop", oldest, () => null, (r) => `${r.age != null ? r.age + "d" : "date unknown"} · ${pmMoney(r.value)}`, "None.")}
-    <h4><span title="Delivered or closed PRs with TOP Required = Yes and no PMCT naming them">TOP required — no PMCT yet</span><span>${noTop.length}</span></h4>
-    ${noTop.length ? `<ul>${noTop.slice(0, 8).map((p) => `<li data-pr="${esc(p.num)}"><span class="w">PR ${esc(p.num)}</span><span class="t" title="${esc(p.title)}">${esc(pmShortName(p.poc))} · ${esc(p.title)}</span><span class="d">${esc(p.status)}</span></li>`).join("")}</ul>` : `<div class="none">Every delivered PR that needs a TOP has a PMCT.</div>`}
+    <h4><span title="PRs with TOP Required = Yes and no PMCT in the Linked Request List">TOP required — no PMCT linked</span><span>${noTop.length}</span></h4>
+    ${noTop.length ? `<ul>${noTop.slice(0, 8).map((p) => `<li data-pr="${esc(p.num)}"><span class="w">PR ${esc(p.num)}</span><span class="t" title="${esc(p.title)}">${esc(pmShortName(p.poc))} · ${esc(p.title)}</span><span class="d">${esc(p.status)}</span></li>`).join("")}</ul>${noTop.length > 8 ? `<div class="none">+${noTop.length - 8} more — see Procurement</div>` : ""}` : `<div class="none">Every PR that needs a TOP has a linked PMCT.</div>`}
   </div>`);
   panel.querySelectorAll(".pmx-age").forEach((b) => b.addEventListener("click", () => { ui.quick = ui.quick === b.dataset.key ? "" : b.dataset.key; pmRerender(); }));
   panel.querySelectorAll("li[data-num]").forEach((li) => li.addEventListener("click", () => pmOpenRow("prop", li.getAttribute("data-num"))));
@@ -893,25 +1375,43 @@ function pmOpenRow(kind, num, switched) {
 function pmCols(kind, isActive) {
   if (kind === "proc") return isActive ? [
     { k: "num", l: "PR" }, { k: "title", l: "Title" }, { k: "poc", l: "Buyer" }, { k: "lane", l: "Step / ATLAS status" },
-    { k: "cost", l: "Value", num: true }, { k: "statusSince", l: "In status" }, { k: "rdd", l: "RDD" }, { k: "next", l: "Next due" },
+    { k: "cost", l: "Total Cost/Value", num: true }, { k: "statusSince", l: "In status" }, { k: "rdd", l: "RDD" }, { k: "next", l: "Next due" },
     { k: "latest", l: "Latest update" }, { k: "flags", l: "Attention" },
   ] : [
     { k: "num", l: "PR" }, { k: "title", l: "Title" }, { k: "poc", l: "Buyer" }, { k: "status", l: "Final status" },
-    { k: "cost", l: "Total cost", num: true }, { k: "approved", l: "Approved", num: true }, { k: "poDate", l: "PO" }, { k: "podDate", l: "POD" },
-    { k: "closedDate", l: "Closed" }, { k: "pmcts", l: "PMCT" },
+    { k: "cost", l: "Total cost", num: true }, { k: "approved", l: "Approved", num: true }, { k: "poDate", l: "PO" }, { k: "delivDate", l: "Delivered" },
+    { k: "closedDate", l: "Closed" }, { k: "pmcts", l: "PMCT" }, { k: "fix", l: "Record fixes" },
+  ];
+  if (kind === "pls") return isActive ? [
+    { k: "num", l: "PLS" }, { k: "title", l: "Team / event" }, { k: "dest", l: "Destination" }, { k: "start", l: "Travel dates" },
+    { k: "travelers", l: "Travelers", num: true }, { k: "poc", l: "TTI POC" }, { k: "lane", l: "Step / ATLAS status" }, { k: "cost", l: "Total cost", num: true },
+    { k: "statusSince", l: "In status" }, { k: "flags", l: "Attention" },
+  ] : [
+    { k: "num", l: "PLS" }, { k: "title", l: "Team / event" }, { k: "dest", l: "Destination" }, { k: "start", l: "Travel dates" },
+    { k: "poc", l: "TTI POC" }, { k: "status", l: "Final status" }, { k: "cost", l: "Total cost", num: true },
+    { k: "closedDate", l: "Closed" }, { k: "fix", l: "Record fixes" },
   ];
   return isActive ? [
     { k: "num", l: "PMCT" }, { k: "title", l: "TOP / title" }, { k: "source", l: "From" }, { k: "poc", l: "Owner" }, { k: "country", l: "Country" },
-    { k: "lane", l: "Step / ATLAS status" }, { k: "value", l: "Property value", num: true }, { k: "delivered", l: "Delivered" }, { k: "age", l: "Days open", num: true },
+    { k: "lane", l: "Step / ATLAS status" }, { k: "value", l: "Property value", num: true }, { k: "sigSent", l: "Sent for signature" }, { k: "age", l: "Days out", num: true },
     { k: "latest", l: "Latest update" }, { k: "flags", l: "Attention" },
   ] : [
     { k: "num", l: "PMCT" }, { k: "title", l: "TOP / title" }, { k: "source", l: "From" }, { k: "poc", l: "Owner" }, { k: "country", l: "Country" },
-    { k: "status", l: "Final status" }, { k: "value", l: "Property value", num: true }, { k: "delivered", l: "Delivered" }, { k: "closedDate", l: "Closed" },
+    { k: "status", l: "Final status" }, { k: "value", l: "Property value", num: true }, { k: "sigSent", l: "Sent for signature" }, { k: "sigBack", l: "Signed TOP back" },
+    { k: "sigDays", l: "Days out", num: true }, { k: "closedDate", l: "Closed" },
+    { k: "fix", l: "Record fixes" },
   ];
 }
 function pmCell(kind, r, c, today) {
-  const lanes = kind === "proc" ? PM_PR_LANES : PM_TOP_LANES;
+  const lanes = pmLanesFor(kind);
   switch (c.k) {
+    case "dest": return `<td>${esc(r.country)}${r.city ? `<br><small style="color:var(--ax-muted)">${esc(r.city)}</small>` : ""}</td>`;
+    case "start": {
+      if (!r.start) return `<td></td>`;
+      const when = r.phase === "upcoming" ? `in ${pmPlural(pmDays(today, r.start), "day")}` : r.phase === "now" ? "underway" : "";
+      return `<td style="white-space:nowrap">${esc(pmFmt(r.start))} – ${esc(pmFmt(r.end))}${!r.closed && when ? `<br><small style="color:var(--ax-muted)">${when}</small>` : ""}</td>`;
+    }
+    case "travelers": return `<td class="num">${r.travelers || ""}</td>`;
     case "num": return `<td class="w">${esc(r.num)}</td>`;
     case "title": return `<td class="tt">${esc(r.title)}${r.program ? `<br><small>${esc(r.program)}${kind === "proc" && r.country ? " · " + esc(r.country) : ""}</small>` : ""}</td>`;
     case "lane": {
@@ -931,20 +1431,22 @@ function pmCell(kind, r, c, today) {
     case "latest": return `<td class="note">${r.latest ? `<div class="clamp" title="${esc(r.latest.note || r.latest.stage)}"><b>${r.latest.date ? pmFmt(r.latest.date) : ""}</b> ${esc(r.latest.note || r.latest.stage)}</div>` : `<span style="color:var(--ax-muted)">—</span>`}</td>`;
     case "flags": return `<td>${r.flags.map((f) => `<span class="pmx-pill ${f.lvl}">${esc(f.text)}</span>`).join("") || `<span class="pmx-pill ok">On track</span>`}</td>`;
     case "age": return `<td class="num">${r.age != null ? r.age : ""}</td>`;
+    case "sigDays": return `<td class="num">${r.sigDays != null ? r.sigDays : ""}</td>`;
     case "pmcts": return `<td>${r.pmcts.map((t) => esc(t.num)).join(", ")}</td>`;
+    case "fix": return `<td>${r.flags.filter((f) => f.fix).map((f) => `<span class="pmx-pill ${f.lvl}">${esc(f.text)}</span>`).join("")}</td>`;
     default: { const v = r[c.k]; return `<td>${v instanceof Date ? pmFmt(v) : esc(v == null ? "" : v)}</td>`; }
   }
 }
 function pmTable(kind, rows, isActive) {
   const ui = PmUi[kind];
-  const cols = pmCols(kind, isActive);
+  const cols = pmCols(kind, isActive).filter((c) => PM_VIEW_LOCKED.indexOf(c.k) !== -1 || pmShow(kind, "c:" + c.k));
   const today = pmToday();
   if (!rows.length) return el(`<div class="pmx-empty">Nothing matches the filters.</div>`);
   const head = cols.map((c) => `<th data-k="${c.k}" class="${c.num ? "num" : ""}">${esc(c.l)}${ui.sort.k === c.k ? (ui.sort.d > 0 ? " ▲" : " ▼") : ""}</th>`).join("");
   const body = rows.map((r) => {
     const open = ui.open.has(r.num);
     return `<tr class="row ${open ? "open" : ""}" data-num="${esc(r.num)}">${cols.map((c) => pmCell(kind, r, c, today)).join("")}</tr>` +
-      (open ? `<tr class="pmx-det"><td colspan="${cols.length}">${kind === "proc" ? pmPrDetail(r) : pmTopDetail(r)}</td></tr>` : "");
+      (open ? `<tr class="pmx-det"><td colspan="${cols.length}">${kind === "proc" ? pmPrDetail(r) : kind === "pls" ? pmPlsDetail(r) : pmTopDetail(r)}</td></tr>` : "");
   }).join("");
   const wrap = el(`<div class="pmx-wrap"><table class="pmx-tbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`);
   wrap.querySelectorAll("th").forEach((th) => th.addEventListener("click", () => {
@@ -977,43 +1479,75 @@ function pmPrDetail(r) {
   const links = r.pmcts.map((t) => `<a href="#" data-goto="prop:${esc(t.num)}">PMCT ${esc(t.num)}</a> (${esc(t.status)})`).join("<br>");
   return `<div class="pmx-dg">
     <div><h5>Request</h5>${pmKv([["WMTR", esc(r.wmtr)], ["Program", esc(r.program)], ["Destination", esc(r.country)], ["Buyer", esc(r.poc)], ["Alternate", esc(r.alt)],
-      ["TOP required", r.topReq ? "Yes" : "No"], ["PMCT", links || (r.topReq ? '<span style="color:var(--ax-amber)">None yet</span>' : "")],
+      ["TOP required", r.topReq ? "Yes" : "No"], ["PMCT", links || (r.topReq ? '<span style="color:var(--ax-amber)">None linked</span>' : "")],
       ["Red flag", r.redFlag ? `<span style="color:var(--ax-red)">${esc(r.redFlagNote || "Yes")}</span>` : ""]])}</div>
     <div><h5>Milestones</h5>${pmKv([["Submitted", d(r.submitted)], ["Compliance approved", d(r.complianceApproved)], ["Estimate due", d(r.estDue)],
       ["Estimate submitted", d(r.estSubmitted)], ["CT > $100K approved", d(r.ct100k)], ["Estimate approved", r.estApproved ? `${d(r.estApproved)}${r.approved ? " · " + pmMoney(r.approved, true) : ""}` : ""],
-      ["PO due", d(r.poDue)], ["PO issued", d(r.poDate)], ["POD", d(r.podDate)], ["RDD", d(r.rdd)], ["Closed", r.closed ? d(r.closedDate) : ""]])}</div>
+      ["PO due", d(r.poDue)], ["PO issued", r.poDate ? `${d(r.poDate)}${r.poCount > 1 ? ` (first of ${r.poCount} PO Issued entries)` : ""}` : (r.poExpected ? '<span style="color:var(--ax-amber)">No PO Issued entry</span>' : "")], ["Delivered", d(r.delivDate)], ["RDD", d(r.rdd)], ["Closed", r.closed ? d(r.closedDate) : ""]])}</div>
     <div><h5>Recent updates</h5>${pmNotesHtml(r)}</div></div>`;
 }
 function pmTopDetail(r) {
   const d = (x) => x ? esc(pmFmt(x, true)) : "";
-  const srcLinks = r.srcNums.map((n) => r.srcPr.indexOf(n) !== -1 ? `<a href="#" data-goto="proc:${esc(n)}">PR ${esc(n)}</a>` : (r.srfNums.indexOf(n) !== -1 ? `SRF ${esc(n)}` : esc(n))).join(", ");
+  const srcLinks = r.srcPr.map((n) => `<a href="#" data-goto="proc:${esc(n)}">PR ${esc(n)}</a>`)
+    .concat(r.srcLinks.filter((s) => /^SRF/.test(s)).map(esc)).join(", ");
   const att = r.att.slice(-6).reverse();
   return `<div class="pmx-dg">
-    <div><h5>Transfer</h5>${pmKv([["WMTR", esc(r.wmtr)], ["Source request", srcLinks], ["Form", esc(r.form)], ["Owner", esc(r.poc)], ["Destination", esc(r.country)],
+    <div><h5>Transfer</h5>${pmKv([["WMTR", esc(r.wmtr)], ["Source request", srcLinks], ["Owner", esc(r.poc)], ["Destination", esc(r.country)],
       ["Property value", r.value ? pmMoney(r.value, true) : '<span style="color:var(--ax-amber)">Not recorded</span>'], ["TOP comments", esc(r.topComments)],
       ["Red flag", r.redFlag ? `<span style="color:var(--ax-red)">${esc(r.redFlagNote || "Yes")}</span>` : ""]])}</div>
-    <div><h5>Milestones & documents</h5>${pmKv([["Submitted", d(r.submitted)], ["Delivered", d(r.delivered)], ["Days open since delivery", r.age != null ? String(r.age) : ""],
-      ["Transfer scheduled", d(r.xferScheduled)], ["Acknowledged by receiving party", d(r.xferAcked)], ["Transfer completed", d(r.xferDone)], ["Closed", r.closed ? d(r.closedDate) : ""]])}
+    <div><h5>Milestones & documents</h5>${pmKv([["Submitted", d(r.submitted)],
+      ["Sent for signature", r.sigSent ? d(r.sigSent) : (r.lane === "delivered" || r.closed ? '<span style="color:var(--ax-amber)">No Activity entry</span>' : "")],
+      ["Signed TOP back", r.sigBack ? d(r.sigBack) : (r.closed && !/^cancel/i.test(r.status) ? '<span style="color:var(--ax-amber)">No Activity entry</span>' : "")],
+      ["Days out for signature", r.age != null ? String(r.age) : r.sigDays != null ? String(r.sigDays) : ""], ["Closed", r.closed ? d(r.closedDate) : ""]])}
       ${att.length ? `<ul class="pmx-notes" style="margin-top:8px">${att.map((a) => `<li><b>${esc(a.type || "Attachment")}</b>${a.note ? " · " + esc(a.note) : ""}<br><span style="color:var(--ax-muted)">${a.at ? pmFmt(a.at, true) : ""} ${esc(a.by)}</span></li>`).join("")}</ul>` : ""}</div>
     <div><h5>Recent updates</h5>${pmNotesHtml(r)}</div></div>`;
+}
+
+function pmPlsDetail(r) {
+  const d = (x) => x ? esc(pmFmt(x, true)) : "";
+  const links = r.links.map((l) => `${esc(l.type)} ${esc(l.num)}${l.status ? ` (${esc(l.status)})` : ""}`).join("<br>");
+  const svcs = r.services.map((s) => `${esc(s.name)} ${s.n}`).join(" · ");
+  return `<div class="pmx-dg">
+    <div><h5>Request</h5>${pmKv([["PLS", esc(r.wmtr)], ["DTR / IR", esc(r.dtr)], ["Type of travel", esc(r.travelType)], ["Program", esc(r.program)], ["CLIN", esc(r.clin)],
+      ["CT requestor", esc(r.requestor)], ["CT project manager", esc(r.ctpm)], ["TTI POC", esc(r.poc)], ["Alternate", esc(r.alt)],
+      ["Red flag", r.redFlag ? `<span style="color:var(--ax-red)">${esc(r.redFlagNote || "Yes")}</span>` : ""]])}
+      ${r.purpose ? `<div style="font-size:12px;color:var(--ax-ink2);margin-top:6px">${esc(r.purpose)}</div>` : ""}</div>
+    <div><h5>Milestones</h5>${pmKv([["Submitted", d(r.submitted)], ["Program review approved", d(r.programApproved)],
+      ["Estimate approved", r.estApproved ? `${d(r.estApproved)}${r.approved ? " · " + pmMoney(r.approved, true) : ""}` : ""],
+      ["Trip", r.start ? `${d(r.start)} – ${d(r.end)}` : ""], ["Closed", r.closed ? d(r.closedDate) : ""]])}</div>
+    <div><h5>Travel & services</h5>${pmKv([["Destination", esc(r.dest)], ["Travelers", r.travelers ? String(r.travelers) : ""], ["Services booked", svcs],
+      ["Total cost", r.cost ? pmMoney(r.cost, true) : ""], ["Linked requests", links]])}</div></div>`;
 }
 
 function pmExportXlsx(kind, rows, isActive) {
   const isPr = kind === "proc";
   const f = (d) => d instanceof Date ? xtIso(d) : "";
+  if (kind === "pls") {
+    const head = ["PLS", "Team / event", "Country", "City", "Start", "End", "Travelers", "TTI POC", "Step", "ATLAS status", "Total cost", "Status since",
+      "Estimate approved", "Closed", "Attention"];
+    const aoa = [head].concat(rows.map((r) => [r.wmtr, r.title, r.country, r.city, f(r.start), f(r.end), r.travelers || "", r.poc,
+      (PM_PLS_LANES.find((l) => l.id === r.lane) || {}).label, r.status, r.cost || "", f(r.statusSince),
+      f(r.estApproved), f(r.closedDate), r.flags.map((x) => x.text).join("; ")]));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = head.map((h) => ({ wch: /Team|Attention/.test(h) ? 44 : /^PLS$/.test(h) ? 24 : 14 }));
+    XLSX.utils.book_append_sheet(wb, ws, isActive ? "Active PLS" : "Closed PLS");
+    pmrDownloadXlsxB64(XLSX.write(wb, { type: "base64", bookType: "xlsx" }), `PLS_${isActive ? "Active" : "Closed"}_${fileStamp()}.xlsx`);
+    return;
+  }
   const head = isPr
-    ? ["WMTR", "Title", "Buyer", "Step", "ATLAS status", "Total cost", "Approved", "Status since", "RDD", "Estimate due", "PO due", "PO issued", "POD", "Closed",
+    ? ["WMTR", "Title", "Buyer", "Step", "ATLAS status", "Total cost", "Approved", "Status since", "RDD", "Estimate due", "PO due", "PO issued", "Delivered", "Closed",
        "TOP required", "PMCT", "Latest update date", "Latest update", "Attention"]
-    : ["WMTR", "Title", "From", "Owner", "Country", "Step", "ATLAS status", "Property value", "Delivered", "Days open", "Transfer scheduled", "Acknowledged", "Transfer completed",
-       "Closed", "Form", "Latest update date", "Latest update", "Attention"];
+    : ["WMTR", "Title", "From", "Owner", "Country", "Step", "ATLAS status", "Property value", "Sent for signature", "Signed TOP back", "Days out",
+       "Closed", "Latest update date", "Latest update", "Attention"];
   const aoa = [head];
   for (const r of rows) {
     const att = r.flags.map((x) => x.text).join("; ");
     const lu = r.latest ? [f(r.latest.date), r.latest.note || r.latest.stage] : ["", ""];
     if (isPr) aoa.push([r.wmtr, r.title, r.poc, (PM_PR_LANES.find((l) => l.id === r.lane) || {}).label, r.status, r.cost || "", r.approved || "", f(r.statusSince), f(r.rdd),
-      f(r.estDue), f(r.poDue), f(r.poDate), f(r.podDate), f(r.closedDate), r.topReq ? "Yes" : "No", r.pmcts.map((t) => t.num).join(", ")].concat(lu, [att]));
-    else aoa.push([r.wmtr, r.title, r.source, r.poc, r.country, (PM_TOP_LANES.find((l) => l.id === r.lane) || {}).label, r.status, r.value || "", f(r.delivered),
-      r.age == null ? "" : r.age, f(r.xferScheduled), f(r.xferAcked), f(r.xferDone), f(r.closedDate), r.form].concat(lu, [att]));
+      f(r.estDue), f(r.poDue), f(r.poDate), f(r.delivDate), f(r.closedDate), r.topReq ? "Yes" : "No", r.pmcts.map((t) => t.num).join(", ")].concat(lu, [att]));
+    else aoa.push([r.wmtr, r.title, r.source, r.poc, r.country, (PM_TOP_LANES.find((l) => l.id === r.lane) || {}).label, r.status, r.value || "", f(r.sigSent),
+      f(r.sigBack), r.age != null ? r.age : r.sigDays != null ? r.sigDays : "", f(r.closedDate)].concat(lu, [att]));
   }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -1028,7 +1562,7 @@ function pmExportXlsx(kind, rows, isActive) {
 const PM_QUADS = [
   { id: "proc", name: "Procurement", hint: "e.g. Vendor delays, sole-source justifications, big buys coming" },
   { id: "prop", name: "Property", hint: "e.g. Property loss issues, endorsements chased this week" },
-  { id: "pls", name: "Personnel Logistics Services", hint: "e.g. Cost estimates due within 5 days of PLS request" },
+  { id: "pls", name: "Personnel Logistics Services", hint: "e.g. Visa delays, big events coming up" },
   { id: "prog", name: "Significant Program Actions", hint: "e.g. CDRLs due within the next 7 days" },
 ];
 function pmSlideGet() {
@@ -1044,14 +1578,15 @@ function pmBullets(txt) { return String(txt || "").split(/\r?\n/).map((l) => l.r
 /** Plain-English summary of a tab's filters ("" when none are set). */
 function pmFilterDesc(kind) {
   const ui = PmUi[kind], isPr = kind === "proc", p = [];
-  if (ui.poc) p.push(`${isPr ? "Buyer" : "Owner"} ${ui.poc}`);
+  if (ui.poc) p.push(`${isPr ? "Buyer" : kind === "pls" ? "TTI POC" : "Owner"} ${ui.poc}`);
   if (norm(ui.q)) p.push(`search "${norm(ui.q)}"`);
   if (ui.attn) p.push("needs attention");
   const k = ui.quick;
   if (k) {
-    const lane = k.startsWith("lane:") && (isPr ? PM_PR_LANES : PM_TOP_LANES).find((l) => l.id === k.slice(5));
+    const lane = k.startsWith("lane:") && pmLanesFor(kind).find((l) => l.id === k.slice(5));
     const age = k.startsWith("age:") && PM_AGE.find((a) => a.id === k.slice(4));
-    const names = { big: isPr ? "over $100K" : "$200K and over", attn: "needs attention", estdue: "estimates due", podue: "POs expected", rdd: "past RDD", flag: "red flags", nodate: "delivered – date unknown" };
+    const names = { big: isPr ? "over $100K" : "$200K and over", attn: "needs attention", estdue: "estimates due", podue: "POs expected", rdd: "past RDD", flag: "red flags",
+      trip30: "trips in next 30 days", now: "traveling now", ended: "trip ended" };
     p.push(lane ? lane.label : age ? age.label : names[k] || k);
   }
   return p.join(", ");
@@ -1062,13 +1597,31 @@ function pmSlideModel(D) {
   const useF = PmUi.slideFiltered;
   const pool = (all, kind) => {
     const a = all.filter((r) => !r.closed);
-    return useF ? pmFilter(a, Object.assign({}, PmUi[kind], { sort: { k: "", d: 1 } }), kind === "proc") : a;
+    return useF ? pmFilter(a, Object.assign({}, PmUi[kind], { sort: { k: "", d: 1 } }), kind) : a;
   };
   const prPool = pool(D.prs, "proc");
   const prs = prPool.filter((r) => r.lane !== "draft");
   const tops = pool(D.tops, "prop").filter((r) => r.lane !== "draft");
+  const pls = pool(D.pls, "pls").filter((r) => r.lane !== "draft");
   const pd = pmFilterDesc("proc"), td = pmFilterDesc("prop");
   const filterNote = useF && (pd || td) ? `Filtered: Procurement ${pd || "none"}; Property ${td || "none"}` : "";
+  const plsModel = () => {
+    const dtra = pls.filter((r) => r.lane === "approval");
+    const trips = pls.filter((r) => r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= 30);
+    const now = pls.filter((r) => r.phase === "now");
+    const attn = pls.filter((r) => r.flags.length);
+    const soon = pls.filter((r) => r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= PM_PLS_SOON_DAYS).sort((a, b) => a.start - b.start);
+    return {
+      n: pls.length, value: pmSum(pls, "cost"),
+      tiles: [
+        { label: "Trips in next 30 days", n: trips.length, sub: pmPlural(pmSum(trips, "travelers"), "traveler") },
+        { label: "Traveling now", n: now.length, sub: now.length ? pmPlural(pmSum(now, "travelers"), "traveler") : "" },
+        { label: "Estimate with DTRA", n: dtra.length, sub: "" },
+        { label: "Need attention", n: attn.length, sub: "", red: attn.some((r) => r.flags.some((f) => f.lvl === "red")) },
+      ],
+      soon: soon.map((r) => `${r.num} · ${r.title.length > 28 ? r.title.slice(0, 27) + "…" : r.title} · ${r.country} · ${pmFmt(r.start)}`),
+    };
+  };
   const buyers = {};
   for (const r of prs) (buyers[r.poc] = buyers[r.poc] || []).push(r);
   const bNames = Object.keys(buyers).sort((a, b) => buyers[b].length - buyers[a].length).slice(0, 7);
@@ -1098,13 +1651,14 @@ function pmSlideModel(D) {
       ].concat(bucket("unk").length ? [{ label: PM_AGE_UNK.label, rs: bucket("unk") }] : [])
         .map((t) => ({ label: t.label, n: t.rs.length, value: pmSum(t.rs, "value"), red: t.red })),
     },
+    pls: D.plsSlot ? plsModel() : null,                // no PLS UDQ loaded = notes only
   };
 }
 
 function pmSlideCard(D) {
   const S = pmSlideGet();
   const card = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>Weekly update slide</h2><span class="n">Procurement and Property fill from ATLAS · type notes for any quadrant below · one bullet per line</span>
+    <div class="copx-hd"><h2>Weekly update slide${pmInfo(PM_INFO.slide)}</h2><span class="n">Procurement, Property and PLS fill from the UDQs · type notes for any quadrant below · one bullet per line</span>
       <div class="acts"><button class="copx-btn green" id="pmPptx" type="button">Download PowerPoint</button></div></div>
     <div class="copx-rule"></div>
     <label class="copx-chk" style="margin:0 0 10px"><input type="checkbox" id="pmSFilt" ${PmUi.slideFiltered ? "checked" : ""}> Use the dashboard filters
@@ -1114,7 +1668,7 @@ function pmSlideCard(D) {
       <div><label for="pmSTitle">Slide title</label><input id="pmSTitle" value="${esc(S.title)}"></div>
       <div><label for="pmSSub">Contract / subtitle</label><input id="pmSSub" value="${esc(S.sub)}"></div>
       ${PM_QUADS.map((q) => `<div><label for="pmN_${q.id}">${esc(q.name)} — notes</label><textarea id="pmN_${q.id}" placeholder="${esc(q.hint)}">${esc(S.notes[q.id])}</textarea>
-        <div class="hint">${q.id === "proc" || q.id === "prop" ? "Shown under the automatic numbers." : "Fills this quadrant."} Saved in this browser.</div></div>`).join("")}
+        <div class="hint">${q.id !== "prog" ? "Shown under the automatic numbers." : "Fills this quadrant."} Saved in this browser.</div></div>`).join("")}
     </div>
     <div class="pmx-status" id="pmPptxStatus"></div>
   </section>`);
@@ -1167,10 +1721,13 @@ function pmSlideHtml(m, S) {
         <div class="qb"><div><div class="ct">Open TOPs by owner</div>${pmSlideBarsHtml(m.top.cats, m.top.series)}</div>
         <div><div class="lh">TOP backlog</div><div class="tiles">${m.top.tiles.map((t) => `<div class="tile"><b class="${t.red && t.n ? "r" : ""}">${t.n}<span style="font-size:.95cqw;font-weight:400;color:#5a6778">&nbsp;&nbsp;${pmMoney(t.value)}</span></b>${esc(t.label)}</div>`).join("")}</div>
           ${pmSlideNotes(S.notes.prop)}</div></div></div>
-      <div class="q"><div class="qh"><b>Personnel Logistics Services</b></div><div class="qb one"><div>${pmSlideNotes(S.notes.pls, "Nothing to report this week.")}</div></div></div>
+      ${m.pls ? `<div class="q"><div class="qh"><b>Personnel Logistics Services</b><span>${m.pls.n} open PLS · ${pmMoney(m.pls.value)}</span></div>
+        <div class="qb"><div><div class="tiles">${m.pls.tiles.map((t) => `<div class="tile"><b class="${t.red ? "r" : ""}">${esc(String(t.n))}${t.sub ? `<span style="font-size:.95cqw;font-weight:400;color:#5a6778">&nbsp;&nbsp;${esc(t.sub)}</span>` : ""}</b>${esc(t.label)}</div>`).join("")}</div></div>
+        <div>${pmSlideList(`Trips starting ≤ ${PM_PLS_SOON_DAYS} days`, m.pls.soon, 4)}${pmSlideNotes(S.notes.pls)}</div></div></div>`
+      : `<div class="q"><div class="qh"><b>Personnel Logistics Services</b></div><div class="qb one"><div>${pmSlideNotes(S.notes.pls, "Nothing to report this week.")}</div></div></div>`}
       <div class="q"><div class="qh"><b>Significant Program Actions</b></div><div class="qb one"><div>${pmSlideNotes(S.notes.prog, "Nothing to report this week.")}</div></div></div>
     </div>
-    <div class="foot">Source: ATLAS PR and PMCT UDQs · drafts excluded${m.filterNote ? " · " + esc(m.filterNote) : ""}</div></div>`;
+    </div>`;
 }
 
 /* ---- PowerPoint (pptxgenjs, loaded on demand) ---- */
@@ -1294,14 +1851,31 @@ async function pmBuildPptx(m, S) {
   const pn = pmBullets(S.notes.prop);
   if (pn.length) addList([{ items: pn, cap: 6 }], { x: rx, y: notesY, w: rw, h: b.y + b.h - notesY }, 10.5, 8.5);
 
-  // 3 · PLS, 4 · Significant Program Actions — Jon's notes
-  b = frame(2, "Personnel Logistics Services", "");
-  addList([{ items: pmBullets(S.notes.pls), cap: 12, empty: "Nothing to report this week." }], b, 12, 9);
+  // 3 · PLS — tiles + trips coming up when a PLS UDQ is loaded, else Jon's notes only
+  if (m.pls) {
+    b = frame(2, "Personnel Logistics Services", `${m.pls.n} open PLS · ${pmMoney(m.pls.value)}`);
+    const lw2 = b.w * 0.46, tw2 = (lw2 - 0.12) / 2, th2 = 0.56;
+    m.pls.tiles.forEach((t, i) => {
+      const tx = b.x + (i % 2) * (tw2 + 0.12), ty = b.y + Math.floor(i / 2) * (th2 + 0.1);
+      s.addShape(pptx.ShapeType.roundRect, { x: tx, y: ty, w: tw2, h: th2, fill: { color: "FFFFFF" }, line: { color: LINE, width: 0.5 }, rectRadius: 0.06 });
+      s.addText([
+        { text: String(t.n), options: { fontSize: 16, bold: true, color: t.red ? RED : INK } },
+        { text: t.sub ? `   ${t.sub}` : "", options: { fontSize: 9, color: MUTED, breakLine: true } },
+        { text: t.label, options: { fontSize: 8.5, color: MUTED } },
+      ], { x: tx + 0.1, y: ty + 0.03, w: tw2 - 0.14, h: th2 - 0.06, margin: 0, valign: "middle", isTextBox: true });
+    });
+    const pn2 = pmBullets(S.notes.pls);
+    addList([
+      { head: `Trips starting ≤ ${PM_PLS_SOON_DAYS} days (${m.pls.soon.length})`, items: m.pls.soon, cap: 4, empty: "None" },
+      { head: pn2.length ? "Notes" : "", items: pn2, cap: 6 },
+    ], { x: b.x + lw2 + 0.2, y: b.y, w: b.w - lw2 - 0.2, h: b.h }, 10.5, 8);
+  } else {
+    b = frame(2, "Personnel Logistics Services", "");
+    addList([{ items: pmBullets(S.notes.pls), cap: 12, empty: "Nothing to report this week." }], b, 12, 9);
+  }
   b = frame(3, "Significant Program Actions", "");
   addList([{ items: pmBullets(S.notes.prog), cap: 12, empty: "Nothing to report this week." }], b, 12, 9);
 
-  s.addText(`Source: ATLAS PR and PMCT UDQs · drafts excluded${m.filterNote ? " · " + m.filterNote : ""} · generated ${new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
-    { x: 0.5, y: 7.05, w: 12.33, h: 0.25, fontSize: 8, color: "8A94A3", margin: 0, isTextBox: true });
 
   const name = `PM_Weekly_Update_${fileStamp()}.pptx`;
   await pptx.writeFile({ fileName: name });

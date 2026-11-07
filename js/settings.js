@@ -38,6 +38,7 @@ const AtlasSettings = {
       customVendors: [],      // [{name, address, abbrev}] — Property PO vendor list
       autoSaveForms: true,    // persist in-progress tool form inputs
       copDailyPreview: false, // COP daily-update entry/editing shown before the ATLAS API exists (browser-only, temporary)
+      dashInfo: true,         // Procurement / Property dashboards: show the (i) "how this is calculated" bubbles
       packetSliFreight: "",   // last-used SLI freight location (packet default)
       packetSliForward: "",   // last-used SLI forwarding agent (packet default)
       hardBlock: { enabled: false, codes: {} }, // Validation gate (Feature #3)
@@ -254,7 +255,7 @@ function openSettings() {
   // COP daily-update save (address + request ID field) — built-in + this browser's override.
   const _dsBuiltin = (typeof ATLAS_UDQ_CONFIG !== "undefined" && ATLAS_UDQ_CONFIG.dailyStatus) || {};
   const _dsOv = (s.dailyStatus && s.dailyStatus[_udqEnv] && typeof s.dailyStatus[_udqEnv] === "object") ? s.dailyStatus[_udqEnv] : {};
-  const _udqOvCount = ["metrics", "shipping", "property"].filter((k) => String(_udqOv[k] || "").trim()).length +
+  const _udqOvCount = ["metrics", "shipping", "property", "pls"].filter((k) => String(_udqOv[k] || "").trim()).length +
     ["srf", "pr", "pmct", "ws"].filter((k) => {
       const oct = (_udqOv.christmasTree && typeof _udqOv.christmasTree === "object") ? _udqOv.christmasTree : {};
       return String(oct[k] || "").trim();
@@ -270,6 +271,7 @@ function openSettings() {
     _udqField("setUdqMetrics", "Metrics UDQ", _udqOv.metrics, _udqBuiltins.metrics, "") +
     _udqField("setUdqShipping", "Shipping (SR) UDQ", _udqOv.shipping, _udqBuiltins.shipping, "Usually the same ID as the Metrics UDQ — the single SR shipment is filtered by WMTR inside the utility.") +
     _udqField("setUdqProperty", "Property (PR) UDQ", _udqOv.property, _udqBuiltins.property, "The full property dataset; filtered to the entered number inside the utility.") +
+    _udqField("setUdqPls", "PLS UDQ", _udqOv.pls, _udqBuiltins.pls, "Personnel Logistics Services — feeds the Dashboard's PLS tab. Until it's set, drop the PLS UDQ export on that tab.") +
     _udqField("setUdqCtSrf", "Christmas Tree — SRF", _udqOct.srf, _udqBct.srf, "Usually the same ID as the Metrics UDQ.") +
     _udqField("setUdqCtPr", "Christmas Tree — PR", _udqOct.pr, _udqBct.pr, "") +
     _udqField("setUdqCtPmct", "Christmas Tree — PMCT", _udqOct.pmct, _udqBct.pmct, "") +
@@ -334,6 +336,8 @@ function openSettings() {
             <h3>General</h3>
             <label class="set-check"><input type="checkbox" id="setAutoSave" ${s.autoSaveForms ? "checked" : ""}> Auto-save in-progress form inputs</label>
             <div class="settings-note">Remembers what you've typed in a tool's form (per UDQ) so it survives switching tools or an accidental reload. Turn off if a form misbehaves.</div>
+            <label class="set-check"><input type="checkbox" id="setDashInfo" ${s.dashInfo !== false ? "checked" : ""}> Show &ldquo;how it's calculated&rdquo; info bubbles on the Procurement and Property dashboards</label>
+            <div class="settings-note">Each card and chart gets a small &#9432; you can hover or tap to see which ATLAS fields it uses and how its numbers are worked out.</div>
           </div>
 
           <div class="settings-section" id="setAppSection">
@@ -572,6 +576,7 @@ function openSettings() {
       metrics:  readUdq("setUdqMetrics"),
       shipping: readUdq("setUdqShipping"),
       property: readUdq("setUdqProperty"),
+      pls:      readUdq("setUdqPls"),
       christmasTree: {
         srf:  readUdq("setUdqCtSrf"),  pr: readUdq("setUdqCtPr"),
         pmct: readUdq("setUdqCtPmct"), ws: readUdq("setUdqCtWs"),
@@ -597,7 +602,7 @@ function openSettings() {
     if (udqErrEl) udqErrEl.style.display = "none";
     // Keep only non-blank overrides so a blank field falls back to the default.
     const envOv = {};
-    ["metrics", "shipping", "property"].forEach((k) => { if (udqVals[k]) envOv[k] = udqVals[k]; });
+    ["metrics", "shipping", "property", "pls"].forEach((k) => { if (udqVals[k]) envOv[k] = udqVals[k]; });
     const ctOv = {};
     ["srf", "pr", "pmct", "ws"].forEach((k) => { if (udqVals.christmasTree[k]) ctOv[k] = udqVals.christmasTree[k]; });
     if (Object.keys(ctOv).length) envOv.christmasTree = ctOv;
@@ -651,6 +656,7 @@ function openSettings() {
       customVendors,
       autoSaveForms: !!overlay.querySelector("#setAutoSave").checked,
       copDailyPreview: !!(overlay.querySelector("#setCopPreview") || {}).checked,
+      dashInfo: !!(overlay.querySelector("#setDashInfo") || {}).checked,
       hardBlock,
       udqIds: allUdqIds,
       udqApi: allUdqApi,

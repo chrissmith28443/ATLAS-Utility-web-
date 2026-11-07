@@ -56,6 +56,9 @@ const ATLAS_UDQ_CONFIG = {
       // records, not a single request); the utility filters to the entered
       // WMTR / PR number client-side, exactly like Shipping.
       property: "75abb665-d493-47ab-be82-20210a09282c",
+      // PLS (Personnel Logistics Services) — the Dashboard's PLS tab. Not known yet; set it in
+      // Settings › ATLAS data source › PLS UDQ (or here) once ATLAS publishes it.
+      pls: "",
       // Christmas Tree pulls per-service UDQs in one action, each with its own ID.
       christmasTree: {
         srf:  "fc32d169-1701-4202-a601-183d43a68c8c",
@@ -68,6 +71,7 @@ const ATLAS_UDQ_CONFIG = {
       metrics:  "",          // TODO: fill production UDQ IDs at publish
       shipping: "",
       property: "",
+      pls: "",
       christmasTree: { srf: "", pr: "", pmct: "", ws: "" }, // TODO: fill at publish
     },
   },
@@ -233,6 +237,7 @@ function atlasIds() {
     metrics:  pick("metrics"),
     shipping: pick("shipping"),
     property: pick("property"),
+    pls:      pick("pls"),
     christmasTree: { srf: pickCt("srf"), pr: pickCt("pr"), pmct: pickCt("pmct"), ws: pickCt("ws") },
   };
 }

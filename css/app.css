@@ -1085,6 +1085,17 @@ body.theme-dark .atlas-fetch input{
 .cop-hub button:hover:not(:disabled){ color:#fff; }
 .cop-hub button.active{ background:#5a6d9a; color:#fff; }
 .cop-hub button:disabled{ color:#5f6b82; cursor:not-allowed; }
+/* Sub-tab row under a hub tab (Metrics › Overview / PMR / Export-Controlled). */
+.cop-hub-wrap{ margin:0 0 14px; }
+.cop-hub-wrap > .cop-hub{ margin:0; }
+.cop-hub.sub{ margin-top:6px; background:#e8edf5; border-radius:8px; }
+.cop-hub.sub button{ flex:0 1 auto; color:#1e2a4a; font-size:11.5px; padding:8px 16px; }
+.cop-hub.sub button:hover:not(:disabled){ color:#1e2a4a; background:#d6deeb; }
+.cop-hub.sub button.active{ background:#1e2a4a; color:#fff; }
+body.theme-dark .cop-hub.sub{ background:#22303f; }
+body.theme-dark .cop-hub.sub button{ color:#c9d3e3; }
+body.theme-dark .cop-hub.sub button:hover:not(:disabled){ color:#fff; background:#2d3e52; }
+body.theme-dark .cop-hub.sub button.active{ background:#5a6d9a; color:#fff; }
 
 /* ===== Dangerous goods dashboard panel (feature #8) ===== */
 .dg-panel{ border-color: rgba(176,0,0,.35); }

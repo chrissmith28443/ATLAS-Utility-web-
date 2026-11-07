@@ -3116,7 +3116,7 @@ function copPrint(rows, isActive) {
    Metrics (the Metrics dashboard), PMR, Export-Controlled and the Christmas
    Tree are tabs inside it. Tab ids are the TOOLS ids (app.js, hub: true).
    ------------------------------------------------------------------------- */
-const COP_HUB_TOOLS = ["cop", "proc", "prop", "pmr", "ecm", "xmastree"];     // workspace tools ("metrics" = the dashboard)
+const COP_HUB_TOOLS = ["cop", "proc", "prop", "pls", "pmr", "ecm", "xmastree"];     // workspace tools ("metrics" = the dashboard)
 function copIsHubTool(id) { return COP_HUB_TOOLS.indexOf(id) !== -1; }
 /** True while any COP tab is on screen (the Metrics tab = no tool on a Metrics UDQ). */
 function copHubActive() {
@@ -3141,7 +3141,11 @@ function copRailButton() {
       </svg>
       <span><span class="t">Dashboard</span><span class="s">Common Operational Picture (COP)</span></span>
     </button>`);
-  btn.addEventListener("click", () => { copHubSelect("cop"); copAutoFetch(); });
+  // Every UDQ the Dashboard uses starts pulling at once: Metrics (copAutoFetch) + PR, PMCT, PLS (pmAutoPull).
+  btn.addEventListener("click", () => {
+    copHubSelect("cop"); copAutoFetch();
+    if (typeof pmAutoPull === "function") pmAutoPull();
+  });
   return btn;
 }
 
@@ -3206,24 +3210,38 @@ async function copAutoFetch() {
     atlasSetStatus(`Up to date with ATLAS as of ${copClock(Date.now())} — ${recs.length} records.`);
   }
   CopPull.busy = false;
-  // Christmas Tree UDQs (SRF from the pull above; PR, PMCT, WS fetched) — background, no redraw unless that tab is open.
+  // Christmas Tree SRF slot from the pull above (no extra fetch). PR / PMCT / PLS are pulled by pmAutoPull
+  // when Dashboard is clicked; the WS UDQ isn't pulled while the Christmas Tree tab is hidden.
   if (typeof loadFromAtlasXmasTree === "function") {
-    try { await loadFromAtlasXmasTree({ quiet: true, srfRecords: recs }); } catch (e) { console.error(e); }
+    try { await loadFromAtlasXmasTree({ quiet: true, services: ["SRF"], srfRecords: recs }); } catch (e) { console.error(e); }
   }
 }
 function copHubTabs() {
   const hasMetrics = AppState.udqType === "metrics";
   const cur = AppState.activeTool || (hasMetrics ? "metrics" : "");
-  const tabs = (typeof TOOLS !== "undefined" ? TOOLS : []).filter((t) => t.hub);
-  const nav = el(`<nav class="cop-hub" aria-label="COP views"></nav>`);
-  for (const t of tabs) {
+  const all = (typeof TOOLS !== "undefined" ? TOOLS : []).filter((t) => t.hub && !t.hubHidden);
+  // PMR / Export-Controlled (hubUnder: "metrics") sit in a sub-tab row under Metrics and light it up.
+  const curTool = all.find((t) => t.id === cur);
+  const group = curTool && curTool.hubUnder ? curTool.hubUnder : cur;
+  const btn = (t, on, label) => {
     const ok = t.needs !== "metrics" || hasMetrics;
-    const b = el(`<button type="button" class="${cur === t.id ? "active" : ""}" ${ok ? "" : "disabled"}
-      ${cur === t.id ? 'aria-current="page"' : ""} title="${ok ? esc(t.label) : "Load or fetch a Metrics UDQ first"}">${esc(t.label)}</button>`);
+    const b = el(`<button type="button" class="${on ? "active" : ""}" ${ok ? "" : "disabled"}
+      ${on ? 'aria-current="page"' : ""} title="${ok ? esc(t.label) : "Load or fetch a Metrics UDQ first"}">${esc(label || t.label)}</button>`);
     if (ok) b.addEventListener("click", () => { if (cur !== t.id) copHubSelect(t.id); });
-    nav.appendChild(b);
-  }
-  return nav;
+    return b;
+  };
+  const nav = el(`<nav class="cop-hub" aria-label="COP views"></nav>`);
+  for (const t of all.filter((x) => !x.hubUnder)) nav.appendChild(btn(t, group === t.id));
+  const subs = all.filter((t) => t.hubUnder === group);
+  if (!subs.length) return nav;
+  const wrap = el(`<div class="cop-hub-wrap"></div>`);
+  wrap.appendChild(nav);
+  const parent = all.find((t) => t.id === group);
+  const sub = el(`<nav class="cop-hub sub" aria-label="${esc(parent ? parent.label : "")} views"></nav>`);
+  if (parent) sub.appendChild(btn(parent, cur === parent.id, "Overview"));
+  for (const t of subs) sub.appendChild(btn(t, cur === t.id));
+  wrap.appendChild(sub);
+  return wrap;
 }
 
 

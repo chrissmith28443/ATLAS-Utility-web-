@@ -13,6 +13,24 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.2",
+    title: "New PLS tab; View settings on each dashboard; official links, TOP signature dates, info bubbles",
+    notes: [
+      "New PLS (Personnel Logistics Services) tab: steps, trips in the next 60 days, who's traveling now, travelers and services per trip. It pulls from ATLAS once the PLS UDQ ID is set in Settings › ATLAS UDQ IDs; until then, drop the PLS UDQ export on it. Jon's slide fills its PLS quadrant from it. PLS estimates aren't tracked for now.",
+      "New View button on Procurement, Property and PLS: tick which tiles, panels and table columns show. Your choices are saved in this browser as your default; Reset to recommended brings back the starting view, which keeps everything on Jon's slide and hides the rest.",
+      "Clicking Dashboard now starts pulling every UDQ the dashboard uses (Metrics, PR, PMCT and PLS) straight away.",
+      "Dashboard tabs: the Christmas Tree tab is hidden for now; PMR and Export-Controlled moved under Metrics as sub-tabs.",
+      "PR ↔ PMCT links come only from the Linked Request List (a row is enough). Every PR with TOP Required = Yes (except Drafts / Cancelled) needs a linked PMCT, and a PMCT with no linked PR or SRF is flagged.",
+      "PO issued comes only from Activity Tracker \"PR – PO Issued\" entries (attachments are ignored). PRs past Sourcing with no PO Issued entry are flagged. PO due now skips holidays, and a PR stays \"PO expected\" for as long as it's in Sourcing (several POs).",
+      "TOP dates come from Activity entries: \"PMCT – TOP submitted for signature\" (sent to the government) and \"PMCT – Signed TOP returned to TTI\" (signed TOP back). Open TOPs show as \"TOP being prepared\" or \"Out for signature\", aged by days out. Missing entries are flagged for the TTI POC to fix. PMCTs no longer get the \"no update\" flag.",
+      "Closed tables have a Record fixes column listing what needs correcting in ATLAS.",
+      "PR delivery now comes only from the PR's Delivery Date field (the POD column is now \"Delivered\"); POD entries and files are no longer used.",
+      "Country now uses CTR Country. The active PR table says Total Cost/Value. The slide footer is gone.",
+      "New ⓘ bubbles on every tile, step, chart and table explain how the numbers are worked out (turn off in Settings › General).",
+      "Refresh is now an icon button, and dots on the Open PRs by buyer chart no longer overlap.",
+    ],
+  },
+  {
     version: "2.8.1",
     title: "Procurement / Property dashboard review fixes",
     notes: [

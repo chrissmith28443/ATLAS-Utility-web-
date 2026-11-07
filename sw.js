@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.8.2-pm-pls-tabs";
+const CACHE = "atlas-cache-v2.8.3-pls-atlas-pull";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -14,10 +14,10 @@ const APP_SHELL = [
   "icons/favicon-32.png",
   "js/app.js?v=108",
   "js/assets.js?v=64",
-  "js/about.js?v=175",
+  "js/about.js?v=176",
   "js/a11y.js?v=61",
   "js/backup.js?v=68",
-  "js/constants.js?v=166",
+  "js/constants.js?v=167",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=88",
   "js/pwa.js?v=62",
@@ -25,7 +25,7 @@ const APP_SHELL = [
   "js/recents.js?v=62",
   "js/formcache.js?v=65",
   "js/compare.js?v=65",
-  "js/json_udq.js?v=30",
+  "js/json_udq.js?v=31",
   "js/settings.js?v=71",
   "js/tools/ci.js?v=66",
   "js/tools/coreims.js?v=62",
@@ -69,7 +69,7 @@ const APP_SHELL = [
   "js/tools/xmastree.js?v=47",
   "js/tools/record_audit.js?v=3",
   "js/tools/cop.js?v=36",
-  "js/tools/pmdash.js?v=3",
+  "js/tools/pmdash.js?v=4",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",
   "js/udq.js?v=71",

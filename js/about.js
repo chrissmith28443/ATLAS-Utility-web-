@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.3",
+    title: "PLS tab pulls from ATLAS",
+    notes: [
+      "The PLS tab now pulls the PLS UDQ straight from ATLAS when you click Dashboard (QA ID built in; change it in Settings › ATLAS UDQ IDs). Outside ATLAS, drop the export as before.",
+      "Services per trip now count line items (Lodging 1, not one row per traveler).",
+    ],
+  },
+  {
     version: "2.8.2",
     title: "New PLS tab; View settings on each dashboard; official links, TOP signature dates, info bubbles",
     notes: [

@@ -427,9 +427,14 @@ Arrived Warehouse or the warehouse actual date is filled.
   Progress -> Completed / Ready To Invoice / Invoiced. Slide PLS quadrant fills from it when loaded (else notes only).
 - PLS estimates NOT tracked for now (user, 2026-11-07): no estimate due dates, on-time rate or "trip soon, estimate
   not approved". PLS flags: Trip ended still In Progress, missing dates / cost / TTI POC, red flag.
-- PLS ATLAS pull: Settings › ATLAS UDQ IDs has a PLS field (atlasIds().pls, empty built-in). pmPullPls() converts
-  the JSON with a generic pmJsonToGrid — UNTESTED (no PLS JSON sample yet). If it can't read the layout it says so
-  and keeps the dropped file. Ask for a JSON sample when the ID exists.
+- PLS ATLAS pull: Settings › ATLAS UDQ IDs has a PLS field (atlasIds().pls, empty built-in). pmPullPls() lays the
+  JSON out like the export (pmPlsJsonToGrid: PM_PLS_JSON_COLS field->column map, PM_PLS_JSON_SVCS list->section
+  title; workflow status = statusDisplay, e.g. "DTRA Program Review (Approved)"). v2.8.3: checked against a 374-record
+  JSON sample (2026-11-07) — every record matches the export (status, dates, cost, travelers, links, workflow).
+  JSON keys: CurrentStatus, TeamOrEventName, TotalCost, TTIPOCName, ContractCLINId, LinkedRequests
+  (mappedRequestCategory/Number, statusName), WorkflowLogs (statusDisplay, createdDate, totalCostHist).
+  Built-in QA PLS ID = 6ef19319-e7ad-4726-9c41-7d19f1961844 (taken from the sample's file name = the /api/UDQ/{id}
+  it was saved from). Prod PLS ID still empty.
 - Dashboard rail button now starts every dashboard pull at once: copAutoFetch (Metrics/SRF) + pmAutoPull (PR, PMCT,
   PLS). Christmas Tree UDQ IDs stay in Settings but aren't pulled (WS no longer pulled).
 - T-R4 dropped: TOP package = cover letter (Word/PDF) + inventory (Excel), PDF once signed. DD1149 = consumables,

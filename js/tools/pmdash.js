@@ -415,7 +415,8 @@ function pmParsePls(grid) {
       dtr: norm(S("Associated DTR/IR Number")), travelType: norm(S("Type Of Travel")), purpose: norm(S("Purpose of Travel/Request Summary")),
       requestor: norm(S("CT Requestor Name")), ctpm: norm(S("CT Project Manager Name")), clin: norm(S("Contract CLIN")),
       travelers: part ? part.rows.filter((x) => x[0]).reduce((s, x) => s + Math.max(1, ni >= 0 ? toFloat(x[ni]) || 0 : 0), 0) : 0,
-      services: secs.filter((x) => /^line item id$/i.test(x.hdr[0]) && x.rows.length).map((x) => ({ name: x.title.replace(/\s+list$/i, ""), n: x.rows.length })),
+      // one per line item (rows with a Line Item Id — the export nests traveler sub-rows under each)
+      services: secs.filter((x) => /^line item id$/i.test(x.hdr[0]) && x.rows.some((y) => y[0])).map((x) => ({ name: x.title.replace(/\s+list$/i, ""), n: x.rows.filter((y) => y[0]).length })),
       programApproved: newest("DTRA Program Review (Approved)"),
       estApproved: newest("DTRA Estimate Review (Approved)"),
     });
@@ -480,7 +481,7 @@ function pmData() {
 }
 
 /* -------------------------------------------------------------------------
-   PLS UDQ — dropped for now (no ATLAS pull wired yet). Any drop zone on the
+   PLS UDQ — pulled from ATLAS (pmPullPls) or dropped. Any drop zone on the
    three tabs routes a PLS export here and PR / PMCT exports to the Christmas Tree slots.
    ------------------------------------------------------------------------- */
 const PmPls = { slot: null, status: "", err: false };
@@ -506,38 +507,49 @@ async function pmIngest(files) {
   else renderWorkspace();
 }
 
-/* PLS from ATLAS — Settings › ATLAS data source › PLS UDQ. The PLS JSON layout isn't known yet, so it's
-   turned into the export layout generically: scalar fields -> header row 1 (CamelCase split into words),
-   each list of objects -> a titled col-B section. Header lookups in pmParsePls ignore spacing / punctuation.
-   If nothing usable comes out, the loaded data is kept and the status says so (needs a JSON sample). */
+/* PLS from ATLAS — Settings › ATLAS UDQ IDs › PLS UDQ. /api/UDQ/{id} returns one object per PLS
+   (named fields + lists). It's laid out exactly like the PLS UDQ export so pmParsePls reads both:
+   fields -> header row 1 (export column names), lists -> titled col-B sections (export titles). */
 function pmPlsId() { try { return typeof atlasIds === "function" ? String(atlasIds().pls || "").trim() : ""; } catch (e) { return ""; } }
-function pmJsonToGrid(recs) {
-  const human = (k) => String(k).replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z])([A-Z][a-z])/g, "$1 $2").replace(/\s+/g, " ").trim();
-  const flat = (v) => v == null || typeof v !== "object";
-  const val = (v) => v == null ? null : flat(v) ? String(v) : null;
-  const idKey = ["PLSNumber", "PlsNumber", "GMTRNumber", "RequestNumber"].find((k) => recs.some((r) => r && r[k])) || "";
-  const keys = [];
-  for (const r of recs) for (const k of Object.keys(r || {})) if (k !== idKey && flat(r[k]) && keys.indexOf(k) === -1) keys.push(k);
-  const grid = [["PLS Number"].concat(keys.map(human))];
+const PM_PLS_JSON_COLS = [   // [JSON field, PLS UDQ export column]
+  ["PLSNumber", "PLS Number"], ["CurrentStatus", "Status"], ["AssociatedDTROrIRNumber", "Associated DTR/IR Number"],
+  ["TeamOrEventName", "Team/Event Name"], ["RedFlag", "Red Flag"], ["RedFlagComments", "Red Flag Comments"],
+  ["DestinationCountry", "Destination Country"], ["DestinationCity", "Destination City"], ["StartDate", "Start Date"], ["EndDate", "End Date"],
+  ["CTFundingProgram", "CT Funding Program"], ["TotalCost", "Total Cost in USD"], ["CTRequestorName", "CT Requestor Name"],
+  ["CTProjectManagerName", "CT Project Manager Name"], ["TTIPOCName", "TTI POC Name"], ["TTIAlternatePOCName", "TTI Alternate POC Name"],
+  ["DateSubmitted", "Date Submitted"], ["TypeOfTravel", "Type Of Travel"], ["ContractCLINId", "Contract CLIN"],
+  ["PurposeOrRequestSummary", "Purpose of Travel/Request Summary"],
+];
+const PM_PLS_JSON_SVCS = [   // [JSON list, export section title] — vendor services (one row per line item)
+  ["LodgingList", "Lodging List"], ["GroundTransportationList", "Ground Transportation List"], ["TicketsList", "TTI-procured Ticket"],
+  ["InterpretationList", "Interpretation List"], ["InterpretationEquipmentList", "Interpretation Equipment List"], ["TranslationList", "Translation List"],
+  ["VisaArrangementsList", "Visa Arrangement List"], ["VenueList", "Venue List"], ["CateringList", "Catering List"], ["EquipmentList", "Equipment List"],
+  ["OnsiteSupportList", "Onsite Support List"], ["StipendOrPerDiemOrHonorariaList", "Stipend/Per Diem/Honoraria List"],
+  ["PrintedMaterialList", "Printed Material List"], ["SuppliesList", "Supplies List"], ["OtherServicesList", "Other Services List"],
+];
+function pmPlsJsonToGrid(recs) {
+  const s = (v) => v == null ? null : String(v);
+  const grid = [PM_PLS_JSON_COLS.map((c) => c[1])];
   for (const r of recs) {
-    if (!r || !idKey || !r[idKey]) continue;
-    grid.push([String(r[idKey]).trim()].concat(keys.map((k) => val(r[k]))));
-    for (const k of Object.keys(r)) {
-      const arr = r[k];
-      if (!Array.isArray(arr) || !arr.length || typeof arr[0] !== "object") continue;
-      const ik = [];
-      for (const it of arr) for (const kk of Object.keys(it || {})) if (flat(it[kk]) && ik.indexOf(kk) === -1) ik.push(kk);
-      grid.push([null, human(k)]);
-      grid.push([null].concat(ik.map(human)));
-      for (const it of arr) grid.push([null].concat(ik.map((kk) => val((it || {})[kk]))));
-    }
+    if (!r || !r.PLSNumber) continue;
+    grid.push(PM_PLS_JSON_COLS.map(([k]) => s(r[k])));
+    const sec = (title, hdr, rows) => { if (!rows.length) return; grid.push([null, title]); grid.push([null].concat(hdr)); rows.forEach((x) => grid.push([null].concat(x))); };
+    sec("Participants List", ["Name", "Affiliation", "Number of Participants"],
+      (r.ParticipantsList || []).map((p) => [s(p.name) || "—", s(p.affiliation), s(p.noOfParticipants)]));
+    for (const [k, title] of PM_PLS_JSON_SVCS)
+      sec(title, ["Line Item Id", "Vendor Name"], (r[k] || []).map((x) => [s(x.lineItemNumber) || "—", s(x.vendorName)]));
+    sec("Linked Request List", ["Request Type", "Request Number", "Linkage Type", "Linkage Comment", "Status"],
+      (r.LinkedRequests || []).map((l) => [s(l.mappedRequestCategory), s(l.mappedRequestNumber), s(l.linkTypeText), s(l.comments), s(l.statusName)]));
+    const logs = (r.WorkflowLogs || []).slice().sort((a, b) => String(b.createdDate || "").localeCompare(String(a.createdDate || "")));   // newest first, like the export
+    sec("Workflow Logs", ["Status", "Date/Time", "User", "Rejected Reason", "Total Cost"],
+      logs.map((w) => [s(w.statusDisplay || w.statusName), s(w.createdDate), s(w.createdByText), s(w.rejectComment), s(w.totalCostHist)]));
   }
   return grid;
 }
 async function pmPullPls() {
   try {
     const recs = await atlasFetchUdqJson(pmPlsId());
-    const grid = pmJsonToGrid((recs || []).filter(Boolean));
+    const grid = pmPlsJsonToGrid((recs || []).filter(Boolean));
     const n = pmParsePls(grid).filter((r) => r.status).length;
     if (!n) { pmPlsStatus("Pulled the PLS UDQ from ATLAS, but couldn't read its layout yet — keep dropping the PLS export until the Utility is updated for it.", true); return; }
     PmPls.slot = { fileName: "ATLAS PLS UDQ", grid, at: Date.now() };
@@ -878,7 +890,7 @@ function pmRenderPls(container) {
 function pmPlsEmptyCard() {
   const card = el(`<section class="copx-card">
     <div class="copx-hd"><h2>Personnel Logistics Services (PLS)</h2></div><div class="copx-rule"></div>
-    <p class="copx-msg">This tab runs on the PLS UDQ. It doesn't pull from ATLAS yet — drop the PLS UDQ export below (it stays loaded until the page is reloaded).</p>
+    <p class="copx-msg">This tab runs on the PLS UDQ. Inside ATLAS it pulls automatically once the PLS UDQ ID is set in Settings. Elsewhere, drop the PLS UDQ export below (it stays loaded until the page is reloaded).</p>
     <div class="pmx-drop" id="pmDrop" tabindex="0" role="button">Drop the PLS UDQ export (.xlsx) here, or click to browse</div>
     <input type="file" id="pmFile" accept=".xlsx,.xls" multiple hidden>
     <div class="pmx-status ${PmPls.err ? "err" : ""}" id="pmPlsStatus">${esc(PmPls.status || "")}</div>

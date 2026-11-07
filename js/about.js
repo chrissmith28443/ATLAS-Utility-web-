@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.5",
+    title: "Procurement shows everything by default",
+    notes: [
+      "Procurement: step lanes and the In status, RDD and Latest update columns now show by default. Only the Past RDD tile is off (turn it on with the View button).",
+    ],
+  },
+  {
     version: "2.8.4",
     title: "Dashboards show more by default",
     notes: [

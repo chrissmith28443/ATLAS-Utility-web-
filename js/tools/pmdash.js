@@ -53,8 +53,8 @@ const PM_VIEW_ITEMS = {
     panels: [["lanes", "Step lanes"], ["chart", "Open PRs by buyer (chart)"], ["actions", `Next ${PM_SOON_DAYS} days (list)`]] },
   prop: { tiles: [["open", "Open TOPs"], ["out", "Out for signature"], ["o30", "Out > 30 days"], ["big", "$200K and over"], ["flag", "Red flags"], ["attn", "Need attention"]],
     panels: [["lanes", "Step lanes"], ["chart", "Open TOPs by owner (chart)"], ["actions", "TOP backlog (list)"]] },
-  pls: { tiles: [["open", "Open PLS"], ["trips", "Trips in next 30 days"], ["now", "Traveling now"], ["dtra", "Estimate with DTRA"], ["ended", "Trip ended, still In Progress"], ["attn", "Need attention"]],
-    panels: [["lanes", "Step lanes"], ["chart", "Trips — next 60 days (timeline)"], ["actions", "Trips to close out (list)"]] },
+  pls: { tiles: [["open", "Open PLS"], ["trips", "Upcoming trips (next 30 / 60 / 90 days)"], ["now", "Traveling now"], ["dtra", "Estimate with DTRA"], ["ended", "Trip ended, still In Progress"], ["attn", "Need attention"]],
+    panels: [["lanes", "Step lanes"], ["chart", "Upcoming trips (timeline)"], ["actions", "Trips to close out (list)"]] },
 };
 const PM_VIEW_LOCKED = ["num", "title"];   // table columns that always show
 function pmViewGet() {
@@ -578,6 +578,16 @@ async function pmAutoPull(force) {
   ]);
   PmPull.busy = false;
   if (pmIsTool(AppState.activeTool)) renderWorkspace();
+  else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();   // light up the tabs that now have data
+}
+/* Green refresh button (Procurement, Property and PLS): pulls the PR, PMCT and PLS UDQs from ATLAS again. */
+function pmRefreshBtn(title) {
+  return `<button class="copx-btn ghost pmx-icon pmx-refresh" type="button" id="pmRefresh" title="${esc(title)}" aria-label="Refresh from ATLAS" ${PmPull.busy ? "disabled" : ""}>
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" class="${PmPull.busy ? "spin" : ""}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.5 10.5A7.5 7.5 0 0 1 18 7"/><path d="M18.5 3v4.5H14"/><path d="M19.5 13.5A7.5 7.5 0 0 1 6 17"/><path d="M5.5 21v-4.5H10"/></svg></button>`;
+}
+function pmPulledText(slot) {
+  return slot && slot.at ? `pulled ${new Date(slot.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "dropped file";
 }
 
 /* -------------------------------------------------------------------------
@@ -586,7 +596,7 @@ async function pmAutoPull(force) {
 const PmUi = {
   proc: { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
   prop: { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
-  pls:  { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
+  pls:  { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90", tripDays: 30 },
   slide: false,
   slideFiltered: false,     // weekly slide: use each tab's filters instead of the whole contract
   viewEdit: "",             // tab whose View settings panel is open
@@ -619,10 +629,10 @@ const PM_INFO = {
   slide: `<b>Weekly slide</b><br>Counts every active, non-draft PR, TOP and PLS on the contract — or only what the tab filters show when "Use the dashboard filters" is ticked. The charts show the 7 busiest buyers / owners; any more share one "others" bar. Lists that can't all fit at a readable size are grouped (by buyer / by country) or counted instead — the full lists are always in the PowerPoint's slide notes. The PLS quadrant fills once a PLS UDQ is loaded. Notes are typed below.`,
   plsOpen: `<b>Open PLS</b><br>${PM_CLOSED_TXT}<br>$ = sum of <b>Total Cost in USD</b>.`,
   plsDtra: `<b>Estimate with DTRA</b><br>PLS in <b>DTRA Estimate Review</b> or <b>Fulfillment Review</b> — TTI's estimate is waiting on approval.<br>Below = days the oldest one has waited (since it entered that status).`,
-  plsTrips: `<b>Trips in the next 30 days</b><br>Open PLS whose <b>Start Date</b> is today or within 30 days.<br>Below = travelers: one per <b>Participants List</b> row (or that row's <b>Number of Participants</b> when it's more than 1).`,
+  plsTrips: `<b>Trips in the next 30 / 60 / 90 days</b><br>Open PLS whose <b>Start Date</b> is today or within the window picked in <b>Trips in next</b> (30 days unless changed).<br>Below = travelers: one per <b>Participants List</b> row (or that row's <b>Number of Participants</b> when it's more than 1).`,
   plsNow: `<b>Traveling now</b><br>Open PLS where today is between the <b>Start Date</b> and <b>End Date</b>.`,
   plsAttn: `<b>Need attention</b><br>PLS with at least one pill in the Attention column: red flag, trip ended but still In Progress, or record fixes (no Start / End Date, approved with no Total Cost, no TTI POC).`,
-  plsTimeline: `<b>Trips — next 60 days</b><br>One bar per open PLS from its <b>Start Date</b> to <b>End Date</b>, coloured by step. Trips already underway show from the left edge. The red line is today.`,
+  plsTimeline: `<b>Trips — next 30 / 60 / 90 days</b> (the <b>Trips in next</b> pick)<br>One bar per open PLS from its <b>Start Date</b> to <b>End Date</b>, coloured by step. Trips already underway show from the left edge. The red line is today.`,
   plsActions: `<b>Trip ended, still In Progress</b><br>Open PLS in <b>In Progress</b> whose <b>End Date</b> has passed — the PLS should move to Completed.`,
   plsTable: `<b>Columns</b><br><b>Travelers</b> = Participants List rows (or a row's Number of Participants when more than 1).<br><b>In status</b> = days since the newest Workflow Log entry matching the current status.<br><b>Record fixes</b> = data the TTI POC needs to correct in ATLAS.`,
   lane: {
@@ -657,6 +667,9 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-src{font-size:11.5px;color:var(--ax-muted)}
 .pmx-tools .copx-btn.pmx-icon{padding:6px 9px;display:inline-flex;align-items:center;justify-content:center}
 .pmx-icon svg.spin{animation:pmx-spin 1s linear infinite}
+.pmx-tools .copx-btn.pmx-refresh{color:#2e7d32;border-color:#81c784;background:#f1f8f1}
+.pmx-tools .copx-btn.pmx-refresh:hover:not(:disabled){background:#dcefdc;border-color:#2e7d32}
+body.theme-dark .pmx-tools .copx-btn.pmx-refresh{color:#81c784;border-color:#3f7a45;background:#1b2a1e}
 @keyframes pmx-spin{to{transform:rotate(360deg)}}
 .pmx-info{display:inline-flex;align-items:center;justify-content:center;flex:none;width:15px;height:15px;border-radius:50%;border:1.4px solid currentColor;
   font:italic 700 10px Georgia,serif;color:var(--ax-muted);cursor:help;margin-left:6px;vertical-align:middle;opacity:.85}
@@ -848,16 +861,16 @@ function pmRenderPls(container) {
   const tabs = el(`<div class="pmx-top"><div class="copx-tabs" role="tablist">
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active PLS (${active.length - (ui.drafts ? 0 : drafts)})</button>
     <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed PLS (${closed.length})</button></div>
-    <div class="pmx-tools"><span class="pmx-src">PLS UDQ · ${esc(D.plsSlot.fileName)}</span>
-      <button class="copx-btn ghost" type="button" id="pmPlsLoad" title="Load a newer PLS UDQ export">Load newer PLS UDQ</button>
-      <input type="file" id="pmPlsFile" accept=".xlsx,.xls" hidden>
+    <div class="pmx-tools"><span class="pmx-src">PLS UDQ · ${esc(pmPulledText(D.plsSlot))}${PmPull.busy ? " · refreshing…" : ""}</span>
+      ${pmRefreshBtn("Refresh — pull the PLS UDQ from ATLAS again")}
       ${PM_VIEW_BTN("pls")}
       <button class="copx-btn ${PmUi.slide ? "blue" : "green"}" type="button" id="pmSlideBtn">${PmUi.slide ? "Close weekly slide" : "Weekly slide"}</button></div>
   </div>`);
   tabs.querySelectorAll("button[data-v]").forEach((b) => b.addEventListener("click", () => { ui.view = b.dataset.v; ui.quick = ""; ui.open = new Set(); pmRerender(); }));
-  const fi = tabs.querySelector("#pmPlsFile");
-  tabs.querySelector("#pmPlsLoad").addEventListener("click", () => fi.click());
-  fi.addEventListener("change", () => pmIngest(fi.files));
+  tabs.querySelector("#pmRefresh").addEventListener("click", () => {
+    if (!pmPlsId()) pmPlsStatus("No PLS UDQ ID is set — add it in Settings › ATLAS UDQ IDs, or drop a newer PLS export.", true);
+    pmAutoPull(true);
+  });
   pmWireViewBtn(tabs, "pls");
   tabs.querySelector("#pmSlideBtn").addEventListener("click", () => { PmUi.slide = !PmUi.slide; pmRerender(); });
   root.appendChild(tabs);
@@ -901,33 +914,36 @@ function pmPlsKpis(rows) {
   const today = pmToday();
   const dtra = rows.filter((r) => r.lane === "approval");
   const oldest = dtra.reduce((m, r) => Math.max(m, r.statusSince ? pmDays(r.statusSince, today) : 0), 0);
-  const trips = rows.filter((r) => r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= 30);
+  const tripDays = PmUi.pls.tripDays;
+  const trips = rows.filter((r) => pmTripSoon(r, today, tripDays));
   const now = rows.filter((r) => r.phase === "now");
   const ended = rows.filter((r) => r.flags.some((f) => f.key === "ended"));
   const attn = rows.filter((r) => r.flags.length);
   return pmKpiGrid("pls", [
     { id: "open", label: "Open PLS", v: rows.length, s: `${pmMoney(pmSum(rows, "cost"))} total cost`, info: PM_INFO.plsOpen },
-    { id: "trips", key: "trip30", label: "Trips in next 30 days", v: trips.length, s: `${pmPlural(pmSum(trips, "travelers"), "traveler")}`, info: PM_INFO.plsTrips },
+    { id: "trips", key: "trips", label: `Trips in next ${tripDays} days`, v: trips.length, s: `${pmPlural(pmSum(trips, "travelers"), "traveler")}`, info: PM_INFO.plsTrips },
     { id: "now", key: "now", label: "Traveling now", v: now.length, s: now.length ? pmPlural(pmSum(now, "travelers"), "traveler") : "&nbsp;", info: PM_INFO.plsNow },
     { id: "dtra", key: "lane:approval", label: "Estimate with DTRA", v: dtra.length, s: dtra.length ? `oldest ${pmPlural(oldest, "day")}` : "&nbsp;", info: PM_INFO.plsDtra },
     { id: "ended", key: "ended", label: "Trip ended, still In Progress", v: ended.length, s: "&nbsp;", info: PM_INFO.plsActions },
     { id: "attn", key: "attn", label: "Need attention", v: attn.length, s: `${attn.filter((r) => r.flags.some((f) => f.lvl === "red")).length} with a red item`, info: PM_INFO.plsAttn },
   ]);
 }
-/* Trips — next 60 days: one bar per open PLS from Start Date to End Date, coloured by step. */
+/** Trip starts today or within the next `days` days (the PLS "Trips in next" window: 30 / 60 / 90). */
+function pmTripSoon(r, today, days) { return !!r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= days; }
+/* Trips — next 30 / 60 / 90 days (the "Trips in next" pick): one bar per open PLS from Start Date to End Date, coloured by step. */
 function pmPlsTimeline(rows) {
-  const today = pmToday(), SPAN = 60, MAXR = 18;
-  const panel = el(`<div class="pmx-panel"><h3>Trips — next 60 days${pmInfo(PM_INFO.plsTimeline)}</h3>
+  const today = pmToday(), SPAN = PmUi.pls.tripDays, MAXR = 18;
+  const panel = el(`<div class="pmx-panel"><h3>Trips — next ${SPAN} days${pmInfo(PM_INFO.plsTimeline)}</h3>
     <div class="sub">Start to end date · coloured by step · click a bar to open it in the table</div>
     <div class="pmx-legend">${PM_PLS_LANES.filter((l) => l.id !== "draft").map((l) => `<span><i class="pmx-dot" style="background:${l.color}"></i>${esc(l.label)}</span>`).join("")}</div></div>`);
   const trips = rows.filter((r) => r.start && pmDays(today, r.start) <= SPAN && (r.end ? pmDays(today, r.end) >= 0 : pmDays(today, r.start) >= 0))
     .sort((a, b) => a.start - b.start || (a.end || a.start) - (b.end || b.start));
-  if (!trips.length) { panel.appendChild(el(`<div class="pmx-empty">No trips in the next 60 days in this view.</div>`)); return panel; }
+  if (!trips.length) { panel.appendChild(el(`<div class="pmx-empty">No trips in the next ${SPAN} days in this view.</div>`)); return panel; }
   const shown = trips.slice(0, MAXR);
   const W = 720, L = 190, R = 12, T = 22, RH = 20, H = T + shown.length * RH + 6;
   const x = (d) => L + Math.max(0, Math.min(SPAN, d)) / SPAN * (W - L - R);
   let svg = "";
-  for (let d = 0; d <= SPAN; d += 7) {
+  for (let d = 0; d <= SPAN; d += SPAN > 60 ? 14 : 7) {
     const day = xtAddDays(today, d);
     svg += `<line class="gl" x1="${x(d)}" x2="${x(d)}" y1="${T - 4}" y2="${H - 4}"/><text class="ax" x="${x(d)}" y="${T - 8}" text-anchor="middle">${esc(pmFmt(day))}</text>`;
   }
@@ -943,7 +959,7 @@ function pmPlsTimeline(rows) {
       <rect x="${x1}" y="${y + 5}" width="${x2 - x1}" height="10" rx="4" fill="${lane.color}"/></g>`;
   });
   svg += `<line class="now" x1="${x(0)}" x2="${x(0)}" y1="${T - 4}" y2="${H - 4}"/>`;
-  panel.appendChild(el(`<svg class="pmx-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Trips in the next 60 days">${svg}</svg>`));
+  panel.appendChild(el(`<svg class="pmx-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Trips in the next ${SPAN} days">${svg}</svg>`));
   if (trips.length > MAXR) panel.appendChild(el(`<div class="sub" style="margin-top:6px">+${trips.length - MAXR} more — see the table</div>`));
   panel.querySelectorAll(".tb").forEach((g) => g.addEventListener("click", () => pmOpenRow("pls", g.dataset.num)));
   return panel;
@@ -1014,13 +1030,12 @@ function pmRender(container, kind) {
   const isActive = ui.view !== "closed";
   const noun = isPr ? "PR" : "TOP";
 
-  const pulled = slot.at ? `pulled ${new Date(slot.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "dropped file";
+  const pulled = pmPulledText(slot);
   const tabs = el(`<div class="pmx-top"><div class="copx-tabs" role="tablist">
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active ${noun}s (${active.length - (ui.drafts ? 0 : drafts)})</button>
     <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed ${noun}s (${closed.length})</button></div>
     <div class="pmx-tools"><span class="pmx-src">${esc(isPr ? "PR" : "PMCT")} UDQ · ${esc(pulled)}${PmPull.busy ? " · refreshing…" : ""}</span>
-      <button class="copx-btn ghost pmx-icon" type="button" id="pmRefresh" title="Refresh — pull the PR and PMCT UDQs from ATLAS again" aria-label="Refresh from ATLAS" ${PmPull.busy ? "disabled" : ""}>
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" class="${PmPull.busy ? "spin" : ""}"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+      ${pmRefreshBtn("Refresh — pull the PR and PMCT UDQs from ATLAS again")}
       ${PM_VIEW_BTN(kind)}
       <button class="copx-btn ${PmUi.slide ? "blue" : "green"}" type="button" id="pmSlideBtn">${PmUi.slide ? "Close weekly slide" : "Weekly slide"}</button></div>
   </div>`);
@@ -1116,7 +1131,7 @@ function pmFilter(rows, ui, kind) {
     else if (k === "estdue") out = out.filter((r) => r.flags.some((f) => f.key === "estdue"));
     else if (k === "podue") out = out.filter((r) => r.poDue && pmDays(pmToday(), r.poDue) <= PM_SOON_DAYS);
     else if (k === "rdd") out = out.filter((r) => r.flags.some((f) => f.key === "rdd" && f.lvl === "red"));   // matches the "Past RDD" tile
-    else if (k === "trip30") out = out.filter((r) => r.start && pmDays(pmToday(), r.start) >= 0 && pmDays(pmToday(), r.start) <= 30);
+    else if (k === "trips") out = out.filter((r) => pmTripSoon(r, pmToday(), PmUi.pls.tripDays));
     else if (k === "now") out = out.filter((r) => r.phase === "now");
     else out = out.filter((r) => r.flags.some((f) => f.key === k));
   }
@@ -1149,7 +1164,9 @@ function pmFilterBar(kind, pool, isActive, drafts) {
       <select id="pmPoc">${opt("", "Everyone", !ui.poc)}${pocs.map((p) => opt(p, p, p === ui.poc)).join("")}</select></div>
     <div class="copx-f q"><label for="pmQ">Search</label><input type="search" id="pmQ" placeholder="${kind === "pls" ? "PLS number, team / event, country, city, DTR…" : "WMTR, title, country, note…"}" value="${esc(ui.q)}"></div>
     ${isActive ? `<label class="copx-chk"><input type="checkbox" id="pmAttn" ${ui.attn ? "checked" : ""}> Needs attention only</label>
-      <label class="copx-chk"><input type="checkbox" id="pmDrafts" ${ui.drafts ? "checked" : ""}> Show drafts (${drafts})</label>`
+      <label class="copx-chk"><input type="checkbox" id="pmDrafts" ${ui.drafts ? "checked" : ""}> Show drafts (${drafts})</label>
+      ${kind === "pls" ? `<div class="copx-f"><label for="pmTripDays">Trips in next</label><select id="pmTripDays">
+        ${[30, 60, 90].map((n) => opt(String(n), `${n} days`, ui.tripDays === n)).join("")}</select></div>` : ""}`
     : `<div class="copx-f"><label for="pmPeriod">Closed in</label><select id="pmPeriod">
         ${opt("30", "Last 30 days", ui.period === "30")}${opt("90", "Last 90 days", ui.period === "90")}${opt("fy", "This fiscal year", ui.period === "fy")}${opt("all", "All time", ui.period === "all")}</select></div>`}
     ${ui.quick ? `<button class="copx-btn blue" type="button" id="pmClearQuick">Clear tile filter</button>` : ""}
@@ -1161,6 +1178,7 @@ function pmFilterBar(kind, pool, isActive, drafts) {
   const a = bar.querySelector("#pmAttn"); if (a) a.addEventListener("change", () => { ui.attn = a.checked; pmRerender(); });
   const d = bar.querySelector("#pmDrafts"); if (d) d.addEventListener("change", () => { ui.drafts = d.checked; pmRerender(); });
   const p = bar.querySelector("#pmPeriod"); if (p) p.addEventListener("change", () => { ui.period = p.value; pmRerender(); });
+  const td = bar.querySelector("#pmTripDays"); if (td) td.addEventListener("change", () => { ui.tripDays = parseInt(td.value, 10) || 30; pmRerender(); });
   const c = bar.querySelector("#pmClearQuick"); if (c) c.addEventListener("click", () => { ui.quick = ""; pmRerender(); });
   return bar;
 }
@@ -1597,7 +1615,7 @@ function pmFilterDesc(kind) {
     const lane = k.startsWith("lane:") && pmLanesFor(kind).find((l) => l.id === k.slice(5));
     const age = k.startsWith("age:") && PM_AGE.find((a) => a.id === k.slice(4));
     const names = { big: isPr ? "over $100K" : "$200K and over", attn: "needs attention", estdue: "estimates due", podue: "POs expected", rdd: "past RDD", flag: "red flags",
-      trip30: "trips in next 30 days", now: "traveling now", ended: "trip ended" };
+      trips: `trips in next ${PmUi.pls.tripDays} days`, now: "traveling now", ended: "trip ended" };
     p.push(lane ? lane.label : age ? age.label : names[k] || k);
   }
   return p.join(", ");
@@ -1618,14 +1636,15 @@ function pmSlideModel(D) {
   const filterNote = useF && (pd || td) ? `Filtered: Procurement ${pd || "none"}; Property ${td || "none"}` : "";
   const plsModel = () => {
     const dtra = pls.filter((r) => r.lane === "approval");
-    const trips = pls.filter((r) => r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= 30);
+    const tripDays = PmUi.pls.tripDays;
+    const trips = pls.filter((r) => pmTripSoon(r, today, tripDays));
     const now = pls.filter((r) => r.phase === "now");
     const attn = pls.filter((r) => r.flags.length);
     const soon = pls.filter((r) => r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= PM_PLS_SOON_DAYS).sort((a, b) => a.start - b.start);
     return {
       n: pls.length, value: pmSum(pls, "cost"),
       tiles: [
-        { label: "Trips in next 30 days", n: trips.length, sub: pmPlural(pmSum(trips, "travelers"), "traveler") },
+        { label: `Trips in next ${tripDays} days`, n: trips.length, sub: pmPlural(pmSum(trips, "travelers"), "traveler") },
         { label: "Traveling now", n: now.length, sub: now.length ? pmPlural(pmSum(now, "travelers"), "traveler") : "" },
         { label: "Estimate with DTRA", n: dtra.length, sub: "" },
         { label: "Need attention", n: attn.length, sub: "", red: attn.some((r) => r.flags.some((f) => f.lvl === "red")) },

@@ -835,7 +835,9 @@ function renderWorkspace() {
   // Inventory Crosswalk has its own drop zone too.
   document.body.classList.toggle("xt-hide-dropzone",
     AppState.activeTool === "xmastree" || AppState.activeTool === "invconv" ||
-    AppState.activeTool === "proc" || AppState.activeTool === "prop" || AppState.activeTool === "pls");
+    AppState.activeTool === "proc" || AppState.activeTool === "prop" || AppState.activeTool === "pls" ||
+    // The Dashboard has its own drop box under the tab bar (cop.js) — one drop target, not two.
+    (typeof copHubDropOn === "function" && copHubDropOn() && copHubActive()));
   const offline = typeof offlineOn === "function" && offlineOn();
   // Per-document parent-items toggle (CI, PL, Placards, RFQ, Packet).
   if (!offline && typeof mpInjectDocToggle === "function") mpInjectDocToggle(ws, AppState.activeTool);

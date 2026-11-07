@@ -459,3 +459,17 @@ Arrived Warehouse or the warehouse actual date is filled.
   Selected, PR – Shipped by Vendor, SR - Delivered - POD Received (PMCT 10179).
 - PR delivery = the PR's Delivery Date field ONLY (user, 2026-11-07). No POD logic: a PR can have many PODs (one per
   PO). Column / detail / export say "Delivered"; Past RDD stops once Delivery Date is filled.
+
+## v2.8.8 Dashboard drop box (2026-11-07)
+- One drop box under the Dashboard tab bar (cop.js copHubDropBox / copHubIngest), part of copHubTabs()'s
+  `.cop-hub-top` wrapper so copHubRefreshTabs() can redraw tabs + box after a drop or a background pull.
+  Routing: PLS grid -> PmPls; xtClassifyService PR / PMCT / WS -> XTree slots (via pmIngest); everything else
+  (Metrics reads as SRF, shipment UDQs, Ops Tracker) -> loadFile, Metrics last so it stays loaded. Then it opens
+  the tab that got data (stays put if the current tab's UDQ was in the drop).
+- Setting dashDrop (default ON; Settings › General). ON: Procurement / Property / PLS tabs are disabled until
+  their UDQ loads (copHubHas), main #dropzone hidden on all Dashboard views. OFF (inside ATLAS, auto-pull):
+  every tab always clickable, the old per-tab empty-card drop zones are still the fallback.
+- PLS got the same green refresh button + "pulled HH:MM" as Proc / Prop (pmRefreshBtn); "Load newer PLS UDQ" removed.
+- PLS "Trips in next" picker 30 / 60 / 90 (PmUi.pls.tripDays, default 30, not saved): drives the trips tile +
+  its filter (quick key "trips"), the timeline span, and the slide's trips card. The slide's "starting within
+  14 days" list is unchanged.

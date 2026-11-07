@@ -39,6 +39,7 @@ const AtlasSettings = {
       autoSaveForms: true,    // persist in-progress tool form inputs
       copDailyPreview: false, // COP daily-update entry/editing shown before the ATLAS API exists (browser-only, temporary)
       dashInfo: true,         // Procurement / Property dashboards: show the (i) "how this is calculated" bubbles
+      dashDrop: true,         // Dashboard: one UDQ drop box under the tab bar; tabs light up as their UDQ loads (off = connected to ATLAS)
       packetSliFreight: "",   // last-used SLI freight location (packet default)
       packetSliForward: "",   // last-used SLI forwarding agent (packet default)
       hardBlock: { enabled: false, codes: {} }, // Validation gate (Feature #3)
@@ -338,6 +339,8 @@ function openSettings() {
             <div class="settings-note">Remembers what you've typed in a tool's form (per UDQ) so it survives switching tools or an accidental reload. Turn off if a form misbehaves.</div>
             <label class="set-check"><input type="checkbox" id="setDashInfo" ${s.dashInfo !== false ? "checked" : ""}> Show &ldquo;how it's calculated&rdquo; info bubbles on the Procurement and Property dashboards</label>
             <div class="settings-note">Each card and chart gets a small &#9432; you can hover or tap to see which ATLAS fields it uses and how its numbers are worked out.</div>
+            <label class="set-check"><input type="checkbox" id="setDashDrop" ${s.dashDrop !== false ? "checked" : ""}> Dashboard UDQ drop box</label>
+            <div class="settings-note">One drop box under the Dashboard tabs: drop any Metrics, PR, PMCT or PLS UDQ export (or several at once) and each lights up its own tab. Turn off when the Utility runs inside ATLAS and pulls the UDQs itself &mdash; every tab is then always clickable.</div>
           </div>
 
           <div class="settings-section" id="setAppSection">
@@ -657,6 +660,7 @@ function openSettings() {
       autoSaveForms: !!overlay.querySelector("#setAutoSave").checked,
       copDailyPreview: !!(overlay.querySelector("#setCopPreview") || {}).checked,
       dashInfo: !!(overlay.querySelector("#setDashInfo") || {}).checked,
+      dashDrop: !!(overlay.querySelector("#setDashDrop") || {}).checked,
       hardBlock,
       udqIds: allUdqIds,
       udqApi: allUdqApi,
@@ -687,6 +691,9 @@ function _settingsAfterChange() {
   if (typeof PacketUi !== "undefined") PacketUi.selected = null;
   if (typeof AppState !== "undefined" && AppState.activeTool && typeof renderWorkspace === "function") {
     try { renderWorkspace(); } catch (e) { /* ignore */ }
+  } else if (typeof copHubActive === "function" && copHubActive()) {
+    // The Metrics tab lives in the dashboard area — redraw it so the Dashboard drop box setting applies.
+    try { renderDashboard(); renderWorkspace(); } catch (e) { /* ignore */ }
   }
 }
 

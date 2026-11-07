@@ -3223,25 +3223,132 @@ function copHubTabs() {
   // PMR / Export-Controlled (hubUnder: "metrics") sit in a sub-tab row under Metrics and light it up.
   const curTool = all.find((t) => t.id === cur);
   const group = curTool && curTool.hubUnder ? curTool.hubUnder : cur;
+  // With the Dashboard drop box on, Procurement / Property / PLS light up only once their UDQ is loaded.
+  const drop = copHubDropOn();
   const btn = (t, on, label) => {
-    const ok = t.needs !== "metrics" || hasMetrics;
+    const metricsOk = t.needs !== "metrics" || hasMetrics;
+    const dataOk = !drop || t.id === cur || copHubHas(t.id);
+    const ok = metricsOk && dataOk;
+    const why = !metricsOk ? "Load or fetch a Metrics UDQ first"
+      : typeof PmPull !== "undefined" && PmPull.busy ? "Pulling from ATLAS…"
+      : `Drop the ${COP_HUB_UDQ[t.id]} UDQ in the box below first`;
     const b = el(`<button type="button" class="${on ? "active" : ""}" ${ok ? "" : "disabled"}
-      ${on ? 'aria-current="page"' : ""} title="${ok ? esc(t.label) : "Load or fetch a Metrics UDQ first"}">${esc(label || t.label)}</button>`);
+      ${on ? 'aria-current="page"' : ""} title="${ok ? esc(t.label) : esc(why)}">${esc(label || t.label)}</button>`);
     if (ok) b.addEventListener("click", () => { if (cur !== t.id) copHubSelect(t.id); });
     return b;
   };
+  const wrap = el(`<div class="cop-hub-wrap cop-hub-top"></div>`);
   const nav = el(`<nav class="cop-hub" aria-label="COP views"></nav>`);
   for (const t of all.filter((x) => !x.hubUnder)) nav.appendChild(btn(t, group === t.id));
-  const subs = all.filter((t) => t.hubUnder === group);
-  if (!subs.length) return nav;
-  const wrap = el(`<div class="cop-hub-wrap"></div>`);
   wrap.appendChild(nav);
-  const parent = all.find((t) => t.id === group);
-  const sub = el(`<nav class="cop-hub sub" aria-label="${esc(parent ? parent.label : "")} views"></nav>`);
-  if (parent) sub.appendChild(btn(parent, cur === parent.id, "Overview"));
-  for (const t of subs) sub.appendChild(btn(t, cur === t.id));
-  wrap.appendChild(sub);
+  const subs = all.filter((t) => t.hubUnder === group);
+  if (subs.length) {
+    const parent = all.find((t) => t.id === group);
+    const sub = el(`<nav class="cop-hub sub" aria-label="${esc(parent ? parent.label : "")} views"></nav>`);
+    if (parent) sub.appendChild(btn(parent, cur === parent.id, "Overview"));
+    for (const t of subs) sub.appendChild(btn(t, cur === t.id));
+    wrap.appendChild(sub);
+  }
+  if (drop) wrap.appendChild(copHubDropBox());
   return wrap;
+}
+
+/* -------------------------------------------------------------------------
+   DASHBOARD DROP BOX — one drop target under the tab bar on every Dashboard tab.
+   Drop any UDQ export(s), one or several at once: Metrics → Shipments / Metrics /
+   PMR / Export-Controlled, PR → Procurement, PMCT → Property, PLS → PLS (a WS UDQ
+   goes to the Christmas Tree). Anything else (a shipment UDQ, an Ops Tracker…)
+   goes to the main loader, exactly as the main drop zone would take it.
+   Settings › General › "Dashboard UDQ drop box" turns it off for when the Utility
+   runs inside ATLAS and pulls the UDQs itself (every tab is then always clickable).
+   ------------------------------------------------------------------------- */
+const COP_HUB_UDQ = { cop: "Metrics", metrics: "Metrics", pmr: "Metrics", ecm: "Metrics", proc: "PR", prop: "PMCT", pls: "PLS" };
+const CopDrop = { status: "", err: false, busy: false };
+function copHubDropOn() {
+  try { return typeof AtlasSettings === "undefined" || AtlasSettings.get().dashDrop !== false; } catch (e) { return true; }
+}
+/** Does this tab's UDQ have data loaded? (Shipments and the Metrics tabs follow the Metrics UDQ.) */
+function copHubHas(id) {
+  const u = COP_HUB_UDQ[id];
+  if (u === "PR" || u === "PMCT") return !!(typeof XTree !== "undefined" && XTree.slots[u]);
+  if (u === "PLS") return !!(typeof PmPls !== "undefined" && PmPls.slot);
+  if (id === "cop") return true;                       // Shipments explains itself when nothing's loaded
+  return AppState.udqType === "metrics";
+}
+/** Redraw just the tab bar + drop box (after a background pull or a drop), wherever it's showing. */
+function copHubRefreshTabs() {
+  document.querySelectorAll(".cop-hub-top").forEach((n) => n.replaceWith(copHubTabs()));
+}
+function copHubDropBox() {
+  const chip = (u, on) => `<span class="cop-drop-chip ${on ? "on" : ""}">${on ? "&#10003; " : ""}${esc(u)}</span>`;
+  const has = { Metrics: AppState.udqType === "metrics", PR: copHubHas("proc"), PMCT: copHubHas("prop"), PLS: copHubHas("pls") };
+  const box = el(`<div class="cop-drop">
+    <div class="dropzone compact" tabindex="0" role="button" aria-label="Drop UDQ exports for the Dashboard">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;color:var(--steel)">
+        <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+      <div style="flex:1;min-width:0"><div class="dz-title">${CopDrop.busy ? "Reading…" : "Drop UDQs here"}</div>
+        <div class="dz-sub">Metrics, PR, PMCT and PLS UDQ exports (.xlsx) — one or several at once, or click to browse. Each lights up its own tab.</div></div>
+      <div class="cop-drop-chips" aria-label="Loaded UDQs">${Object.keys(has).map((u) => chip(u, has[u])).join("")}</div>
+    </div>
+    <input type="file" accept=".xlsx,.xlsm,.xls" multiple hidden>
+    <div class="cop-drop-status ${CopDrop.err ? "err" : ""}" role="status">${esc(CopDrop.status)}</div>
+  </div>`);
+  const dz = box.querySelector(".dropzone"), input = box.querySelector("input");
+  const take = (files) => { if (files && files.length && !CopDrop.busy) copHubIngest(files); };
+  dz.addEventListener("click", () => input.click());
+  dz.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+  input.addEventListener("change", () => { take(Array.from(input.files || [])); input.value = ""; });
+  for (const ev of ["dragover", "dragenter"]) dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("dragover"); });
+  for (const ev of ["dragleave", "drop"]) dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("dragover"); });
+  dz.addEventListener("drop", (e) => take(e.dataTransfer && e.dataTransfer.files));
+  return box;
+}
+async function copHubIngest(fileList) {
+  const list = Array.from(fileList || []).filter((f) => /\.xls[xm]?$/i.test(f.name));
+  if (!list.length) { CopDrop.status = "Those aren't UDQ exports — drop the .xlsx files from ATLAS."; CopDrop.err = true; copHubRefreshTabs(); return; }
+  const prevTab = AppState.activeTool || (AppState.udqType === "metrics" ? "metrics" : "cop");
+  CopDrop.busy = true; CopDrop.status = ""; CopDrop.err = false;
+  copHubRefreshTabs();
+  const svcFiles = [], mains = [];
+  for (const f of list) {
+    let grid = null;
+    try { grid = workbookToGrid(await f.arrayBuffer()); } catch (e) { mains.push({ f, t: "" }); continue; }
+    const svc = typeof pmIsPlsGrid === "function" && pmIsPlsGrid(grid) ? "PLS"
+      : typeof xtClassifyService === "function" ? xtClassifyService(grid) : null;
+    if (svc && svc !== "SRF") svcFiles.push({ f, svc });        // a Metrics UDQ reads as SRF — it goes to the main loader
+    else mains.push({ f, t: detectUdqType(grid) });
+  }
+  mains.sort((a, b) => (a.t === "metrics") - (b.t === "metrics"));   // a Metrics UDQ loads last, so it's the one left loaded
+  for (const m of mains) await loadFile(m.f);
+  if (svcFiles.length && typeof pmIngest === "function") await pmIngest(svcFiles.map((x) => x.f));
+
+  // What landed where.
+  const got = new Set(), parts = [], bad = [], other = [];
+  for (const m of mains) {
+    if (m.t === "metrics") {
+      if (AppState.udqType === "metrics" && AppState.fileName === m.f.name) { got.add("Metrics"); parts.push("Metrics → Shipments, Metrics, PMR, Export-Controlled"); }
+      else bad.push(m.f.name);
+    } else other.push(m.f.name);
+  }
+  const tabName = { PR: "Procurement", PMCT: "Property", PLS: "PLS", WS: "Christmas Tree" };
+  for (const { f, svc } of svcFiles) {
+    const slot = svc === "PLS" ? PmPls.slot : XTree.slots[svc];
+    if (!slot || slot.fileName !== f.name) { bad.push(f.name); continue; }
+    const n = svc === "PLS" ? pmBlocks(slot.grid, /^PLS-/i).length : slot.records.length;
+    got.add(svc); parts.push(`${svc} → ${tabName[svc]} (${n})`);
+  }
+  CopDrop.busy = false;
+  const errMsg = bad.length ? ` Couldn't load ${bad.join(", ")}` +
+    (XTree.statusErr && XTree.status ? ` — ${XTree.status}` : PmPls.err && PmPls.status ? ` — ${PmPls.status}` : ".") : "";
+  CopDrop.status = (parts.length ? `Loaded ${parts.join(" · ")}.` : "") + errMsg +
+    (other.length && !copHubActive() ? "" : other.length ? ` ${other.join(", ")} isn't a Dashboard UDQ — it went to the main loader.` : "");
+  CopDrop.err = !!bad.length && !parts.length;
+  if (!copHubActive()) return;                         // a shipment UDQ was opened instead — loadFile already showed it
+
+  // Open the right tab: stay where you are if this drop fed it; otherwise the first tab that just got data.
+  const order = ["cop", "proc", "prop", "pls"];
+  const target = got.has(COP_HUB_UDQ[prevTab]) ? prevTab : order.find((id) => got.has(COP_HUB_UDQ[id])) || prevTab;
+  copHubSelect(target);
 }
 
 

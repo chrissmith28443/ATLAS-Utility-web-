@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.8",
+    title: "One drop box for the Dashboard",
+    notes: [
+      "A single UDQ drop box now sits under the Dashboard tabs. Drop any Metrics, PR, PMCT or PLS UDQ export, or several at once, and each one lights up its own tab. The Utility opens the tab that just got data.",
+      "Procurement, Property and PLS stay greyed out until their UDQ is loaded, the same way the Metrics tabs already did. Green ticks in the box show which UDQs are loaded.",
+      "Settings › General › \"Dashboard UDQ drop box\" turns the box off for when the Utility runs inside ATLAS and pulls the UDQs itself. Every tab is then always clickable.",
+      "PLS now has the same refresh button and \"pulled\" time as Procurement and Property. All three use a new green refresh icon.",
+      "PLS: a new \"Trips in next\" picker (30, 60 or 90 days, 30 by default) sets the upcoming-trips card, its filter, the trips timeline and the weekly slide card.",
+    ],
+  },
+  {
     version: "2.8.7",
     title: "Step lanes line up",
     notes: [

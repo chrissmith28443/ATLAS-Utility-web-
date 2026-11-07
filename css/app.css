@@ -1088,6 +1088,17 @@ body.theme-dark .atlas-fetch input{
 /* Sub-tab row under a hub tab (Metrics › Overview / PMR / Export-Controlled). */
 .cop-hub-wrap{ margin:0 0 14px; }
 .cop-hub-wrap > .cop-hub{ margin:0; }
+/* Dashboard drop box under the tab bar (cop.js copHubDropBox). */
+.cop-drop{ margin-top:10px; }
+.cop-drop .dropzone{ padding:10px 16px; }
+.cop-drop-chips{ display:flex; gap:6px; flex-wrap:wrap; flex:none; }
+.cop-drop-chip{ font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; border:1px solid #c8d0da; color:#7a8594; background:transparent; white-space:nowrap; }
+.cop-drop-chip.on{ border-color:#81c784; color:#2e7d32; background:#eaf6ea; }
+body.theme-dark .cop-drop-chip{ border-color:#3a4756; color:#8794a5; }
+body.theme-dark .cop-drop-chip.on{ border-color:#3f7a45; color:#81c784; background:#1b2a1e; }
+.cop-drop-status{ font-size:12.5px; color:var(--steel); margin-top:6px; }
+.cop-drop-status:empty{ display:none; }
+.cop-drop-status.err{ color:#c62828; }
 .cop-hub.sub{ margin-top:6px; background:#e8edf5; border-radius:8px; }
 .cop-hub.sub button{ flex:0 1 auto; color:#1e2a4a; font-size:11.5px; padding:8px 16px; }
 .cop-hub.sub button:hover:not(:disabled){ color:#1e2a4a; background:#d6deeb; }

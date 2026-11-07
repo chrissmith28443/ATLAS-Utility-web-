@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.9",
+    title: "Weekly slide: Procurement notes beside the lists",
+    notes: [
+      "On the weekly slide, the Procurement box's lower half is now split. Cost estimates and POs expected in the next 7 days are on the left, and your notes are on the right. With no notes typed, the two lists sit side by side across the full width as before.",
+    ],
+  },
+  {
     version: "2.8.8",
     title: "One drop box for the Dashboard",
     notes: [

@@ -1706,7 +1706,7 @@ function pmSlideCard(D) {
       <div><label for="pmSTitle">Slide title</label><input id="pmSTitle" value="${esc(S.title)}"></div>
       <div><label for="pmSSub">Contract / subtitle</label><input id="pmSSub" value="${esc(S.sub)}"></div>
       ${PM_QUADS.map((q) => `<div><label for="pmN_${q.id}">${esc(q.name)} — notes</label><textarea id="pmN_${q.id}" placeholder="${esc(q.hint)}">${esc(S.notes[q.id])}</textarea>
-        <div class="hint">${q.id !== "prog" ? "Shown under the automatic numbers." : "Fills this quadrant."} Saved in this browser.</div></div>`).join("")}
+        <div class="hint">${q.id === "prog" ? "Fills this quadrant." : q.id === "proc" ? "Shown beside the estimates and POs." : "Shown under the automatic numbers."} Saved in this browser.</div></div>`).join("")}
     </div>
     <div class="pmx-status" id="pmPptxStatus"></div>
   </section>`);
@@ -1847,13 +1847,26 @@ function pmSlidePlan(m, S) {
       { items: [`${pmPlural(xs.length, noun)}${nl ? `, ${nl} overdue` : ""} — listed in the slide notes`] },
     ];
   };
-  const prCw = (b.w - 0.3) / 2;
-  stack(b, b.y + CH + 0.12, (h) => {
-    const fe = pmsFit(`Cost estimates due ≤ ${PM_SOON_DAYS} days (${m.pr.est.length})`, dueTiers(m.pr.est, "estimate"), prCw, h);
-    const fp = pmsFit(`POs expected ≤ ${PM_SOON_DAYS} days (${m.pr.po.length})`, dueTiers(m.pr.po, "PO"), prCw, h);
+  // Below the chart, split in half: estimates over POs on the left, Jon's notes on the right.
+  // With no notes, estimates | POs use the full width side by side.
+  const prCw = (b.w - 0.3) / 2, prY = b.y + CH + 0.12, prA = b.y + b.h - prY;
+  const estHead = `Cost estimates due ≤ ${PM_SOON_DAYS} days (${m.pr.est.length})`, poHead = `POs expected ≤ ${PM_SOON_DAYS} days (${m.pr.po.length})`;
+  const prNotes = pmBullets(S.notes.proc);
+  if (prNotes.length) {
+    const fit = (head, xs, noun, h) => pmsFit(head, dueTiers(xs, noun), prCw, h);
+    const fp0 = fit(poHead, m.pr.po, "PO", prA / 2 - 0.05);                       // POs' fair share first,
+    const fe = fit(estHead, m.pr.est, "estimate", prA - fp0.h - 0.1);              // estimates take what's left,
+    const fp = fit(poHead, m.pr.po, "PO", prA - fe.h - 0.1);                       // then POs get the rest
     const fs = Math.min(fe.fs, fp.fs);
-    return { h: Math.max(fe.h, fp.h), draw: (y) => { block(b.x, y, Object.assign(fe, { fs })); block(b.x + prCw + 0.3, y, Object.assign(fp, { fs })); } };
-  }, pmBullets(S.notes.proc), "Procurement");
+    block(b.x, prY, Object.assign(fe, { fs }));
+    block(b.x, prY + fe.h + 0.1, Object.assign(fp, { fs }));
+    notesIn(b.x + prCw + 0.3, prY, prCw, prA, prNotes, "Procurement");
+  } else {
+    const fe = pmsFit(estHead, dueTiers(m.pr.est, "estimate"), prCw, prA);
+    const fp = pmsFit(poHead, dueTiers(m.pr.po, "PO"), prCw, prA);
+    const fs = Math.min(fe.fs, fp.fs);
+    block(b.x, prY, Object.assign(fe, { fs })); block(b.x + prCw + 0.3, prY, Object.assign(fp, { fs }));
+  }
 
   // 2 · Property — owner chart + backlog tiles on top, Jon's notes in the lower half
   b = frame(X0 + WL + GAP, Y0, WR, HT, "Property", `${m.top.n} open TOPs · ${pmMoney(m.top.value)}`);

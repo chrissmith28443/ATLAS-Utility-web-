@@ -473,3 +473,6 @@ Arrived Warehouse or the warehouse actual date is filled.
 - PLS "Trips in next" picker 30 / 60 / 90 (PmUi.pls.tripDays, default 30, not saved): drives the trips tile +
   its filter (quick key "trips"), the timeline span, and the slide's trips card. The slide's "starting within
   14 days" list is unchanged.
+- v2.8.9 (user, 2026-11-07): weekly slide UL Procurement = buyer chart across the top; below it split in half —
+  estimates over POs on the left, Jon's notes on the right. No notes typed -> estimates | POs side by side full width.
+  The half-width left side is tight (~1.3"), so POs often fall back to the "By buyer" one-liner; full lists stay in the slide notes.

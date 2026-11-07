@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.7",
+    title: "Step lanes line up",
+    notes: [
+      "Every step lane's dark-blue header now sits at the very top of its card. Shorter lanes used to show a light strip above the header.",
+    ],
+  },
+  {
     version: "2.8.6",
     title: "Weekly slide: new quadrant layout, nothing cut off",
     notes: [

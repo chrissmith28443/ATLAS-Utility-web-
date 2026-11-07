@@ -676,7 +676,8 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-kpi .s b.r{color:var(--ax-red)} .pmx-kpi .s b.a{color:var(--ax-amber)}
 .pmx-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 .pmx-lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:18px}
-.pmx-lane{border:1px solid var(--ax-line);border-radius:10px;background:var(--ax-soft);overflow:hidden;cursor:pointer;text-align:left;padding:0;font:inherit;color:var(--ax-ink)}
+.pmx-lane{border:1px solid var(--ax-line);border-radius:10px;background:var(--ax-soft);overflow:hidden;cursor:pointer;text-align:left;padding:0;font:inherit;color:var(--ax-ink);
+  display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}   /* header pinned to the top even when a lane is shorter */
 .pmx-lane.on{box-shadow:0 0 0 2px var(--ax-blue);border-color:var(--ax-blue)}
 .pmx-lane .lh{background:var(--ax-navy);color:#fff;padding:8px 12px;display:flex;align-items:center;gap:8px;font-weight:600;font-size:12.5px}
 .pmx-lane .lb{padding:8px 12px 10px}

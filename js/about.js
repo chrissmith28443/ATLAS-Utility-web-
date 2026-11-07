@@ -13,6 +13,21 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.1",
+    title: "Procurement / Property dashboard review fixes",
+    notes: [
+      "PO issued date now uses the Activity Tracker \"PR – PO Issued\" entry or the PO file upload, whichever is earlier. A PR in Sourcing with a PO Issued entry no longer shows as PO due.",
+      "POD date now comes from the request's Delivery Date field first, then an Activity Tracker \"Delivered - POD Received\" entry, then the POD file upload.",
+      "TOP details and the Property export show the Activity Tracker transfer milestones: Transfer Scheduled, Acknowledged by Receiving Party, Transfer Completed.",
+      "Weekly slide: new \"Use the dashboard filters\" option builds the slide from the filtered view (e.g. one buyer); the slide footer says which filters were used.",
+      "Clicking the \"Past RDD\" tile now shows only PRs past their RDD (it also showed ones coming due).",
+      "The Estimate step is now called \"Estimate / Approval\" (it includes DTRA Estimate Review and CT Program > 100K Approval).",
+      "\"TOP required — no PMCT yet\" now checks every delivered or closed PR with TOP Required = Yes (no Jan 2026 start date).",
+      "TOP backlog (dashboard and slide) drops the $200K and over card — it counted TOPs not yet delivered. The purple ≥ $200K tag and the top $200K tile still find them.",
+      "A TOP in Delivered status with no delivery date anywhere now shows as \"Delivered – date unknown\" (its own backlog card and an amber flag) instead of counting as within 15 days.",
+    ],
+  },
+  {
     version: "2.8.0",
     title: "Procurement and Property dashboards + weekly quad slide",
     notes: [

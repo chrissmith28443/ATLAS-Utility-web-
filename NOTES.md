@@ -385,3 +385,22 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Ops tracker vs UDQ (answered in chat): ATLAS has Operator, Description, Compliance/Estimate dates, PO (attachment),
   TOP Required, status notes (Activity Tracker). Missing from ATLAS: PO Execution Date field, POD Received Date field,
   PMCT ID link on the PR, TOP Sent to End User Date, TOP Receipt Date, DTRA Acceptance Date.
+
+## Dashboard feature review decisions (v2.8.1, 2026-11-07)
+- Full feature-by-feature review (every element, UDQ field, formula + a review tracker) is a Claude Doc:
+  https://claude.ai/artifact/6zevdCKvG6QnKBDZiaDw8C — keep it in sync when dashboard rules change.
+- User decisions: Ready To Invoice = closed. TTI Quality Review = review step (report current status as-is).
+  CT Program > 100K stays in the estimate step, renamed "Estimate / Approval". RDD = NLT Completion Date.
+  Slide notes per-browser is fine (Backup export/import to move). Value of Cargo is always filled when inventory is
+  priced (ATLAS computes qty x unit value) — inventory fallback kept only as a safety net.
+- PO issued = earlier of Activity Tracker stage "PR – PO Issued" and the first Purchase Order attachment (tracker
+  is usually earlier; 2 sample PRs logged it after the upload). POD = PR "Delivery Date" field, else Activity Tracker
+  "Delivered - POD Received", else POD attachment. User: for other missing dates, use Activity Tracker entries.
+  PMCT Activity Tracker stages Transfer Scheduled / Acknowledged by Receiving Party / Transfer Completed show in TOP
+  details + export.
+- "TOP required — no PMCT": no start date (PM_TOP_LINK_FROM removed). Every PR with TOP Required = Yes needs a PMCT
+  (user rule; CTRIC-procured equipment has its TOP done by the CTRIC, so no PMCT). Records get cleaned up if listed.
+- TOP backlog panel + slide: $200K card removed (it counted undelivered TOPs). Delivered TOP with no date anywhere ->
+  bucket "unk" ("Delivered – date unknown", amber flag, card shown only when > 0).
+- Slide: "Use the dashboard filters" checkbox (PmUi.slideFiltered, session only) builds from each tab's filters;
+  footer lists them. "Past RDD" tile filter now red-only (matches its count).

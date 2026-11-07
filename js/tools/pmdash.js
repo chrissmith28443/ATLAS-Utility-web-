@@ -33,7 +33,6 @@ const PM_STALE_DAYS = 14;          // no Activity Tracker update for this long (
 const PM_BIG_TOP = 200000;         // high-value TOP (Jon's $200K line)
 const PM_BIG_PR = 100000;          // CT Program > $100K
 const PM_AUTO_PULL_MIN = 10;       // don't re-pull within this many minutes
-const PM_TOP_LINK_FROM = "2026-01-01"; // PMCT process start — "TOP required, no PMCT" only looks at PRs delivered since
 const PM_SLIDE_KEY = "atlas.pmdash.slide";
 const PM_PPTX_SRC = ["js/vendor/pptxgen.min.js", "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"];
 
@@ -44,7 +43,7 @@ function pmIsTool(id) { return PM_TOOLS.indexOf(id) !== -1; }
 const PM_PR_LANES = [
   { id: "draft",    label: "Draft",                 color: "#aab4c3" },
   { id: "review",   label: "TTI / DTRA review",     color: "#5598e7" },
-  { id: "estimate", label: "Estimate",              color: "#2a78d6" },
+  { id: "estimate", label: "Estimate / Approval",   color: "#2a78d6" },
   { id: "sourcing", label: "Sourcing (PO pending)", color: "#184f95" },
   { id: "exec",     label: "PO issued / delivery",  color: "#1e2a4a" },
 ];
@@ -60,7 +59,11 @@ const PM_AGE = [
   { id: "a15", label: "Within 15 days",    color: "#3987e5" },
   { id: "a30", label: "16–30 days",        color: "#1c5cab" },
   { id: "a31", label: "Over 30 days",      color: "#c62828" },
+  { id: "unk", label: "Delivered – date unknown", color: "#d08a00" },   // Delivered status but no delivery date anywhere
 ];
+const PM_AGE_UNK = PM_AGE[PM_AGE.length - 1];
+/** Age buckets worth showing for these rows ("date unknown" only when something is in it). */
+function pmAgesFor(rows) { return PM_AGE.filter((a) => a.id !== "unk" || rows.some((r) => r.bucket === "unk")); }
 
 function pmPrLane(status) {
   const s = norm(status).toLowerCase();
@@ -106,6 +109,11 @@ function pmCountry(v) {
 function pmNum(wmtr) { const m = norm(wmtr).match(/(\d{5})(?:[-/](?:SRF|PR|PMCT|WS))?\s*$/i); return m ? m[1] : ""; }
 function pmPlural(n, w) { return `${n} ${w}${n === 1 ? "" : "s"}`; }
 function pmSum(rows, k) { return rows.reduce((s, r) => s + (r[k] || 0), 0); }
+/** Oldest dated Activity Tracker entry whose Stage matches `re` (acts are newest first). */
+function pmActDate(acts, re) {
+  const m = acts.filter((a) => a.date && re.test(a.stage));
+  return m.length ? m[m.length - 1].date : null;
+}
 
 /* -------------------------------------------------------------------------
    PARSE — one WMTR block = record row in col A down to the next record row.
@@ -187,6 +195,7 @@ function pmParsePr(grid) {
     const approvedCosts = b.wfl.filter((x) => eq(x.status, "DTRA Estimate Review (Approved)") && x.cost);
     const pos = b.att.filter((a) => /purchase order/i.test(a.type) && a.at).map((a) => a.at).sort((x, y) => x - y);
     const pods = b.att.filter((a) => /proof of delivery/i.test(a.type) && a.at).map((a) => a.at).sort((x, y) => x - y);
+    const poAct = pmActDate(b.acts, /po issued/i);                  // Activity Tracker "PR – PO Issued"
     const r = Object.assign(b, {
       lane: pmPrLane(b.status),
       cost: toFloat(b.S("Total Cost in USD")) || 0,
@@ -195,9 +204,12 @@ function pmParsePr(grid) {
       estSubmitted: oldest("DTRA Estimate Review"),
       estApproved: newest("DTRA Estimate Review (Approved)"),
       ct100k: newest("CT Program > 100K Approval (Approved)"),
-      poDate: pos[0] || oldest("Production or Delivery"),
-      poAttached: pos.length > 0,
-      podDate: pods[0] || null,
+      // PO issued: the earlier of the Activity Tracker "PO Issued" stage and the PO file upload
+      // (a PO can't be uploaded before it's issued), else the oldest Production or Delivery log.
+      poDate: [poAct, pos[0]].filter(Boolean).sort((x, y) => x - y)[0] || oldest("Production or Delivery"),
+      poAttached: !!poAct || pos.length > 0,
+      // POD: the Delivery Date field, else the Activity Tracker "Delivered - POD Received" stage, else the POD file upload.
+      podDate: xtParseDate(b.S("Delivery Date")) || pmActDate(b.acts, /delivered - pod received/i) || pods[0] || null,
     });
     // Estimate due = 3 business days after compliance approval (Christmas Tree PR rule);
     // re-estimates count from when the request came back to TTI.
@@ -237,7 +249,12 @@ function pmParsePmct(grid) {
     const r = Object.assign(b, {
       lane: pmTopLane(b.status),
       value: value || 0,
-      delivered: delivered.length ? delivered[delivered.length - 1].dt : (pod[0] || null),
+      // Delivered: the Delivery Date field, else the oldest "Delivered - POD Received" log, else the POD file upload.
+      delivered: xtParseDate(b.S("Delivery Date")) || (delivered.length ? delivered[delivered.length - 1].dt : (pod[0] || null)),
+      // TOP hand-off milestones, from Activity Tracker stages.
+      xferScheduled: pmActDate(b.acts, /transfer scheduled/i),
+      xferAcked: pmActDate(b.acts, /acknowledged by receiving/i),
+      xferDone: pmActDate(b.acts, /transfer completed/i),
       srcNums: nums,
       srfNums: nums.filter((n) => new RegExp(`${n}-SRF`, "i").test(text)),
       form: /1150/.test(`${b.topComments} ${b.title}`) ? "DD1150" : /1149/.test(`${b.topComments} ${b.title}`) ? "DD1149" : "TOP",
@@ -258,7 +275,7 @@ function pmPrFlags(r, today) {
     else if (d <= PM_SOON_DAYS) f.push({ lvl: "amber", key: "estdue", text: `Estimate due ${d === 0 ? "today" : pmFmt(r.estDue)}` });
   }
   if (r.poDue && pmDays(today, r.poDue) < 0) f.push({ lvl: "red", key: "podue", text: `PO overdue (due ${pmFmt(r.poDue)})` });
-  if (r.lane === "sourcing" && r.poAttached) f.push({ lvl: "amber", key: "status", text: "PO attached — status still Sourcing" });
+  if (r.lane === "sourcing" && r.poAttached) f.push({ lvl: "amber", key: "status", text: "PO issued — status still Sourcing" });
   if (r.rdd && !r.podDate && r.lane !== "draft") {
     const d = pmDays(today, r.rdd);
     if (d < 0) f.push({ lvl: "red", key: "rdd", text: `Past RDD (${pmFmt(r.rdd)})` });
@@ -275,6 +292,7 @@ function pmTopFlags(r, today) {
   const f = [];
   if (r.redFlag) f.push({ lvl: "red", key: "flag", text: `Red flag${r.redFlagNote ? ": " + r.redFlagNote : ""}` });
   if (r.lane === "delivered") {
+    if (!r.delivered) f.push({ lvl: "amber", key: "nodate", text: "Delivered – date unknown" });
     if (r.age > 30) f.push({ lvl: "red", key: "a31", text: `Open ${r.age} days since delivery` });
     else if (r.age > 15) f.push({ lvl: "amber", key: "a30", text: `Open ${r.age} days since delivery` });
     if (!r.value) f.push({ lvl: "amber", key: "novalue", text: "No property value recorded" });
@@ -303,14 +321,12 @@ function pmData() {
     t.source = t.srcPr.length ? `PR ${t.srcPr[0]}` : t.srfNums.length ? `SRF ${t.srfNums[0]}` : t.srcNums.length ? `#${t.srcNums[0]}` : "";
     if (!/^cancel/i.test(t.status)) for (const n of t.srcPr) prByNum[n].pmcts.push(t);
     t.age = t.lane === "delivered" && t.delivered ? pmDays(t.delivered, today) : null;
-    t.bucket = t.lane !== "delivered" ? "pre" : t.age > 30 ? "a31" : t.age > 15 ? "a30" : "a15";
+    t.bucket = t.lane !== "delivered" ? "pre" : t.age == null ? "unk" : t.age > 30 ? "a31" : t.age > 15 ? "a30" : "a15";
   }
   for (const p of prs) p.flags = pmPrFlags(p, today);
   for (const t of tops) t.flags = pmTopFlags(t, today);
-  // Delivered PRs that need a TOP but no PMCT points at them (since the PMCT process began).
-  const from = xtParseDate(PM_TOP_LINK_FROM);
-  const noTop = prs.filter((p) => p.topReq && !p.pmcts.length && !/^cancel/i.test(p.status)
-    && (p.podDate || p.closedDate) && (p.podDate || p.closedDate) >= from);
+  // Delivered (or closed) PRs that need a TOP but no PMCT points at them — every PR, no start date.
+  const noTop = prs.filter((p) => p.topReq && !p.pmcts.length && !/^cancel/i.test(p.status) && (p.podDate || p.closedDate));
   const data = { prs, tops, noTop, today, prSlot, pmSlot };
   _pmCache = { pr: prSlot, pm: pmSlot, key, data };
   return data;
@@ -343,6 +359,7 @@ const PmUi = {
   proc: { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
   prop: { view: "active", poc: "", q: "", drafts: false, attn: false, quick: "", sort: { k: "", d: 1 }, open: new Set(), period: "90" },
   slide: false,
+  slideFiltered: false,     // weekly slide: use each tab's filters instead of the whole contract
 };
 function pmRerender() { if (pmIsTool(AppState.activeTool)) renderWorkspace(); }
 
@@ -405,7 +422,7 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-act li .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ax-ink2)}
 .pmx-act li .d{white-space:nowrap;font-weight:600}
 .pmx-act .none{font-size:12px;color:var(--ax-muted);font-style:italic;padding:4px 0}
-.pmx-ages{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:6px}
+.pmx-ages{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:6px}
 .pmx-age{border-radius:8px;padding:8px 10px;background:var(--ax-soft);border:1px solid var(--ax-line2);cursor:pointer;text-align:left;font:inherit;color:var(--ax-ink)}
 .pmx-age.on{box-shadow:0 0 0 2px var(--ax-blue)}
 .pmx-age .k{font-size:11px;color:var(--ax-muted);font-weight:600;display:flex;gap:6px;align-items:center}
@@ -620,6 +637,7 @@ function pmFilter(rows, ui, isPr) {
     else if (k === "attn") out = out.filter((r) => r.flags.length);
     else if (k === "estdue") out = out.filter((r) => r.flags.some((f) => f.key === "estdue"));
     else if (k === "podue") out = out.filter((r) => r.poDue && pmDays(pmToday(), r.poDue) <= PM_SOON_DAYS);
+    else if (k === "rdd") out = out.filter((r) => r.flags.some((f) => f.key === "rdd" && f.lvl === "red"));   // matches the "Past RDD" tile
     else out = out.filter((r) => r.flags.some((f) => f.key === k));
   }
   // sort
@@ -782,7 +800,7 @@ function pmPrDotPlot(rows) {
 function pmTopBars(rows) {
   const panel = el(`<div class="pmx-panel"><h3>Open TOPs by owner</h3>
     <div class="sub">Count of open TOP packages by days since delivery · property value at right</div>
-    <div class="pmx-legend">${PM_AGE.map((a) => `<span><i class="pmx-dot" style="background:${a.color}"></i>${esc(a.label)}</span>`).join("")}</div></div>`);
+    <div class="pmx-legend">${pmAgesFor(rows).map((a) => `<span><i class="pmx-dot" style="background:${a.color}"></i>${esc(a.label)}</span>`).join("")}</div></div>`);
   if (!rows.length) { panel.appendChild(el(`<div class="pmx-empty">No open TOPs in this view.</div>`)); return panel; }
   const by = {};
   for (const r of rows) (by[r.poc] = by[r.poc] || []).push(r);
@@ -790,7 +808,7 @@ function pmTopBars(rows) {
   const max = Math.max(...names.map((n) => by[n].length));
   const bars = el(`<div class="pmx-bars"></div>`);
   for (const n of names) {
-    const segs = PM_AGE.map((a) => {
+    const segs = pmAgesFor(rows).map((a) => {
       const rs = by[n].filter((r) => r.bucket === a.id);
       if (!rs.length) return "";
       const tip = `<b>${esc(n)} — ${esc(a.label)}</b><br>${rs.map((r) => `${esc(r.num)} · ${esc(r.title)} · ${pmMoney(r.value)}`).join("<br>")}`;
@@ -837,9 +855,9 @@ function pmTopActions(rows, D) {
   const noTop = D.noTop.slice().sort((a, b) => (a.podDate || a.closedDate) - (b.podDate || b.closedDate));
   const panel = el(`<div class="pmx-panel pmx-act"><h3>TOP backlog</h3><div class="sub">Delivered property whose TOP isn't closed, by days since delivery</div>
     <div class="pmx-ages">${tile("age:a15", "Within 15 days", by("a15"), "#3987e5")}${tile("age:a30", "16–30 days", by("a30"), "#1c5cab")}
-      ${tile("age:a31", "More than 30 days", by("a31"), "#c62828", true)}${tile("big", "$200K and over", rows.filter((r) => r.value >= PM_BIG_TOP))}</div>
-    <h4><span>Oldest open TOPs</span><span>${oldest.length}</span></h4>${pmActList("prop", oldest, () => null, (r) => `${r.age}d · ${pmMoney(r.value)}`, "None.")}
-    <h4><span title="PRs with TOP Required = Yes, delivered since ${esc(PM_TOP_LINK_FROM)}, and no PMCT naming them">TOP required — no PMCT yet</span><span>${noTop.length}</span></h4>
+      ${tile("age:a31", "More than 30 days", by("a31"), "#c62828", true)}${by("unk").length ? tile("age:unk", PM_AGE_UNK.label, by("unk"), PM_AGE_UNK.color) : ""}</div>
+    <h4><span>Oldest open TOPs</span><span>${oldest.length}</span></h4>${pmActList("prop", oldest, () => null, (r) => `${r.age != null ? r.age + "d" : "date unknown"} · ${pmMoney(r.value)}`, "None.")}
+    <h4><span title="Delivered or closed PRs with TOP Required = Yes and no PMCT naming them">TOP required — no PMCT yet</span><span>${noTop.length}</span></h4>
     ${noTop.length ? `<ul>${noTop.slice(0, 8).map((p) => `<li data-pr="${esc(p.num)}"><span class="w">PR ${esc(p.num)}</span><span class="t" title="${esc(p.title)}">${esc(pmShortName(p.poc))} · ${esc(p.title)}</span><span class="d">${esc(p.status)}</span></li>`).join("")}</ul>` : `<div class="none">Every delivered PR that needs a TOP has a PMCT.</div>`}
   </div>`);
   panel.querySelectorAll(".pmx-age").forEach((b) => b.addEventListener("click", () => { ui.quick = ui.quick === b.dataset.key ? "" : b.dataset.key; pmRerender(); }));
@@ -974,7 +992,8 @@ function pmTopDetail(r) {
     <div><h5>Transfer</h5>${pmKv([["WMTR", esc(r.wmtr)], ["Source request", srcLinks], ["Form", esc(r.form)], ["Owner", esc(r.poc)], ["Destination", esc(r.country)],
       ["Property value", r.value ? pmMoney(r.value, true) : '<span style="color:var(--ax-amber)">Not recorded</span>'], ["TOP comments", esc(r.topComments)],
       ["Red flag", r.redFlag ? `<span style="color:var(--ax-red)">${esc(r.redFlagNote || "Yes")}</span>` : ""]])}</div>
-    <div><h5>Milestones & documents</h5>${pmKv([["Submitted", d(r.submitted)], ["Delivered", d(r.delivered)], ["Days open since delivery", r.age != null ? String(r.age) : ""], ["Closed", r.closed ? d(r.closedDate) : ""]])}
+    <div><h5>Milestones & documents</h5>${pmKv([["Submitted", d(r.submitted)], ["Delivered", d(r.delivered)], ["Days open since delivery", r.age != null ? String(r.age) : ""],
+      ["Transfer scheduled", d(r.xferScheduled)], ["Acknowledged by receiving party", d(r.xferAcked)], ["Transfer completed", d(r.xferDone)], ["Closed", r.closed ? d(r.closedDate) : ""]])}
       ${att.length ? `<ul class="pmx-notes" style="margin-top:8px">${att.map((a) => `<li><b>${esc(a.type || "Attachment")}</b>${a.note ? " · " + esc(a.note) : ""}<br><span style="color:var(--ax-muted)">${a.at ? pmFmt(a.at, true) : ""} ${esc(a.by)}</span></li>`).join("")}</ul>` : ""}</div>
     <div><h5>Recent updates</h5>${pmNotesHtml(r)}</div></div>`;
 }
@@ -985,7 +1004,8 @@ function pmExportXlsx(kind, rows, isActive) {
   const head = isPr
     ? ["WMTR", "Title", "Buyer", "Step", "ATLAS status", "Total cost", "Approved", "Status since", "RDD", "Estimate due", "PO due", "PO issued", "POD", "Closed",
        "TOP required", "PMCT", "Latest update date", "Latest update", "Attention"]
-    : ["WMTR", "Title", "From", "Owner", "Country", "Step", "ATLAS status", "Property value", "Delivered", "Days open", "Closed", "Form", "Latest update date", "Latest update", "Attention"];
+    : ["WMTR", "Title", "From", "Owner", "Country", "Step", "ATLAS status", "Property value", "Delivered", "Days open", "Transfer scheduled", "Acknowledged", "Transfer completed",
+       "Closed", "Form", "Latest update date", "Latest update", "Attention"];
   const aoa = [head];
   for (const r of rows) {
     const att = r.flags.map((x) => x.text).join("; ");
@@ -993,7 +1013,7 @@ function pmExportXlsx(kind, rows, isActive) {
     if (isPr) aoa.push([r.wmtr, r.title, r.poc, (PM_PR_LANES.find((l) => l.id === r.lane) || {}).label, r.status, r.cost || "", r.approved || "", f(r.statusSince), f(r.rdd),
       f(r.estDue), f(r.poDue), f(r.poDate), f(r.podDate), f(r.closedDate), r.topReq ? "Yes" : "No", r.pmcts.map((t) => t.num).join(", ")].concat(lu, [att]));
     else aoa.push([r.wmtr, r.title, r.source, r.poc, r.country, (PM_TOP_LANES.find((l) => l.id === r.lane) || {}).label, r.status, r.value || "", f(r.delivered),
-      r.age == null ? "" : r.age, f(r.closedDate), r.form].concat(lu, [att]));
+      r.age == null ? "" : r.age, f(r.xferScheduled), f(r.xferAcked), f(r.xferDone), f(r.closedDate), r.form].concat(lu, [att]));
   }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -1021,10 +1041,34 @@ function pmSlideSet(s) { try { localStorage.setItem(PM_SLIDE_KEY, JSON.stringify
 function pmBullets(txt) { return String(txt || "").split(/\r?\n/).map((l) => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean); }
 
 /** Everything the slide shows, computed once (HTML preview + .pptx use the same numbers). */
+/** Plain-English summary of a tab's filters ("" when none are set). */
+function pmFilterDesc(kind) {
+  const ui = PmUi[kind], isPr = kind === "proc", p = [];
+  if (ui.poc) p.push(`${isPr ? "Buyer" : "Owner"} ${ui.poc}`);
+  if (norm(ui.q)) p.push(`search "${norm(ui.q)}"`);
+  if (ui.attn) p.push("needs attention");
+  const k = ui.quick;
+  if (k) {
+    const lane = k.startsWith("lane:") && (isPr ? PM_PR_LANES : PM_TOP_LANES).find((l) => l.id === k.slice(5));
+    const age = k.startsWith("age:") && PM_AGE.find((a) => a.id === k.slice(4));
+    const names = { big: isPr ? "over $100K" : "$200K and over", attn: "needs attention", estdue: "estimates due", podue: "POs expected", rdd: "past RDD", flag: "red flags", nodate: "delivered – date unknown" };
+    p.push(lane ? lane.label : age ? age.label : names[k] || k);
+  }
+  return p.join(", ");
+}
+
 function pmSlideModel(D) {
   const today = pmToday();
-  const prs = D.prs.filter((r) => !r.closed && r.lane !== "draft");
-  const tops = D.tops.filter((r) => !r.closed && r.lane !== "draft");
+  const useF = PmUi.slideFiltered;
+  const pool = (all, kind) => {
+    const a = all.filter((r) => !r.closed);
+    return useF ? pmFilter(a, Object.assign({}, PmUi[kind], { sort: { k: "", d: 1 } }), kind === "proc") : a;
+  };
+  const prPool = pool(D.prs, "proc");
+  const prs = prPool.filter((r) => r.lane !== "draft");
+  const tops = pool(D.tops, "prop").filter((r) => r.lane !== "draft");
+  const pd = pmFilterDesc("proc"), td = pmFilterDesc("prop");
+  const filterNote = useF && (pd || td) ? `Filtered: Procurement ${pd || "none"}; Property ${td || "none"}` : "";
   const buyers = {};
   for (const r of prs) (buyers[r.poc] = buyers[r.poc] || []).push(r);
   const bNames = Object.keys(buyers).sort((a, b) => buyers[b].length - buyers[a].length).slice(0, 7);
@@ -1037,9 +1081,9 @@ function pmSlideModel(D) {
   const dueTxt = (r, d) => `${r.num} · ${pmShortName(r.poc)} · ${pmDays(today, d) < 0 ? `${pmDays(d, today)}d overdue` : pmFmt(d)}`;
   const bucket = (b) => tops.filter((r) => r.bucket === b);
   return {
-    date: pmFmt(today, true),
+    date: pmFmt(today, true), filterNote,
     pr: {
-      n: prs.length, value: pmSum(prs, "cost"), drafts: D.prs.filter((r) => !r.closed && r.lane === "draft").length,
+      n: prs.length, value: pmSum(prs, "cost"), drafts: prPool.filter((r) => r.lane === "draft").length,
       cats: bNames.map((n) => `${pmShortName(n)}  ${pmMoney(pmSum(buyers[n], "cost"))}`),
       series: prLanes.map((l) => ({ name: l.label, color: l.color, values: bNames.map((n) => buyers[n].filter((r) => r.lane === l.id).length) })),
       est: est.map((r) => dueTxt(r, r.estDue)), po: po.map((r) => dueTxt(r, r.poDue)),
@@ -1047,11 +1091,12 @@ function pmSlideModel(D) {
     top: {
       n: tops.length, value: pmSum(tops, "value"),
       cats: oNames.map((n) => `${pmShortName(n)}  ${pmMoney(pmSum(owners[n], "value"))}`),
-      series: PM_AGE.map((a) => ({ name: a.label, color: a.color, values: oNames.map((n) => owners[n].filter((r) => r.bucket === a.id).length) })),
+      series: pmAgesFor(tops).map((a) => ({ name: a.label, color: a.color, values: oNames.map((n) => owners[n].filter((r) => r.bucket === a.id).length) })),
       tiles: [
         { label: "Within 15 days", rs: bucket("a15") }, { label: "16–30 days", rs: bucket("a30") },
-        { label: "More than 30 days", rs: bucket("a31"), red: true }, { label: "$200K and over", rs: tops.filter((r) => r.value >= PM_BIG_TOP) },
-      ].map((t) => ({ label: t.label, n: t.rs.length, value: pmSum(t.rs, "value"), red: t.red })),
+        { label: "More than 30 days", rs: bucket("a31"), red: true },
+      ].concat(bucket("unk").length ? [{ label: PM_AGE_UNK.label, rs: bucket("unk") }] : [])
+        .map((t) => ({ label: t.label, n: t.rs.length, value: pmSum(t.rs, "value"), red: t.red })),
     },
   };
 }
@@ -1062,6 +1107,8 @@ function pmSlideCard(D) {
     <div class="copx-hd"><h2>Weekly update slide</h2><span class="n">Procurement and Property fill from ATLAS · type notes for any quadrant below · one bullet per line</span>
       <div class="acts"><button class="copx-btn green" id="pmPptx" type="button">Download PowerPoint</button></div></div>
     <div class="copx-rule"></div>
+    <label class="copx-chk" style="margin:0 0 10px"><input type="checkbox" id="pmSFilt" ${PmUi.slideFiltered ? "checked" : ""}> Use the dashboard filters
+      <span style="color:var(--ax-muted)">(Procurement: ${esc(pmFilterDesc("proc") || "none")} · Property: ${esc(pmFilterDesc("prop") || "none")})</span></label>
     <div id="pmSlidePrev"></div>
     <div class="pmx-sedit">
       <div><label for="pmSTitle">Slide title</label><input id="pmSTitle" value="${esc(S.title)}"></div>
@@ -1081,7 +1128,8 @@ function pmSlideCard(D) {
     for (const q of PM_QUADS) s.notes[q.id] = card.querySelector(`#pmN_${q.id}`).value;
     pmSlideSet(s); draw();
   };
-  card.querySelectorAll("input,textarea").forEach((n) => n.addEventListener("input", save));
+  card.querySelectorAll("input:not([type=checkbox]),textarea").forEach((n) => n.addEventListener("input", save));
+  card.querySelector("#pmSFilt").addEventListener("change", (e) => { PmUi.slideFiltered = e.target.checked; pmRerender(); });
   card.querySelector("#pmPptx").addEventListener("click", async () => {
     const st = card.querySelector("#pmPptxStatus");
     st.className = "pmx-status"; st.textContent = "Building the PowerPoint…";
@@ -1122,7 +1170,7 @@ function pmSlideHtml(m, S) {
       <div class="q"><div class="qh"><b>Personnel Logistics Services</b></div><div class="qb one"><div>${pmSlideNotes(S.notes.pls, "Nothing to report this week.")}</div></div></div>
       <div class="q"><div class="qh"><b>Significant Program Actions</b></div><div class="qb one"><div>${pmSlideNotes(S.notes.prog, "Nothing to report this week.")}</div></div></div>
     </div>
-    <div class="foot">Source: ATLAS PR and PMCT UDQs · drafts excluded</div></div>`;
+    <div class="foot">Source: ATLAS PR and PMCT UDQs · drafts excluded${m.filterNote ? " · " + esc(m.filterNote) : ""}</div></div>`;
 }
 
 /* ---- PowerPoint (pptxgenjs, loaded on demand) ---- */
@@ -1242,7 +1290,7 @@ async function pmBuildPptx(m, S) {
       { text: t.label, options: { fontSize: 8.5, color: MUTED } },
     ], { x: tx + 0.1, y: ty + 0.03, w: tw - 0.14, h: th - 0.06, margin: 0, valign: "middle", isTextBox: true });
   });
-  const notesY = b.y + 0.3 + 2 * (th + 0.1) + 0.06;
+  const notesY = b.y + 0.3 + Math.ceil(m.top.tiles.length / 2) * (th + 0.1) + 0.06;
   const pn = pmBullets(S.notes.prop);
   if (pn.length) addList([{ items: pn, cap: 6 }], { x: rx, y: notesY, w: rw, h: b.y + b.h - notesY }, 10.5, 8.5);
 
@@ -1252,7 +1300,7 @@ async function pmBuildPptx(m, S) {
   b = frame(3, "Significant Program Actions", "");
   addList([{ items: pmBullets(S.notes.prog), cap: 12, empty: "Nothing to report this week." }], b, 12, 9);
 
-  s.addText(`Source: ATLAS PR and PMCT UDQs · drafts excluded · generated ${new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
+  s.addText(`Source: ATLAS PR and PMCT UDQs · drafts excluded${m.filterNote ? " · " + m.filterNote : ""} · generated ${new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}`,
     { x: 0.5, y: 7.05, w: 12.33, h: 0.25, fontSize: 8, color: "8A94A3", margin: 0, isTextBox: true });
 
   const name = `PM_Weekly_Update_${fileStamp()}.pptx`;

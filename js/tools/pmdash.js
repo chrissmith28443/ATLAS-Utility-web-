@@ -616,7 +616,7 @@ const PM_INFO = {
   backlog: `<b>TOP backlog</b><br>Tiles count TOPs out for signature by days since the <b>PMCT – TOP submitted for signature</b> Activity entry: 0–15, 16–30, over 30.<br>Oldest open TOPs = the 6 with the most days.<br>"TOP required — no PMCT" = PRs (any status but Draft / Cancelled) with <b>TOP Required = Yes</b> and no PMCT in either request's <b>Linked Request List</b>.`,
   prTable: `<b>Columns</b><br><b>In status</b> = days since the newest Workflow Log entry matching the current status.<br><b>Next due</b> = estimate or PO due date (rules on the tiles).<br><b>Latest update</b> = newest Activity Tracker entry with a note.<br><b>PO</b> = first Activity Tracker <b>PR – PO Issued</b> date. <b>Delivered</b> = the PR's <b>Delivery Date</b> field.<br><b>Record fixes</b> = data the TTI POC needs to correct in ATLAS.`,
   topTable: `<b>Columns</b><br><b>From</b> = PRs / SRFs in the <b>Linked Request List</b>.<br><b>Sent for signature</b> = Activity entry <b>PMCT – TOP submitted for signature</b>. <b>Signed TOP back</b> = Activity entry <b>PMCT – Signed TOP returned to TTI</b>. <b>Days out</b> = days between them (or to today).<br><b>Latest update</b> = newest Activity Tracker entry with a note.<br><b>Record fixes</b> = data the TTI POC needs to correct in ATLAS.`,
-  slide: `<b>Weekly slide</b><br>Counts every active, non-draft PR, TOP and PLS on the contract — or only what the tab filters show when "Use the dashboard filters" is ticked. The charts show the top 7 buyers / owners by count. The PLS quadrant fills once a PLS UDQ is loaded. Notes are typed below.`,
+  slide: `<b>Weekly slide</b><br>Counts every active, non-draft PR, TOP and PLS on the contract — or only what the tab filters show when "Use the dashboard filters" is ticked. The charts show the 7 busiest buyers / owners; any more share one "others" bar. Lists that can't all fit at a readable size are grouped (by buyer / by country) or counted instead — the full lists are always in the PowerPoint's slide notes. The PLS quadrant fills once a PLS UDQ is loaded. Notes are typed below.`,
   plsOpen: `<b>Open PLS</b><br>${PM_CLOSED_TXT}<br>$ = sum of <b>Total Cost in USD</b>.`,
   plsDtra: `<b>Estimate with DTRA</b><br>PLS in <b>DTRA Estimate Review</b> or <b>Fulfillment Review</b> — TTI's estimate is waiting on approval.<br>Below = days the oldest one has waited (since it entered that status).`,
   plsTrips: `<b>Trips in the next 30 days</b><br>Open PLS whose <b>Start Date</b> is today or within 30 days.<br>Below = travelers: one per <b>Participants List</b> row (or that row's <b>Number of Participants</b> when it's more than 1).`,
@@ -769,32 +769,30 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-tip{position:fixed;z-index:9999;pointer-events:none;background:#1e2a4a;color:#fff;border-radius:6px;padding:7px 10px;font-size:12px;max-width:320px;box-shadow:0 4px 14px rgba(0,0,0,.25);line-height:1.4}
 .pmx-tip b{font-weight:700}
 /* weekly slide */
-.pmx-slide{container-type:inline-size;aspect-ratio:16/9;width:100%;max-width:1000px;margin:0 auto 14px;background:#fff;color:#1f2d3d;border-radius:6px;
-  box-shadow:0 2px 10px rgba(20,30,60,.22);padding:2.2cqw 3.7cqw 1.6cqw;display:flex;flex-direction:column;font-family:Calibri,"Segoe UI",sans-serif}
-.pmx-slide .top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1.4cqw}
-.pmx-slide .top h1{margin:0;font-size:2.6cqw;color:#1e2a4a;font-weight:700}
-.pmx-slide .top span{font-size:1.3cqw;color:#5a6778}
-.pmx-slide .quads{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1.3fr 1fr;gap:1.6cqw;min-height:0}
-.pmx-slide .q{background:#f4f6fa;border:1px solid #e1e6ee;border-radius:.9cqw;padding:1.1cqw 1.4cqw;display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.pmx-slide .qh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.6cqw}
-.pmx-slide .qh b{font-size:1.5cqw;color:#1e2a4a}
-.pmx-slide .qh span{font-size:1.05cqw;color:#5a6778}
-.pmx-slide .qb{flex:1;display:grid;grid-template-columns:1.15fr 1fr;gap:1.2cqw;min-height:0}
-.pmx-slide .qb.one{grid-template-columns:1fr}
-.pmx-slide .ct{font-size:.95cqw;font-weight:700;color:#1f2d3d;margin-bottom:.4cqw}
-.pmx-slide .sb{display:grid;grid-template-columns:7cqw 1fr;gap:.3cqw .6cqw;align-items:center;font-size:.9cqw}
-.pmx-slide .sb .tr{display:flex;gap:.12cqw;height:1.25cqw}
-.pmx-slide .sb .sg{height:100%;color:#fff;font-size:.75cqw;display:flex;align-items:center;justify-content:center}
-.pmx-slide .lg{display:flex;flex-wrap:wrap;gap:.3cqw .9cqw;font-size:.75cqw;color:#5a6778;margin-top:.5cqw}
-.pmx-slide .lg i{display:inline-block;width:.8cqw;height:.8cqw;border-radius:50%;margin-right:.3cqw;vertical-align:middle}
-.pmx-slide ul{margin:0;padding-left:1.2cqw;font-size:.95cqw;line-height:1.35}
-.pmx-slide .lh{font-size:.95cqw;font-weight:700;margin:.2cqw 0 .15cqw;color:#1e2a4a}
-.pmx-slide .muted{color:#8a94a3;font-style:italic;font-size:.95cqw}
-.pmx-slide .tiles{display:grid;grid-template-columns:1fr 1fr;gap:.5cqw;margin-bottom:.4cqw}
-.pmx-slide .tile{background:#fff;border-radius:.5cqw;padding:.4cqw .6cqw;font-size:.75cqw;color:#5a6778}
-.pmx-slide .tile b{display:block;font-size:1.5cqw;color:#1f2d3d}
-.pmx-slide .tile b.r{color:#c62828}
-.pmx-slide .foot{font-size:.75cqw;color:#8a94a3;margin-top:.6cqw}
+/* The preview draws the same plan as the .pptx: positions in inches -> % of 13.333 x 7.5, points -> cqw. */
+.pmx-slide{container-type:inline-size;aspect-ratio:16/9;width:100%;max-width:1100px;margin:0 auto 14px;background:#fff;color:#1f2d3d;border-radius:6px;
+  box-shadow:0 2px 10px rgba(20,30,60,.22);position:relative;overflow:hidden;font-family:Calibri,Carlito,"Segoe UI",sans-serif}
+.pmx-slide .o{position:absolute;box-sizing:border-box}
+.pmx-slide .bx{border:1px solid #e1e6ee}
+.pmx-slide .tx{line-height:1.2;overflow:visible}
+.pmx-slide .tx p{margin:0 0 .2cqw}
+.pmx-slide .tx p.b{padding-left:1.4cqw;text-indent:-1cqw}
+.pmx-slide .tx p.b::before{content:"•";display:inline-block;width:1cqw;text-indent:0}
+.pmx-slide .ch{display:flex;flex-direction:column}
+.pmx-slide .ch .t{font-weight:700;text-align:center}
+.pmx-slide .ch .pl{flex:1;display:flex;min-height:0;gap:.6cqw}
+.pmx-slide .ch .cols{flex:1;display:flex;align-items:stretch;gap:.6cqw;min-width:0}
+.pmx-slide .ch .c{flex:1;display:flex;flex-direction:column;min-width:0}
+.pmx-slide .ch .stk{flex:1;display:flex;flex-direction:column-reverse;min-height:0}
+.pmx-slide .ch .sg{color:#fff;display:flex;align-items:center;justify-content:center;min-height:0;border-top:1px solid #fff}
+.pmx-slide .ch .cl{text-align:center;white-space:pre-line;line-height:1.1;margin-top:.2cqw}
+.pmx-slide .ch .bars{flex:1;display:grid;grid-template-columns:auto 1fr;gap:.25cqw .5cqw;align-content:space-evenly;align-items:center;min-height:0}
+.pmx-slide .ch .tr{display:flex;height:100%;max-height:1.6cqw;min-height:.8cqw}
+.pmx-slide .ch .tr .sg{height:100%;border-top:0;border-left:1px solid #fff}
+.pmx-slide .ch .lg{display:flex;flex-direction:column;justify-content:center;gap:.25cqw;color:#5a6778}
+.pmx-slide .ch .lg.h{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:.2cqw .8cqw}
+.pmx-slide .ch .lg i{display:inline-block;width:.8cqw;height:.8cqw;border-radius:2px;margin-right:.3cqw;vertical-align:middle}
+.pmx-swarn{font-size:12px;color:var(--ax-red);margin:-6px 0 10px;text-align:center}
 .pmx-sedit{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:800px){.pmx-sedit{grid-template-columns:1fr}}
 .pmx-sedit label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
@@ -1631,32 +1629,40 @@ function pmSlideModel(D) {
         { label: "Estimate with DTRA", n: dtra.length, sub: "" },
         { label: "Need attention", n: attn.length, sub: "", red: attn.some((r) => r.flags.some((f) => f.lvl === "red")) },
       ],
-      soon: soon.map((r) => `${r.num} · ${r.title.length > 28 ? r.title.slice(0, 27) + "…" : r.title} · ${r.country} · ${pmFmt(r.start)}`),
+      soon,                                            // records; pmSlidePlan words them to fit
     };
   };
-  const buyers = {};
-  for (const r of prs) (buyers[r.poc] = buyers[r.poc] || []).push(r);
-  const bNames = Object.keys(buyers).sort((a, b) => buyers[b].length - buyers[a].length).slice(0, 7);
-  const owners = {};
-  for (const r of tops) (owners[r.poc] = owners[r.poc] || []).push(r);
-  const oNames = Object.keys(owners).sort((a, b) => owners[b].length - owners[a].length).slice(0, 7);
+  // Chart groups: the 7 biggest by count, the rest folded into one "Others" bar (never dropped).
+  const groupBy = (rows) => {
+    const g = {};
+    for (const r of rows) (g[r.poc] = g[r.poc] || []).push(r);
+    const names = Object.keys(g).sort((a, b) => g[b].length - g[a].length);
+    const top = names.slice(0, names.length > 8 ? 7 : 8).map((n) => ({ name: n, label: pmShortName(n), rs: g[n] }));
+    const rest = names.slice(top.length);
+    if (rest.length) top.push({ name: rest.join(", "), label: `${rest.length} others`, rs: [].concat(...rest.map((n) => g[n])), others: rest });
+    return top;
+  };
+  const buyers = groupBy(prs), owners = groupBy(tops);
   const prLanes = PM_PR_LANES.filter((l) => l.id !== "draft");
-  const est = prs.filter((r) => r.estDue && pmDays(today, r.estDue) <= PM_SOON_DAYS).sort((a, b) => a.estDue - b.estDue);
-  const po = prs.filter((r) => r.poDue && pmDays(today, r.poDue) <= PM_SOON_DAYS).sort((a, b) => a.poDue - b.poDue);
-  const dueTxt = (r, d) => `${r.num} · ${pmShortName(r.poc)} · ${pmDays(today, d) < 0 ? `${pmDays(d, today)}d overdue` : pmFmt(d)}`;
+  const due = (r, d) => ({ r, d, late: pmDays(today, d) < 0 });
+  const est = prs.filter((r) => r.estDue && pmDays(today, r.estDue) <= PM_SOON_DAYS).sort((a, b) => a.estDue - b.estDue).map((r) => due(r, r.estDue));
+  const po = prs.filter((r) => r.poDue && pmDays(today, r.poDue) <= PM_SOON_DAYS).sort((a, b) => a.poDue - b.poDue).map((r) => due(r, r.poDue));
   const bucket = (b) => tops.filter((r) => r.bucket === b);
   return {
-    date: pmFmt(today, true), filterNote,
+    date: pmFmt(today, true), filterNote, today,
     pr: {
       n: prs.length, value: pmSum(prs, "cost"), drafts: prPool.filter((r) => r.lane === "draft").length,
-      cats: bNames.map((n) => `${pmShortName(n)}  ${pmMoney(pmSum(buyers[n], "cost"))}`),
-      series: prLanes.map((l) => ({ name: l.label, color: l.color, values: bNames.map((n) => buyers[n].filter((r) => r.lane === l.id).length) })),
-      est: est.map((r) => dueTxt(r, r.estDue)), po: po.map((r) => dueTxt(r, r.poDue)),
+      groups: buyers,
+      cats: buyers.map((g) => `${g.label}\n${pmMoney(pmSum(g.rs, "cost"))}`),
+      series: prLanes.map((l) => ({ name: l.label, color: l.color, values: buyers.map((g) => g.rs.filter((r) => r.lane === l.id).length) })),
+      est, po,
     },
     top: {
       n: tops.length, value: pmSum(tops, "value"),
-      cats: oNames.map((n) => `${pmShortName(n)}  ${pmMoney(pmSum(owners[n], "value"))}`),
-      series: pmAgesFor(tops).map((a) => ({ name: a.label, color: a.color, values: oNames.map((n) => owners[n].filter((r) => r.bucket === a.id).length) })),
+      groups: owners,
+      out: tops.filter((r) => r.lane === "delivered").sort((a, b) => (b.age == null ? -1 : b.age) - (a.age == null ? -1 : a.age)),
+      cats: owners.map((g) => `${g.label}  ${pmMoney(pmSum(g.rs, "value"))}`),
+      series: pmAgesFor(tops).map((a) => ({ name: a.label, color: a.color, values: owners.map((g) => g.rs.filter((r) => r.bucket === a.id).length) })),
       tiles: [
         { label: "Within 15 days", rs: bucket("a15") }, { label: "16–30 days", rs: bucket("a30") },
         { label: "More than 30 days", rs: bucket("a31"), red: true },
@@ -1705,41 +1711,222 @@ function pmSlideCard(D) {
   return card;
 }
 
-function pmSlideBarsHtml(cats, series) {
-  if (!cats.length) return `<div class="muted">None open.</div>`;
-  const tot = cats.map((c, i) => series.reduce((s, x) => s + x.values[i], 0));
-  const max = Math.max(1, ...tot);
-  return `<div class="sb">${cats.map((c, i) => `<span>${esc(c)}</span><div class="tr">${series.map((s) => s.values[i]
-    ? `<div class="sg" style="width:${(s.values[i] / max * 100).toFixed(1)}%;background:${s.color}">${s.values[i]}</div>` : "").join("")}</div>`).join("")}</div>
-    <div class="lg">${series.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join("")}</div>`;
+/* ---- Slide plan: one layout (inches / points on a 13.333 x 7.5 slide) drawn by both the preview and the .pptx.
+   Lists never say "+N more": a list that doesn't fit at a readable size (10 pt minimum) is shown grouped
+   (by buyer / by country), then as a one-line count. The full lists always go in the slide notes. ---- */
+const PMS = { W: 13.333, H: 7.5, NAVY: "1E2A4A", INK: "1F2D3D", MUTED: "5A6778", SOFT: "8A94A3", CARD: "F4F6FA", LINE: "E1E6EE", RED: "C62828" };
+const PMS_FS = [12, 11.5, 11, 10.5, 10];        // list / notes sizes tried, largest first
+let _pmsCtx = null;
+function pmsWidth(s, fs) {                       // inches, measured in Calibri (what PowerPoint wraps with)
+  if (_pmsCtx === null) { try { _pmsCtx = document.createElement("canvas").getContext("2d") || false; } catch (e) { _pmsCtx = false; } }
+  if (!_pmsCtx) return s.length * 0.5 * fs / 72;
+  _pmsCtx.font = `${fs}pt Calibri, Carlito, "Segoe UI", sans-serif`;
+  return _pmsCtx.measureText(s).width / 96;
 }
-function pmSlideList(head, items, cap) {
-  const more = items.length > cap ? items.length - cap : 0;
-  return `<div class="lh">${esc(head)} (${items.length})</div>` + (items.length
-    ? `<ul>${items.slice(0, cap).map((t) => `<li>${esc(t)}</li>`).join("")}${more ? `<li>+${more} more</li>` : ""}</ul>` : `<div class="muted">None</div>`);
+function pmsLines(t, w, fs, bullet) {            // wrapped lines, word by word, with a 5% safety margin
+  const avail = (w - (bullet ? 0.22 : 0.04)) * 0.95;
+  let n = 0;
+  for (const p of String(t).split("\n")) {
+    let line = "", c = 1;
+    for (const word of p.split(/\s+/).filter(Boolean)) {
+      const next = line ? `${line} ${word}` : word;
+      if (!line || pmsWidth(next, fs) <= avail) line = next; else { c++; line = word; }
+    }
+    n += c;
+  }
+  return n;
 }
-function pmSlideNotes(txt, empty) {
-  const b = pmBullets(txt);
-  return b.length ? `<ul>${b.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : (empty ? `<div class="muted">${esc(empty)}</div>` : "");
+function pmsBlockH(head, items, w, fs, bullet) {
+  let lines = 0, paras = 0;
+  if (head) { lines += pmsLines(head, w, fs); paras++; }
+  for (const t of items) { lines += pmsLines(t, w, fs, bullet); paras++; }
+  return lines * fs * 1.2 / 72 + paras * 2 / 72;
 }
+/** First tier (full → grouped → one line) and largest size that fit height h; `cols` splits a tier's items into columns. */
+function pmsFit(head, tiers, w, h, cols) {
+  const build = (tier, fs) => {
+    const n = tier.oneCol ? 1 : (tier.cols || cols || 1);
+    const per = Math.max(1, Math.ceil(tier.items.length / n));
+    const parts = [];
+    for (let i = 0; i < n; i++) { const p = tier.items.slice(i * per, (i + 1) * per); if (p.length || !i) parts.push(p); }
+    const cw = (w - (parts.length - 1) * 0.25) / parts.length;
+    const hd = tier.head || head;
+    const headH = hd ? pmsBlockH(hd, [], w, fs) : 0;
+    const body = Math.max(...parts.map((p) => pmsBlockH(null, p, cw, fs, tier.bullet)));
+    return { head: hd, parts, cw, fs, bullet: tier.bullet, muted: tier.muted, headH, h: headH + body };
+  };
+  let last = null;
+  for (const t of tiers) for (const fs of PMS_FS) { last = build(t, fs); if (last.h <= h) return last; }
+  return Object.assign(last, { over: true });
+}
+
+function pmSlidePlan(m, S) {
+  const ops = [], warn = [], N = [];
+  const today = m.today;
+  const run = (text, o) => Object.assign({ text: String(text) }, o || {});
+  const para = (runs, o) => Object.assign({ runs: Array.isArray(runs) ? runs : [runs] }, o || {});
+  const text = (x, y, w, h, paras, o) => { ops.push(Object.assign({ t: "text", x, y, w, h, paras, fs: 11 }, o || {})); };
+  const box = (x, y, w, h, fill, r, name) => ops.push({ t: "box", x, y, w, h, fill, line: PMS.LINE, r, name });
+  const block = (x, y, f) => {
+    if (f.head) text(x, y, f.parts.length * f.cw + (f.parts.length - 1) * 0.25, f.headH + 0.02, [para(run(f.head, { bold: true, color: PMS.NAVY }))], { fs: f.fs });
+    f.parts.forEach((p, i) => text(x + i * (f.cw + 0.25), y + f.headH, f.cw, f.h - f.headH + 0.06,
+      p.map((t) => para(run(t, f.muted ? { italic: true, color: PMS.SOFT } : {}), { bullet: f.bullet })), { fs: f.fs }));
+  };
+  const notesIn = (x, y, w, h, list, label) => {
+    if (!list.length || h < 0.2) { if (list.length) warn.push(`${label} notes don't fit — shorten them.`); return; }
+    const f = pmsFit(null, [{ items: list, bullet: true }], w, h);
+    if (f.over) warn.push(`${label} notes are too long to fit at a readable size — shorten them.`);
+    block(x, y, f);
+  };
+  /* lists (a function of the height it may use) above Jon's notes: notes keep their full size when they can,
+     but never take more than half the space; lists drop to a grouped / one-line version to make room. */
+  const stack = (b, y0, lists, notes, label) => {
+    const A = b.y + b.h - y0;
+    const want = notes.length ? pmsBlockH(null, notes, b.w, 10.5, true) + 0.12 : 0;   // + the gap above the notes
+    const L = lists(Math.max(0.42, A - Math.min(want, A * 0.5)));
+    L.draw(y0);
+    notesIn(b.x, y0 + L.h + 0.1, b.w, b.y + b.h - (y0 + L.h + 0.1), notes, label);
+  };
+  const short = (s, n) => s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
+  const late = (x) => pmDays(x.d, today);
+
+  // title
+  text(0.45, 0.2, 8.6, 0.55, [para(run(S.title, { bold: true, color: PMS.NAVY }))], { fs: 26, valign: "middle" });
+  text(8.9, 0.24, 3.98, 0.5, [para(run(`${S.sub} · ${m.date}`, { color: PMS.MUTED }))], { fs: 13, align: "right", valign: "middle" });
+
+  // quadrants: the left column (charts / lists) is wider; the top row is taller
+  const X0 = 0.45, Y0 = 0.86, GAP = 0.22, WL = 6.95, WR = PMS.W - 2 * X0 - GAP - WL, HT = 3.5, HB = 7.33 - Y0 - GAP - HT;
+  const frame = (x, y, w, h, name, headline) => {
+    box(x, y, w, h, PMS.CARD, 0.08, `${name} card`);
+    text(x + 0.2, y + 0.1, w * 0.6, 0.36, [para(run(name, { bold: true, color: PMS.NAVY }))], { fs: 15, valign: "middle" });
+    if (headline) text(x + w * 0.42, y + 0.12, w * 0.58 - 0.2, 0.32, [para(run(headline, { color: PMS.MUTED }))], { fs: 12, align: "right", valign: "middle" });
+    return { x: x + 0.2, y: y + 0.5, w: w - 0.4, h: h - 0.6 };
+  };
+  const tile = (x, y, w, h, n, sub, label, red) => {
+    box(x, y, w, h, "FFFFFF", 0.06);
+    text(x + 0.1, y + 0.02, w - 0.14, h - 0.04, [
+      para([run(n, { bold: true, color: red ? PMS.RED : PMS.INK, size: 18 }), run(sub ? `  ${sub}` : "", { color: PMS.MUTED, size: 11 })]),
+      para(run(label, { color: PMS.MUTED }))], { fs: 10.5, valign: "middle" });
+  };
+
+  // 1 · Procurement — buyer chart across the top, estimates | POs below, then Jon's notes
+  let b = frame(X0, Y0, WL, HT, "Procurement", `${m.pr.n} open PRs · ${pmMoney(m.pr.value)}${m.pr.drafts ? ` · ${pmPlural(m.pr.drafts, "draft")} not counted` : ""}`);
+  const CH = 1.45;
+  ops.push({ t: "chart", dir: "col", x: b.x, y: b.y, w: b.w, h: CH, title: "Open PRs by buyer (count by step)", cats: m.pr.cats, series: m.pr.series });
+  const dueTiers = (xs, noun) => {
+    if (!xs.length) return [{ items: ["None"], muted: true }];
+    const nl = xs.filter((x) => x.late).length;
+    const by = {};
+    for (const x of xs) (by[pmShortName(x.r.poc)] = by[pmShortName(x.r.poc)] || []).push(x);
+    const keys = Object.keys(by).sort((a, c) => by[c].length - by[a].length);
+    const lt = (k) => by[k].filter((x) => x.late).length;
+    return [
+      { items: xs.map((x) => `${x.r.num} · ${pmShortName(x.r.poc)} · ${x.late ? `${late(x)}d overdue` : pmFmt(x.d)}`), bullet: true },
+      { items: keys.map((k) => `${k} — ${by[k].length}${lt(k) ? ` (${lt(k)} overdue)` : ""}`), bullet: true },
+      { items: [`By buyer: ${keys.map((k) => `${k} ${by[k].length}${lt(k) ? ` (${lt(k)} late)` : ""}`).join(" · ")}`] },
+      { items: [`${pmPlural(xs.length, noun)}${nl ? `, ${nl} overdue` : ""} — listed in the slide notes`] },
+    ];
+  };
+  const prCw = (b.w - 0.3) / 2;
+  stack(b, b.y + CH + 0.12, (h) => {
+    const fe = pmsFit(`Cost estimates due ≤ ${PM_SOON_DAYS} days (${m.pr.est.length})`, dueTiers(m.pr.est, "estimate"), prCw, h);
+    const fp = pmsFit(`POs expected ≤ ${PM_SOON_DAYS} days (${m.pr.po.length})`, dueTiers(m.pr.po, "PO"), prCw, h);
+    const fs = Math.min(fe.fs, fp.fs);
+    return { h: Math.max(fe.h, fp.h), draw: (y) => { block(b.x, y, Object.assign(fe, { fs })); block(b.x + prCw + 0.3, y, Object.assign(fp, { fs })); } };
+  }, pmBullets(S.notes.proc), "Procurement");
+
+  // 2 · Property — owner chart + backlog tiles on top, Jon's notes in the lower half
+  b = frame(X0 + WL + GAP, Y0, WR, HT, "Property", `${m.top.n} open TOPs · ${pmMoney(m.top.value)}`);
+  const TH = b.h * 0.6, chw = b.w * 0.5;
+  ops.push({ t: "chart", dir: "bar", x: b.x, y: b.y, w: chw, h: TH, title: "Open TOPs by owner", cats: m.top.cats, series: m.top.series });
+  const rx = b.x + chw + 0.18, rw = b.w - chw - 0.18, tw = (rw - 0.1) / 2;
+  const rows = Math.ceil(m.top.tiles.length / 2), th = Math.min(0.75, (TH - 0.3 - (rows - 1) * 0.1) / rows);
+  text(rx, b.y, rw, 0.26, [para(run("TOP backlog (days out)", { bold: true, color: PMS.NAVY }))], { fs: 11 });
+  m.top.tiles.forEach((t, i) => tile(rx + (i % 2) * (tw + 0.1), b.y + 0.3 + Math.floor(i / 2) * (th + 0.1), tw, th, t.n, pmMoney(t.value), t.label, t.red && t.n));
+  notesIn(b.x, b.y + TH + 0.15, b.w, b.h - TH - 0.15, pmBullets(S.notes.prop), "Property");
+
+  // 3 · PLS — tiles across the top, trips starting soon, then Jon's notes
+  b = frame(X0, Y0 + HT + GAP, WL, HB, "Personnel Logistics Services", m.pls ? `${m.pls.n} open PLS · ${pmMoney(m.pls.value)}` : "");
+  if (m.pls) {
+    const n = m.pls.tiles.length, ptw = (b.w - (n - 1) * 0.12) / n, pth = 0.6;
+    m.pls.tiles.forEach((t, i) => tile(b.x + i * (ptw + 0.12), b.y, ptw, pth, t.n, t.sub, t.label, t.red));
+    const soon = m.pls.soon;
+    const tripTiers = () => {
+      if (!soon.length) return [{ items: ["None"], muted: true }];
+      const by = {};
+      for (const r of soon) (by[r.country || "Unknown"] = by[r.country || "Unknown"] || []).push(r);
+      const keys = Object.keys(by).sort((a, c) => by[a][0].start - by[c][0].start);
+      const grp = keys.map((k) => `${k} — ${by[k].length} (from ${pmFmt(by[k][0].start)})`);
+      return [
+        { items: soon.map((r) => `${pmFmt(r.start)} · ${r.country} · ${r.num} ${short(r.title, 22)}`), bullet: true },
+        { items: grp, bullet: true, cols: 3, head: `Trips starting ≤ ${PM_PLS_SOON_DAYS} days (${soon.length}) — by country` },
+        { items: [`${keys.map((k) => `${k} ${by[k].length}`).join(" · ")} (${pmPlural(pmSum(soon, "travelers"), "traveler")})`], oneCol: true,
+          head: `Trips starting ≤ ${PM_PLS_SOON_DAYS} days (${soon.length}) — by country` },
+        { items: [`${pmPlural(soon.length, "trip")}, ${pmPlural(pmSum(soon, "travelers"), "traveler")}, ${Object.keys(by).length} ${Object.keys(by).length === 1 ? "country" : "countries"} — listed in the slide notes`], oneCol: true },
+      ];
+    };
+    stack(b, b.y + pth + 0.12, (h) => {
+      const f = pmsFit(`Trips starting ≤ ${PM_PLS_SOON_DAYS} days (${soon.length})`, tripTiers(), b.w, h, 2);
+      return { h: f.h, draw: (y) => block(b.x, y, f) };
+    }, pmBullets(S.notes.pls), "PLS");
+  } else {
+    const pn = pmBullets(S.notes.pls);
+    if (pn.length) notesIn(b.x, b.y, b.w, b.h, pn, "PLS");
+    else text(b.x, b.y, b.w, 0.3, [para(run("Nothing to report this week.", { italic: true, color: PMS.SOFT }))], { fs: 12 });
+  }
+
+  // 4 · Significant Program Actions — Jon's notes
+  b = frame(X0 + WL + GAP, Y0 + HT + GAP, WR, HB, "Significant Program Actions", "");
+  const gn = pmBullets(S.notes.prog);
+  if (gn.length) notesIn(b.x, b.y, b.w, b.h, gn, "Significant Program Actions");
+  else text(b.x, b.y, b.w, 0.3, [para(run("Nothing to report this week.", { italic: true, color: PMS.SOFT }))], { fs: 12 });
+
+  // slide notes — every request behind the numbers
+  const dl = (x) => `${x.r.num} · ${x.r.title} · ${x.r.poc} · ${x.late ? `${late(x)} days overdue (due ${pmFmt(x.d, true)})` : `due ${pmFmt(x.d, true)}`}`;
+  N.push(`PROCUREMENT — ${m.pr.n} open PRs, ${pmMoney(m.pr.value)}`);
+  for (const g of m.pr.groups) if (g.others) N.push(`"${g.label}" bar = ${g.name}`);
+  N.push(`Cost estimates due within ${PM_SOON_DAYS} days (${m.pr.est.length}):`, ...(m.pr.est.length ? m.pr.est.map((x) => "• " + dl(x)) : ["• None"]));
+  N.push(`POs expected within ${PM_SOON_DAYS} days (${m.pr.po.length}):`, ...(m.pr.po.length ? m.pr.po.map((x) => "• " + dl(x)) : ["• None"]));
+  N.push("", `PROPERTY — ${m.top.n} open TOPs, ${pmMoney(m.top.value)}`);
+  for (const g of m.top.groups) if (g.others) N.push(`"${g.label}" bar = ${g.name}`);
+  N.push(`Out for signature (${m.top.out.length}), longest first:`, ...(m.top.out.length ? m.top.out.map((r) =>
+    `• ${r.num} · ${r.title} · ${r.poc} · ${r.age != null ? `${r.age} days out` : "sent date unknown"} · ${pmMoney(r.value, true)}`) : ["• None"]));
+  if (m.pls) {
+    N.push("", `PLS — ${m.pls.n} open PLS, ${pmMoney(m.pls.value)}`, `Trips starting within ${PM_PLS_SOON_DAYS} days (${m.pls.soon.length}):`,
+      ...(m.pls.soon.length ? m.pls.soon.map((r) => `• ${pmFmt(r.start, true)} – ${pmFmt(r.end, true)} · ${r.dest} · ${r.num} ${r.title} · ${pmPlural(r.travelers, "traveler")} · ${r.poc} · ${r.status}`) : ["• None"]));
+  }
+  if (m.filterNote) N.push("", m.filterNote);
+  return { ops, warn, notes: N.join("\n") };
+}
+
+/* Preview: the plan drawn as HTML (same positions and sizes as the .pptx). */
 function pmSlideHtml(m, S) {
-  return `<div class="pmx-slide">
-    <div class="top"><h1>${esc(S.title)}</h1><span>${esc(S.sub)} · ${esc(m.date)}</span></div>
-    <div class="quads">
-      <div class="q"><div class="qh"><b>Procurement</b><span>${m.pr.n} open PRs · ${pmMoney(m.pr.value)}</span></div>
-        <div class="qb"><div><div class="ct">Open PRs by buyer</div>${pmSlideBarsHtml(m.pr.cats, m.pr.series)}</div>
-        <div>${pmSlideList(`Cost estimates due ≤ ${PM_SOON_DAYS} days`, m.pr.est, 3)}${pmSlideList(`POs expected ≤ ${PM_SOON_DAYS} days`, m.pr.po, 3)}${pmSlideNotes(S.notes.proc)}</div></div></div>
-      <div class="q"><div class="qh"><b>Property</b><span>${m.top.n} open TOPs · ${pmMoney(m.top.value)}</span></div>
-        <div class="qb"><div><div class="ct">Open TOPs by owner</div>${pmSlideBarsHtml(m.top.cats, m.top.series)}</div>
-        <div><div class="lh">TOP backlog</div><div class="tiles">${m.top.tiles.map((t) => `<div class="tile"><b class="${t.red && t.n ? "r" : ""}">${t.n}<span style="font-size:.95cqw;font-weight:400;color:#5a6778">&nbsp;&nbsp;${pmMoney(t.value)}</span></b>${esc(t.label)}</div>`).join("")}</div>
-          ${pmSlideNotes(S.notes.prop)}</div></div></div>
-      ${m.pls ? `<div class="q"><div class="qh"><b>Personnel Logistics Services</b><span>${m.pls.n} open PLS · ${pmMoney(m.pls.value)}</span></div>
-        <div class="qb"><div><div class="tiles">${m.pls.tiles.map((t) => `<div class="tile"><b class="${t.red ? "r" : ""}">${esc(String(t.n))}${t.sub ? `<span style="font-size:.95cqw;font-weight:400;color:#5a6778">&nbsp;&nbsp;${esc(t.sub)}</span>` : ""}</b>${esc(t.label)}</div>`).join("")}</div></div>
-        <div>${pmSlideList(`Trips starting ≤ ${PM_PLS_SOON_DAYS} days`, m.pls.soon, 4)}${pmSlideNotes(S.notes.pls)}</div></div></div>`
-      : `<div class="q"><div class="qh"><b>Personnel Logistics Services</b></div><div class="qb one"><div>${pmSlideNotes(S.notes.pls, "Nothing to report this week.")}</div></div></div>`}
-      <div class="q"><div class="qh"><b>Significant Program Actions</b></div><div class="qb one"><div>${pmSlideNotes(S.notes.prog, "Nothing to report this week.")}</div></div></div>
-    </div>
-    </div>`;
+  const P = pmSlidePlan(m, S);
+  const pct = (v, of) => `${(v / of * 100).toFixed(3)}%`;
+  const at = (o) => `left:${pct(o.x, PMS.W)};top:${pct(o.y, PMS.H)};width:${pct(o.w, PMS.W)};height:${pct(o.h, PMS.H)}`;
+  const pt = (n) => `${(n / 72 / PMS.W * 100).toFixed(3)}cqw`;
+  const col = (c) => "#" + c;
+  const runH = (r) => `<span style="${r.bold ? "font-weight:700;" : ""}${r.italic ? "font-style:italic;" : ""}${r.color ? `color:${col(r.color)};` : ""}${r.size ? `font-size:${pt(r.size)};` : ""}">${esc(r.text)}</span>`;
+  const chartH = (o) => {
+    const tot = o.cats.map((c, i) => o.series.reduce((s, x) => s + x.values[i], 0));
+    const max = Math.max(1, ...tot);
+    const used = o.series.filter((x) => x.values.some((v) => v));
+    const lg = (h) => `<div class="lg ${h ? "h" : ""}" style="font-size:${pt(10)}">${used.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join("")}</div>`;
+    if (!o.cats.length) return `<div class="t" style="font-size:${pt(11)}">${esc(o.title)}</div><div style="font-size:${pt(11)};font-style:italic;color:#5a6778">None open.</div>`;
+    if (o.dir === "col") return `<div class="t" style="font-size:${pt(11)}">${esc(o.title)}</div><div class="pl"><div class="cols">${o.cats.map((c, i) => `<div class="c">
+        <div class="stk" style="justify-content:flex-start">${o.series.map((s) => s.values[i] ? `<div class="sg" style="height:${(s.values[i] / max * 100).toFixed(1)}%;background:${s.color};font-size:${pt(10)}">${s.values[i]}</div>` : "").join("")}</div>
+        <div class="cl" style="font-size:${pt(10)}">${esc(c)}</div></div>`).join("")}</div>${lg(false)}</div>`;
+    return `<div class="t" style="font-size:${pt(11)}">${esc(o.title)}</div><div class="bars" style="font-size:${pt(10)}">${o.cats.map((c, i) => `<span>${esc(c)}</span><div class="tr">${o.series.map((s) => s.values[i]
+      ? `<div class="sg" style="width:${(s.values[i] / max * 100).toFixed(1)}%;background:${s.color};font-size:${pt(10)}">${s.values[i]}</div>` : "").join("")}</div>`).join("")}</div>${lg(true)}`;
+  };
+  const html = P.ops.map((o) => {
+    if (o.t === "box") return `<div class="o bx" style="${at(o)};background:${col(o.fill)};border-radius:${pt(o.r * 72)}"></div>`;
+    if (o.t === "chart") return `<div class="o ch" style="${at(o)}">${chartH(o)}</div>`;
+    const v = o.valign === "middle" ? "display:flex;flex-direction:column;justify-content:center;" : "";
+    return `<div class="o tx" style="${at(o)};${v}font-size:${pt(o.fs)};text-align:${o.align || "left"};color:#${PMS.INK}">${o.paras.map((p) =>
+      `<p class="${p.bullet ? "b" : ""}">${p.runs.map(runH).join("")}</p>`).join("")}</div>`;
+  }).join("");
+  return `<div class="pmx-slide">${html}</div>${P.warn.length ? `<div class="pmx-swarn">${P.warn.map(esc).join(" ")}</div>` : ""}`;
 }
 
 /* ---- PowerPoint (pptxgenjs, loaded on demand) ---- */
@@ -1766,127 +1953,44 @@ async function pmBuildPptx(m, S) {
   pptx.layout = "LAYOUT_WIDE";                                      // 13.33 x 7.5 in
   pptx.author = "ATLAS Utility"; pptx.title = S.title;
   pptx.theme = { headFontFace: "Calibri", bodyFontFace: "Calibri" };
-  const NAVY = "1E2A4A", INK = "1F2D3D", MUTED = "5A6778", CARD = "F4F6FA", LINE = "E1E6EE", RED = "C62828";
   const hex = (c) => c.replace("#", "").toUpperCase();
   const s = pptx.addSlide();
   s.background = { color: "FFFFFF" };
-  s.addText(S.title, { x: 0.5, y: 0.28, w: 8.6, h: 0.6, fontSize: 26, bold: true, color: NAVY, margin: 0, isTextBox: true });
-  s.addText(`${S.sub} · ${m.date}`, { x: 8.9, y: 0.36, w: 3.93, h: 0.5, fontSize: 13, color: MUTED, align: "right", margin: 0, isTextBox: true });
-
-  // Top row (charts) gets more height than the bottom row (notes only).
-  const gap = 0.3, X0 = 0.5, Y0 = 1.05, W = (12.333 - gap) / 2, HT = 3.1, HB = 6.85 - Y0 - gap - HT;
-  const quads = [[X0, Y0, HT], [X0 + W + gap, Y0, HT], [X0, Y0 + HT + gap, HB], [X0 + W + gap, Y0 + HT + gap, HB]];
-  const frame = (i, name, headline) => {
-    const [x, y, H] = quads[i];
-    s.addShape(pptx.ShapeType.roundRect, { x, y, w: W, h: H, fill: { color: CARD }, line: { color: LINE, width: 0.75 }, rectRadius: 0.08, objectName: `${name} card` });
-    s.addText(name, { x: x + 0.22, y: y + 0.14, w: W * 0.6, h: 0.36, fontSize: 15, bold: true, color: NAVY, margin: 0, isTextBox: true });
-    if (headline) s.addText(headline, { x: x + W * 0.45, y: y + 0.16, w: W * 0.55 - 0.22, h: 0.32, fontSize: 11, color: MUTED, align: "right", margin: 0, isTextBox: true });
-    return { x: x + 0.22, y: y + 0.58, w: W - 0.44, h: H - 0.72 };
-  };
-  const bulletRuns = (groups) => {
-    const runs = [];
-    for (const g of groups) {
-      if (g.head) runs.push({ text: g.head, options: { bold: true, color: NAVY, breakLine: true } });
-      const items = g.items.length > g.cap ? g.items.slice(0, g.cap).concat([`+${g.items.length - g.cap} more`]) : g.items;
-      if (!items.length && g.empty) runs.push({ text: g.empty, options: { italic: true, color: "8A94A3", breakLine: true } });
-      for (const t of items) runs.push({ text: t, options: { bullet: { indent: 12 }, breakLine: true } });
-    }
-    if (runs.length) delete runs[runs.length - 1].options.breakLine;
-    return runs;
-  };
-  const chart = (box, title, cats, series) => {
-    if (!cats.length) { s.addText("None open.", { x: box.x, y: box.y, w: box.w, h: 0.3, fontSize: 11, italic: true, color: MUTED, margin: 0, isTextBox: true }); return; }
-    const used = series.filter((x) => x.values.some((v) => v));
-    s.addChart(pptx.ChartType.bar, used.map((x) => ({ name: x.name, labels: cats, values: x.values })), {
-      x: box.x - 0.1, y: box.y - 0.08, w: box.w + 0.1, h: box.h + 0.08,
-      barDir: "bar", barGrouping: "stacked", barGapWidthPct: 45, chartColors: used.map((x) => hex(x.color)),
-      showTitle: true, title, titleFontSize: 10, titleColor: INK, titleFontFace: "Calibri",
-      catAxisOrientation: "maxMin", catAxisLabelFontSize: 9, catAxisLabelColor: INK, catAxisLabelFontFace: "Calibri", catAxisLineShow: false,
-      valAxisHidden: true, valGridLine: { style: "none" }, catGridLine: { style: "none" },
-      showValue: true, dataLabelPosition: "ctr", dataLabelFontSize: 8, dataLabelColor: "FFFFFF", dataLabelFormatCode: "#;;", dataLabelFontFace: "Calibri",
-      showLegend: true, legendPos: "b", legendFontSize: 8, legendColor: MUTED, legendFontFace: "Calibri",
-    });
-  };
-  const textOpts = (b, size) => ({ x: b.x, y: b.y, w: b.w, h: b.h, fontSize: size || 11, color: INK, valign: "top", margin: 0, paraSpaceAfter: 2, isTextBox: true });
-  /* PowerPoint doesn't shrink text until it's edited, so size it here: estimate the wrapped
-     lines (Calibri ≈ 0.47 em per character), step the font down to minFs, then trim the
-     last list (Jon's notes) to "+N more" until it fits the box. */
-  const fitText = (groups, b, maxFs, minFs) => {
-    const need = (fs) => {
-      const cpl = Math.max(8, Math.floor((b.w - 0.17) * 72 / (0.47 * fs)));
-      let lines = 0, paras = 0;
-      for (const g of groups) {
-        const items = g.items.length > g.cap ? g.items.slice(0, g.cap).concat(["+N more"]) : g.items;
-        const all = (g.head ? [g.head] : []).concat(items.length ? items : (g.empty ? [g.empty] : []));
-        for (const t of all) { lines += Math.max(1, Math.ceil(String(t).length / cpl)); paras++; }
+  const P = pmSlidePlan(m, S);                                       // same plan the preview draws
+  for (const o of P.ops) {
+    if (o.t === "box") {
+      s.addShape(pptx.ShapeType.roundRect, { x: o.x, y: o.y, w: o.w, h: o.h, fill: { color: o.fill }, line: { color: o.line, width: 0.75 }, rectRadius: o.r, objectName: o.name });
+    } else if (o.t === "text") {
+      const runs = [];
+      o.paras.forEach((p, pi) => p.runs.forEach((r, ri) => {
+        const opt = { color: r.color || PMS.INK };
+        if (r.bold) opt.bold = true;
+        if (r.italic) opt.italic = true;
+        if (r.size) opt.fontSize = r.size;
+        if (ri === 0 && p.bullet) opt.bullet = { indent: 12 };
+        if (ri === p.runs.length - 1 && pi < o.paras.length - 1) opt.breakLine = true;
+        runs.push({ text: r.text, options: opt });
+      }));
+      s.addText(runs, { x: o.x, y: o.y, w: o.w, h: o.h, fontSize: o.fs, align: o.align || "left", valign: o.valign || "top", margin: 0, paraSpaceAfter: 2, isTextBox: true });
+    } else if (o.t === "chart") {
+      if (!o.cats.length) {
+        s.addText(`${o.title}: none open.`, { x: o.x, y: o.y, w: o.w, h: 0.3, fontSize: 11, italic: true, color: PMS.MUTED, margin: 0, isTextBox: true });
+        continue;
       }
-      return lines * fs * 1.2 / 72 + paras * 2 / 72;
-    };
-    for (;;) {
-      for (let fs = maxFs; fs >= minFs; fs -= 0.5) if (need(fs) <= b.h) return fs;
-      const g = groups.slice().reverse().find((x) => x.items.length && Math.min(x.cap, x.items.length) > 1);
-      if (!g) return minFs;
-      g.cap = Math.min(g.cap, g.items.length) - 1;
+      const used = o.series.filter((x) => x.values.some((v) => v));
+      const col = o.dir === "col";
+      s.addChart(pptx.ChartType.bar, used.map((x) => ({ name: x.name, labels: o.cats, values: x.values })), {
+        x: o.x - 0.08, y: o.y - 0.06, w: o.w + 0.08, h: o.h + 0.06,
+        barDir: col ? "col" : "bar", barGrouping: "stacked", barGapWidthPct: col ? 35 : 45, chartColors: used.map((x) => hex(x.color)),
+        showTitle: true, title: o.title, titleFontSize: 11, titleColor: PMS.INK, titleFontFace: "Calibri",
+        catAxisOrientation: col ? "minMax" : "maxMin", catAxisLabelFontSize: 10, catAxisLabelColor: PMS.INK, catAxisLabelFontFace: "Calibri", catAxisLineShow: false,
+        valAxisHidden: true, valGridLine: { style: "none" }, catGridLine: { style: "none" },
+        showValue: true, dataLabelPosition: "ctr", dataLabelFontSize: 10, dataLabelColor: "FFFFFF", dataLabelFormatCode: "#;;", dataLabelFontFace: "Calibri",
+        showLegend: true, legendPos: col ? "r" : "b", legendFontSize: 10, legendColor: PMS.MUTED, legendFontFace: "Calibri",
+      });
     }
-  };
-  const addList = (groups, b, maxFs, minFs) => {
-    const fs = fitText(groups, b, maxFs, minFs);
-    s.addText(bulletRuns(groups), textOpts(b, fs));
-  };
-
-  // 1 · Procurement
-  let b = frame(0, "Procurement", `${m.pr.n} open PRs · ${pmMoney(m.pr.value)}${m.pr.drafts ? ` (+${m.pr.drafts} drafts)` : ""}`);
-  const lw = b.w * 0.54;
-  chart({ x: b.x, y: b.y, w: lw, h: b.h }, "Open PRs by buyer (count by step)", m.pr.cats, m.pr.series);
-  addList([
-    { head: `Cost estimates due ≤ ${PM_SOON_DAYS} days (${m.pr.est.length})`, items: m.pr.est, cap: 3, empty: "None" },
-    { head: `POs expected ≤ ${PM_SOON_DAYS} days (${m.pr.po.length})`, items: m.pr.po, cap: 3, empty: "None" },
-    { head: pmBullets(S.notes.proc).length ? "Notes" : "", items: pmBullets(S.notes.proc), cap: 6 },
-  ], { x: b.x + lw + 0.2, y: b.y, w: b.w - lw - 0.2, h: b.h }, 10.5, 8.5);
-
-  // 2 · Property
-  b = frame(1, "Property", `${m.top.n} open TOPs · ${pmMoney(m.top.value)}`);
-  const pw = b.w * 0.5;
-  chart({ x: b.x, y: b.y, w: pw, h: b.h }, "Open TOPs by owner", m.top.cats, m.top.series);
-  const rx = b.x + pw + 0.2, rw = b.w - pw - 0.2, tw = (rw - 0.12) / 2, th = 0.56;
-  s.addText("TOP backlog", { x: rx, y: b.y, w: rw, h: 0.26, fontSize: 10.5, bold: true, color: NAVY, margin: 0, isTextBox: true });
-  m.top.tiles.forEach((t, i) => {
-    const tx = rx + (i % 2) * (tw + 0.12), ty = b.y + 0.3 + Math.floor(i / 2) * (th + 0.1);
-    s.addShape(pptx.ShapeType.roundRect, { x: tx, y: ty, w: tw, h: th, fill: { color: "FFFFFF" }, line: { color: LINE, width: 0.5 }, rectRadius: 0.06 });
-    s.addText([
-      { text: String(t.n), options: { fontSize: 16, bold: true, color: t.red && t.n ? RED : INK } },
-      { text: `   ${pmMoney(t.value)}`, options: { fontSize: 10, color: MUTED, breakLine: true } },
-      { text: t.label, options: { fontSize: 8.5, color: MUTED } },
-    ], { x: tx + 0.1, y: ty + 0.03, w: tw - 0.14, h: th - 0.06, margin: 0, valign: "middle", isTextBox: true });
-  });
-  const notesY = b.y + 0.3 + Math.ceil(m.top.tiles.length / 2) * (th + 0.1) + 0.06;
-  const pn = pmBullets(S.notes.prop);
-  if (pn.length) addList([{ items: pn, cap: 6 }], { x: rx, y: notesY, w: rw, h: b.y + b.h - notesY }, 10.5, 8.5);
-
-  // 3 · PLS — tiles + trips coming up when a PLS UDQ is loaded, else Jon's notes only
-  if (m.pls) {
-    b = frame(2, "Personnel Logistics Services", `${m.pls.n} open PLS · ${pmMoney(m.pls.value)}`);
-    const lw2 = b.w * 0.46, tw2 = (lw2 - 0.12) / 2, th2 = 0.56;
-    m.pls.tiles.forEach((t, i) => {
-      const tx = b.x + (i % 2) * (tw2 + 0.12), ty = b.y + Math.floor(i / 2) * (th2 + 0.1);
-      s.addShape(pptx.ShapeType.roundRect, { x: tx, y: ty, w: tw2, h: th2, fill: { color: "FFFFFF" }, line: { color: LINE, width: 0.5 }, rectRadius: 0.06 });
-      s.addText([
-        { text: String(t.n), options: { fontSize: 16, bold: true, color: t.red ? RED : INK } },
-        { text: t.sub ? `   ${t.sub}` : "", options: { fontSize: 9, color: MUTED, breakLine: true } },
-        { text: t.label, options: { fontSize: 8.5, color: MUTED } },
-      ], { x: tx + 0.1, y: ty + 0.03, w: tw2 - 0.14, h: th2 - 0.06, margin: 0, valign: "middle", isTextBox: true });
-    });
-    const pn2 = pmBullets(S.notes.pls);
-    addList([
-      { head: `Trips starting ≤ ${PM_PLS_SOON_DAYS} days (${m.pls.soon.length})`, items: m.pls.soon, cap: 4, empty: "None" },
-      { head: pn2.length ? "Notes" : "", items: pn2, cap: 6 },
-    ], { x: b.x + lw2 + 0.2, y: b.y, w: b.w - lw2 - 0.2, h: b.h }, 10.5, 8);
-  } else {
-    b = frame(2, "Personnel Logistics Services", "");
-    addList([{ items: pmBullets(S.notes.pls), cap: 12, empty: "Nothing to report this week." }], b, 12, 9);
   }
-  b = frame(3, "Significant Program Actions", "");
-  addList([{ items: pmBullets(S.notes.prog), cap: 12, empty: "Nothing to report this week." }], b, 12, 9);
+  s.addNotes(P.notes);                                               // every request behind the numbers
 
 
   const name = `PM_Weekly_Update_${fileStamp()}.pptx`;

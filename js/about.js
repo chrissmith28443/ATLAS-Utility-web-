@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.6",
+    title: "Weekly slide: new quadrant layout, nothing cut off",
+    notes: [
+      "Procurement: Open PRs by buyer across the top, then cost estimates due and POs expected (next 7 days) side by side, then Jon's notes.",
+      "Property: Open TOPs by owner and the TOP backlog cards on top, Jon's notes in the lower half.",
+      "PLS: the four cards across the top, trips starting in the next 14 days, then Jon's notes.",
+      "No more \"+N more\": a list that won't fit at a readable size (10 pt or larger) is grouped by buyer or country, or counted. Every request behind the numbers is in the PowerPoint's slide notes.",
+      "Charts show the 7 busiest buyers / owners and put the rest in one \"others\" bar instead of leaving them out. The preview matches the PowerPoint, and warns when notes are too long to fit.",
+    ],
+  },
+  {
     version: "2.8.5",
     title: "Procurement shows everything by default",
     notes: [

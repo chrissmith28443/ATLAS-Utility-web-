@@ -447,6 +447,12 @@ Arrived Warehouse or the warehouse actual date is filled.
   backlog; PLS tiles Open / Trips 30 days / Traveling now / Estimate with DTRA / Need attention, timeline only (full
   width). Lanes off everywhere. Hidden columns: Proc In status / RDD / Latest update; Prop Country / Latest update;
   PLS In status. PR / title columns are locked on. Backed up via backup.js.
+- Weekly slide v2.8.6 (user, 2026-11-07): UL Procurement = buyer column chart across the top, estimates | POs below,
+  notes last. UR Property = owner chart + backlog cards on top, notes lower half. BL PLS = cards across, trips ≤14 days,
+  notes. BR Program notes. NEVER "+N more" on the slide; min text 10 pt. pmSlidePlan() builds one layout (inches/pt)
+  that pmSlideHtml (preview) and pmBuildPptx both draw. Lists fall back: full -> grouped (buyer / country) -> one
+  inline line -> count; text is measured in Calibri via canvas (pmsWidth). Full lists go in the slide notes
+  (s.addNotes). Charts: top 7 + one "N others" bar. Left column wider (6.95"), top row taller (3.5").
 - Activity Tracker stages left in ATLAS (user, 2026-11-07): PR – RFQ/RFP Issued, TTI POC Status Check, PMCT – TOP
   submitted for signature, PMCT – Signed TOP returned to TTI, PR – Completed, PR – PO Issued. Older stages still on
   open records in the sample: PR – In Production / Fulfillment (81 entries), PR – On Hold, PR – Received, PR – Vendor

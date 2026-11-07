@@ -77,7 +77,14 @@ function pmViewReset(kind) {
   try { localStorage.setItem(PM_VIEW_KEY, JSON.stringify(v)); } catch (e) { /* storage off */ }
 }
 function pmViewChanged(kind) { return Object.keys(pmViewGet()[kind] || {}).length > 0; }
-const PM_VIEW_BTN = (kind) => `<button class="copx-btn ghost ${PmUi.viewEdit === kind ? "on" : ""}" type="button" id="pmViewBtn" aria-expanded="${PmUi.viewEdit === kind}" title="Choose which tiles, panels and columns show">View${pmViewChanged(kind) ? " ·&nbsp;custom" : ""}</button>`;
+/* View settings button: a sliders icon; the small dot means this tab's view differs from the recommended one. */
+const PM_VIEW_BTN = (kind) => {
+  const custom = pmViewChanged(kind);
+  const tip = `View settings — choose which tiles, panels and columns show${custom ? " (customized)" : ""}`;
+  return `<button class="copx-btn ghost pmx-icon pmx-viewbtn ${PmUi.viewEdit === kind ? "on" : ""}" type="button" id="pmViewBtn" aria-expanded="${PmUi.viewEdit === kind}" title="${esc(tip)}" aria-label="${esc(tip)}">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>${custom ? `<i class="pmx-vdot" aria-hidden="true"></i>` : ""}</button>`;
+};
 function pmIsTool(id) { return PM_TOOLS.indexOf(id) !== -1; }
 
 /* Lanes (pipeline steps). Colours = one blue ramp (ordinal), drafts neutral. */
@@ -669,6 +676,8 @@ body.theme-dark .pmx{--pm-grid:#2a3744}
 .pmx-icon svg.spin{animation:pmx-spin 1s linear infinite}
 .pmx-tools .copx-btn.pmx-refresh{color:#2e7d32;border-color:#81c784;background:#f1f8f1}
 .pmx-tools .copx-btn.pmx-refresh:hover:not(:disabled){background:#dcefdc;border-color:#2e7d32}
+.pmx-tools .copx-btn.pmx-viewbtn{position:relative}
+.pmx-vdot{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--ax-blue,#3987e5)}
 body.theme-dark .pmx-tools .copx-btn.pmx-refresh{color:#81c784;border-color:#3f7a45;background:#1b2a1e}
 @keyframes pmx-spin{to{transform:rotate(360deg)}}
 .pmx-info{display:inline-flex;align-items:center;justify-content:center;flex:none;width:15px;height:15px;border-radius:50%;border:1.4px solid currentColor;

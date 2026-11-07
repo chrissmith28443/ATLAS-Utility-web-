@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.10",
+    title: "View button is now an icon",
+    notes: [
+      "On Procurement, Property and PLS, the View button is now a sliders icon next to the green refresh button. A small blue dot on it means you've changed that tab's view from the recommended one.",
+    ],
+  },
+  {
     version: "2.8.9",
     title: "Weekly slide: Procurement notes beside the lists",
     notes: [

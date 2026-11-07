@@ -44,9 +44,9 @@ const PM_PLS_SOON_DAYS = 14;       // slide: "Trips starting ≤ 14 days" list
    The user's changes are saved per browser (atlas.pmdash.view) as { kind: { id: true|false } }. */
 const PM_VIEW_KEY = "atlas.pmdash.view";
 const PM_VIEW_OFF = {
-  proc: ["t:rdd", "t:big", "p:lanes", "c:statusSince", "c:rdd", "c:latest"],
-  prop: ["t:big", "t:flag", "p:lanes", "c:country", "c:latest"],
-  pls: ["t:ended", "p:lanes", "p:actions", "c:statusSince"],
+  proc: ["t:rdd", "p:lanes", "c:statusSince", "c:rdd", "c:latest"],
+  prop: ["t:flag"],
+  pls: ["t:ended", "p:actions"],          // p:actions = the "Trip ended, still In Progress" list
 };
 const PM_VIEW_ITEMS = {
   proc: { tiles: [["open", "Open PRs"], ["est", `Estimates due ≤ ${PM_SOON_DAYS} days`], ["po", `POs expected ≤ ${PM_SOON_DAYS} days`], ["rdd", "Past RDD"], ["big", "Over $100K"], ["attn", "Need attention"]],

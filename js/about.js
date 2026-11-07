@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.4",
+    title: "Dashboards show more by default",
+    notes: [
+      "Procurement: every tile shows by default except Past RDD.",
+      "Property: everything shows by default except the Red flags tile (step lanes, Country and Latest update are back).",
+      "PLS: everything shows by default except Trip ended, still In Progress (tile and list).",
+      "Anything you've changed with the View button stays as you set it.",
+    ],
+  },
+  {
     version: "2.8.3",
     title: "PLS tab pulls from ATLAS",
     notes: [

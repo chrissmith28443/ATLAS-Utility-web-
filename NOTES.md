@@ -441,7 +441,9 @@ Arrived Warehouse or the warehouse actual date is filled.
   not a TOP. No form guess on PMCTs.
 - View settings ("less is more"): View button on Procurement / Property / PLS. localStorage atlas.pmdash.view =
   { kind: { "t:id" | "p:id" | "c:colKey": bool } } — overrides only; PM_VIEW_OFF holds the recommended hidden set.
-  Recommended = everything on Jon's slide + a few essentials: Proc tiles Open / Estimates due / POs expected / Need
+  v2.8.4 (user, 2026-11-07) changed the recommended view: Proc = all tiles except Past RDD (lanes / In status / RDD /
+  Latest update columns still off); Prop = everything except the Red flags tile; PLS = everything except Trip ended
+  (tile + list). The 2.8.2 recommended set below is superseded: Proc tiles Open / Estimates due / POs expected / Need
   attention, buyer chart + Next 7 days; Prop tiles Open / Out for signature / Out > 30 / Need attention, owner chart +
   backlog; PLS tiles Open / Trips 30 days / Traveling now / Estimate with DTRA / Need attention, timeline only (full
   width). Lanes off everywhere. Hidden columns: Proc In status / RDD / Latest update; Prop Country / Latest update;

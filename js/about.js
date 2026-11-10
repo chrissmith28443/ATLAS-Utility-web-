@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.11",
+    title: "Updates show up without clearing the cache",
+    notes: [
+      "The app now always checks the server for its latest page when it opens, so new versions appear on a normal reload instead of needing the browser cache cleared. (Takes effect after this one update is picked up.)",
+      "Fixed the background updater, which had been failing to install (two icons were listed twice in its file list). Offline use and the \"new version available\" prompt work again.",
+    ],
+  },
+  {
     version: "2.8.10",
     title: "View button is now an icon",
     notes: [

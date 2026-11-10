@@ -4,20 +4,18 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.8.10-view-icon";
+const CACHE = "atlas-cache-v2.8.11-fresh-page";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
   "css/app.css?v=94",
-  "icons/apple-touch-icon.png",
-  "icons/favicon-32.png",
   "js/app.js?v=109",
   "js/assets.js?v=64",
-  "js/about.js?v=183",
+  "js/about.js?v=184",
   "js/a11y.js?v=61",
   "js/backup.js?v=68",
-  "js/constants.js?v=174",
+  "js/constants.js?v=175",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=88",
   "js/pwa.js?v=62",
@@ -81,7 +79,9 @@ self.addEventListener("install", (e) => {
   // Note: no skipWaiting() here — the new worker waits until the user accepts
   // the "update available" prompt (pwa.js posts SKIP_WAITING), so we never swap
   // assets out from under an open session.
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(APP_SHELL)));
+  // cache: "reload" skips the browser's HTTP cache so a server that lets pages
+  // sit in that cache can't hand the new worker a stale shell.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(APP_SHELL.map((u) => new Request(u, { cache: "reload" })))));
 });
 
 self.addEventListener("message", (e) => {
@@ -104,9 +104,14 @@ self.addEventListener("fetch", (e) => {
   const isRuntime = RUNTIME_HOSTS.indexOf(url.hostname) !== -1;
 
   // App navigations: try network, fall back to the cached shell when offline.
+  // "no-cache" makes the browser check with the server every time instead of
+  // reusing a stored copy of the page — the page lists which ?v= files to load,
+  // so a stale copy would keep the whole app on the old version.
   if (req.mode === "navigate") {
+    let fresh;
+    try { fresh = new Request(req, { cache: "no-cache" }); } catch (err) { fresh = req; }
     e.respondWith(
-      fetch(req).catch(() =>
+      fetch(fresh).catch(() =>
         caches.match("./index.html", { ignoreSearch: true }).then((r) => r || caches.match("./"))
       )
     );

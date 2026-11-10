@@ -476,3 +476,14 @@ Arrived Warehouse or the warehouse actual date is filled.
 - v2.8.9 (user, 2026-11-07): weekly slide UL Procurement = buyer chart across the top; below it split in half —
   estimates over POs on the left, Jon's notes on the right. No notes typed -> estimates | POs side by side full width.
   The half-width left side is tight (~1.3"), so POs often fall back to the "By buyer" one-liner; full lists stay in the slide notes.
+
+## v2.8.11 Service worker fix (2026-11-10)
+- sw.js APP_SHELL had apple-touch-icon.png and favicon-32.png listed twice since at
+  least the July repo flatten. Cache.addAll() rejects duplicate requests, so EVERY
+  new service worker failed to install (went "redundant") -> no offline shell and no
+  "new version" toast. Keep APP_SHELL free of duplicates.
+- Navigations now fetch with cache:"no-cache" (always revalidate index.html) and the
+  install precache uses cache:"reload", so a server that lets index.html sit in the
+  browser's HTTP cache (suspected on the ATLAS-hosted copy) can't pin users to an old
+  release. Proper server-side fix to ask TTI for: `Cache-Control: no-cache` on
+  index.html and sw.js.

@@ -1311,10 +1311,11 @@ function renderIpcWorkspace(container) {
       <header><h2>Inventory Packing Checklist</h2><span class="count">${esc(m.wmtr)}</span></header>
       <div class="body">
         <div class="note">
-          The IPC lists every inventory item (packages are excluded) with its line number, part number,
-          description, quantity, and serial number, and fills the header with the WMTR, origin, ultimate
-          consignee, and end user. PO# and the carton/pallet column are left blank for hand entry, matching
-          the desktop checklist. The preview mirrors the generated
+          The IPC is the form the shipper fills and returns: (1) an inventory checklist of every item with a
+          check-off box and the package each item is packed in, (2) a package summary listing every carton,
+          crate, or pallet with its contents, dimensions, and weight, and (3) a signed certification that the
+          inventory was completed, with a box for discrepancies. Package rows already on the UDQ prefill the
+          package summary; otherwise it is left blank for hand entry. The preview mirrors the generated
           <span style="font-family:var(--mono)">.xlsx</span>.
         </div>
 
@@ -1342,7 +1343,7 @@ function updateIpcPreview() {
   if (summary) {
     summary.textContent =
       `Preview · ${model.items.length} item${model.items.length === 1 ? "" : "s"}` +
-      ` · ${AppState.data.packages.length} package row${AppState.data.packages.length === 1 ? "" : "s"} excluded`;
+      ` · ${model.packages.length} package${model.packages.length === 1 ? "" : "s"} prefilled`;
   }
   const iframe = document.getElementById("ipcPreview");
   if (iframe) iframe.srcdoc = ipcRenderHtml(AppState.data);

@@ -4,18 +4,18 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.8.11-fresh-page";
+const CACHE = "atlas-cache-v2.8.12-ipc-redesign";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
   "css/app.css?v=94",
-  "js/app.js?v=109",
+  "js/app.js?v=110",
   "js/assets.js?v=64",
-  "js/about.js?v=184",
+  "js/about.js?v=185",
   "js/a11y.js?v=61",
   "js/backup.js?v=68",
-  "js/constants.js?v=175",
+  "js/constants.js?v=176",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=88",
   "js/pwa.js?v=62",
@@ -34,8 +34,8 @@ const APP_SHELL = [
   "js/tools/dd1149_template.js?v=61",
   "js/tools/ecm.js?v=64",
   "js/tools/ecm_template.js?v=61",
-  "js/tools/ipc.js?v=61",
-  "js/tools/ipc_template.js?v=61",
+  "js/tools/ipc.js?v=62",
+  "js/tools/ipc_template.js?v=62",
   "js/tools/mct.js?v=61",
   "js/tools/mct_template.js?v=61",
   "js/tools/packet.js?v=64",

@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.12",
+    title: "New Inventory Packing Checklist (IPC) layout",
+    notes: [
+      "The IPC is redesigned into three sections the shipper fills and returns: (1) an inventory checklist with an \"Inventoried\" check box and the package each item is packed in, (2) a package summary listing every carton, crate, or pallet with its contents, dimensions, and weight, plus totals, and (3) an inventory certification with \"completed\" / \"discrepancies found\" boxes, a discrepancy box, and the name, company, signature, date, and stamp block.",
+      "Package rows already on the UDQ prefill the package summary and the \"Packed in\" column; otherwise those rows are blank for hand entry.",
+    ],
+  },
+  {
     version: "2.8.11",
     title: "Updates show up without clearing the cache",
     notes: [

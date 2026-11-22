@@ -185,7 +185,7 @@ Arrived Warehouse or the warehouse actual date is filled.
 - v2.6.6: Active tab: no Metric hits filter (Needs attention covers it); no DPS check (field unused);
   no draft-AWB gate (always uploaded pre-transit). Cost over DTRA-approved flags only when >10%
   over (COP only — Christmas Tree's own reapproval flag is unchanged).
-- v2.6.7: Daily-update entry is MOCKUP-ONLY: COP_MOCKUP.editUpdates = false in the Utility (no
+- v2.6.7: Daily-update entry is MOCKUP-ONLY: COP_MOCKUP.editUpdates = false in the Utility (
   form, no sheet, drafts ignored). The mockup sets it true; its sheet has one "Save daily updates"
   button (top + bottom) that saves every filled row via copSaveDailyUpdate. Table = COP column
   defs (copColDefs): header-click sort, per-column filter row, Columns picker (prefs.cols per
@@ -480,7 +480,7 @@ Arrived Warehouse or the warehouse actual date is filled.
 ## v2.8.11 Service worker fix (2026-11-10)
 - sw.js APP_SHELL had apple-touch-icon.png and favicon-32.png listed twice since at
   least the July repo flatten. Cache.addAll() rejects duplicate requests, so EVERY
-  new service worker failed to install (went "redundant") -> no offline shell and no
+  new service worker failed to install (went "redundant") -> no offline shell and 
   "new version" toast. Keep APP_SHELL free of duplicates.
 - Navigations now fetch with cache:"no-cache" (always revalidate index.html) and the
   install precache uses cache:"reload", so a server that lets index.html sit in the
@@ -503,7 +503,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   active + closed delivered on/after 1 Oct (cancelled left out). copTimeline(rec): submitted = Date Submitted (always <=
   first non-Draft stamp in the sample), toDtra = first "DTRA Program Review", compliance = "DTRA Compliance Review
   (Approved)", quoteSub = first "DTRA Estimate Review", quoteAppr = "... (Approved)", departed = Departure from Origin
-  Act. Date. RFQ status: due = 1 business day after later(compliance, packed); active past Estimate Preparation with no
+  Act. Date. RFQ status: due = 1 business day after later(compliance, packed); active past Estimate Preparation with 
   RFQ date = "Not recorded" (not overdue). EEI: US export, not hand carry — filed / hold (in Execution) / later / missed.
   Tiles = COP_TRK_PICK filters; step strip = COP_TL_STEPS average business days + longest shipment.
 - In progress view: KPI tiles (copTodayStrip) incl. new quick filters rfq / eei (COP_QUICK).
@@ -560,4 +560,30 @@ Arrived Warehouse or the warehouse actual date is filled.
   Setting dashDrop = hard off. Main #dropzone is hidden on Dashboard views when the box is on OR connected. NB the
   user says "offline version" for atlas-utility.net (not connected to ATLAS) — NOT the 2.7.0 "Offline mode" app.
   Refresh = green icon (.copx-ibtn.go) right after the title + data-source dot. Tracker seg label "Delivered".
+  Pushed 2026-11-22.
+- v2.9.3 RELIEF CODES (user approved the bracket format 2026-11-22): [RELIEF: CODE] reason in ATLAS "Shipping Team
+  Notes". cop.js: COP_RELIEF_CODES (RFQ->cop.rfq, EEI->cop.itn, DAILY->activity, RDD->delivery+cop.rdd,
+  COST->variance_est/rev, DOCS->docs, MARAD->cop.marad, ALL->*), aliases AES/ITN->EEI etc., copParseRelief /
+  copReliefFor(rec) / copReliefHit(relief, ackKeys). Both evaluators' add(): a relief hit turns any state except ok/na
+  into "relief" ("Relieved (CODE) — reason. …"); DAILY relief also clears daily.missed/dueToday. Tracker pills show
+  "Relieved" (reason on hover); Team notes shows tags as pills. Legend = copReliefLegend() hover chip in the page
+  header (+ Team notes column title). Unknown codes are ignored silently (relief.unknown is kept but not shown).
+  NOT done / OPEN QUESTION for the user: Metrics tab percentages, Christmas Tree rollup, Record Audit and the PMR
+  export do NOT read relief codes yet — need to know whether a relieved shipment counts as a PASS or is LEFT OUT of
+  the count (the Tree's browser "ignore" list counts as a pass). Tested by injecting tags into loaded records (
+  real tags in the data yet). Pushed 2026-11-22 with 2.9.4.
+- Default-view trimming: user asked for a LIST of suggested fields to hide (given in chat 2026-11-22) — nothing has
+  been switched off by default; wait for his picks.
+- v2.9.4 (user, 2026-11-22): RELIEVED = STILL COUNTED, SCORED AS A PASS for that metric (never dropped from totals).
+  Engines read the codes from the grid: copReliefByRequest(grid) (cop.js, WeakMap cache) -> xtRelievedBy(grid, wmtr,
+  rollupKey) (xmastree.js, via XT_ROLLUP_IGNORE_KEYS). Applied in pmrRun (late + [RELIEF: RDD] -> on time, not in
+  late_rows), pmrDailyUpdateCheck (missing cleared), Metrics-tab docs / cost loops (mxRelieved), and the rollup's
+  ignoredFor. So the Metrics tab, PMR export and rollup agree. NOT wired: xtAnnotateIssues row flags (hidden
+  Christmas Tree), Record Audit, the Required Attachments on-screen list. Nothing on the Metrics tab says WHICH
+  shipments were relieved (possible follow-up).
+  RDD: monitored only via ATLAS "Monitor this RDD" (per-browser prefs.rddWatch no longer read; tick box removed);
+  RDD column opt-in on In progress; date coloured only when monitored. The Closed audit still flags "delivered after
+  RDD" for every shipment (that's the on-time delivery metric) — not changed.
+  Daily column removed from Shipment Details -> bubble in Latest Daily Update (Current / Due today / Missing n /
+  Relieved). Board .ch min-height 54px (equal header heights).
   Pushed 2026-11-22.

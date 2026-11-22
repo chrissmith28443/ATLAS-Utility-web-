@@ -938,6 +938,8 @@ function mxInventoryTotals(grid, deliveredWmtrs) {
    straight from XT_ROLLUP_METRICS, so a card is green/yellow/red exactly where
    the Tree's matching cell would be. Returns an ordered array of
    { key, def, pass, total, late } (SRF metrics only), or null if unavailable. */
+/** A [RELIEF: …] code in Shipping Team Notes: the shipment stays in the count and passes that metric. */
+function mxRelieved(grid, wmtr, key) { return typeof xtRelievedBy === "function" && xtRelievedBy(grid, wmtr, key); }
 function mxSrfMetricScores(grid, startIso, endIso, pr, daily) {
   if (!grid || typeof XT_ROLLUP_METRICS === "undefined") return null;
   const inWin = (iso) => !!iso && (!startIso || iso >= startIso) && (!endIso || iso <= endIso);
@@ -980,7 +982,7 @@ function mxSrfMetricScores(grid, startIso, endIso, pr, daily) {
       if (cat === "UNKNOWN") continue;                              // unclassifiable -> not scored
       const ev = _raEvaluate(cat, blk.attachment_types || [], origin, _raIsCourier(f["Identify Shipment As"]));
       byKey.docs.total += 1;
-      if (!ev.missing.length) byKey.docs.pass += 1;
+      if (!ev.missing.length || mxRelieved(grid, wmtr, "docs")) byKey.docs.pass += 1;
     }
   }
 
@@ -999,7 +1001,7 @@ function mxSrfMetricScores(grid, startIso, endIso, pr, daily) {
         const m = x.def;
         if (!m.elig(row)) continue;
         x.total += 1;
-        if (m.pass(row)) x.pass += 1;
+        if (m.pass(row) || mxRelieved(grid, row.wmtr_full, k)) x.pass += 1;
       }
     }
   }
@@ -1392,7 +1394,7 @@ function mxRowMetricDetail(grid, startIso, endIso) {
       const m = defByKey[k]; if (!m) continue;
       if (!m.elig(row)) continue;
       out[k].total += 1;
-      if (m.pass(row)) out[k].pass += 1;
+      if (m.pass(row) || mxRelieved(grid, row.wmtr_full, k)) out[k].pass += 1;
       else out[k].fails.push(row);
     }
   }

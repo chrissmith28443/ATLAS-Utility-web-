@@ -182,6 +182,17 @@ const XT_ROLLUP_IGNORE_KEYS = {
   pr_estimate: ["estimate_pr"],
   cost_pr:     ["variance_est", "variance_rev"],
 };
+/** Relief codes (cop.js): is this request relieved of a rollup metric by a
+    [RELIEF: …] tag in its Shipping Team Notes? `grid` = the SRF UDQ it's in.
+    A relieved shipment is STILL COUNTED in every total — it is scored as a
+    PASS for that metric (user, 2026-11-22). */
+function xtRelievedBy(grid, wmtr, rollupKey) {
+  if (!grid || typeof copReliefByRequest !== "function") return false;
+  const list = copReliefByRequest(grid)[xtStripSuffix(norm(wmtr))];
+  if (!list) return false;
+  const keys = XT_ROLLUP_IGNORE_KEYS[rollupKey] || [rollupKey];
+  return list.some((r) => r.keys.indexOf("*") !== -1 || r.keys.some((k) => keys.indexOf(k) !== -1));
+}
 function xtGetIgnores() {
   try { const o = JSON.parse(localStorage.getItem(XT_IGNORES_KEY) || "{}"); return (o && typeof o === "object") ? o : {}; }
   catch (e) { return {}; }
@@ -1191,6 +1202,7 @@ function xtBuildRollup() {
   const ig = xtGetIgnores();
   let ignoredApplied = 0;
   const ignoredFor = (reqNo, rollupKey) => {
+    if (xtRelievedBy(srfGrid, reqNo, rollupKey)) return true;   // [RELIEF: …] code in ATLAS
     const supp = ig[reqNo];
     if (!supp || !supp.length) return false;
     if (supp.includes("*")) return true;

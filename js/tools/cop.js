@@ -172,6 +172,7 @@ const COP_STATES = {
   open:    { word: "To do",        icon: "□", cls: "open", rank: 3 },
   unknown: { word: "No data",      icon: "?",      cls: "na",   rank: 4 },
   ack:     { word: "Acknowledged", icon: "✓", cls: "ack",  rank: 5 },
+  relief:  { word: "Relieved",     icon: "✓", cls: "ack",  rank: 5 },   // [RELIEF: …] code in Shipping Team Notes
   later:   { word: "Later step",   icon: "○", cls: "na",   rank: 6 },
   na:      { word: "N/A",          icon: "–", cls: "na",   rank: 7 },
   ok:      { word: "Done",         icon: "✓", cls: "good", rank: 8 },
@@ -476,6 +477,97 @@ function copMsFor(rec, ds) {
 }
 function copIsYes(v) { return /^(true|yes|y|1)$/i.test(norm(v || "")); }
 
+/* -------------------------------------------------------------------------
+   RELIEF CODES (2.9.3) — a shipment can be relieved of a check by a tag typed
+   in ATLAS "Shipping Team Notes":   [RELIEF: RFQ] reason…
+   Several codes can share one tag ([RELIEF: RFQ, EEI] reason) and a note can
+   carry several tags; the text after a tag, up to the next one, is its reason.
+   A relieved check shows "Relieved" with the reason instead of a miss — for
+   everyone, because it lives in ATLAS (the per-browser Acknowledge button is
+   separate). Each code maps onto the acknowledge key(s) of the checks it covers.
+   ------------------------------------------------------------------------- */
+const COP_RELIEF_CODES = [
+  ["RFQ",   "RFQ sent within 1 business day",              ["cop.rfq"]],
+  ["EEI",   "EEI / AES filed before departure (ITN)",       ["cop.itn"]],
+  ["DAILY", "Daily status updates",                         ["activity"]],
+  ["RDD",   "RDD — delivered on time, monitored RDD",       ["delivery", "cop.rdd"]],
+  ["COST",  "Cost more than 10% over the approved amount",  ["variance_est", "variance_rev"]],
+  ["DOCS",  "Required shipping documents",                  ["docs"]],
+  ["MARAD", "MARAD report (sealift)",                       ["cop.marad"]],
+  ["ALL",   "Every check on this shipment",                 ["*"]],
+];
+const COP_RELIEF_ALIAS = { AES: "EEI", ITN: "EEI", DOC: "DOCS", DOCUMENTS: "DOCS", DELIVERY: "RDD", UPDATE: "DAILY", UPDATES: "DAILY", "*": "ALL" };
+const COP_RELIEF_RE = /\[\s*RELIEF\s*[:\-–—]?\s*([^\]]*)\]\s*([^\[]*)/gi;
+/** Shipping Team Notes text -> { list: [{code, reason, keys}], unknown: [codes not recognised] }. */
+function copParseRelief(text) {
+  const out = { list: [], unknown: [] };
+  const s = String(text || "");
+  let m;
+  COP_RELIEF_RE.lastIndex = 0;
+  while ((m = COP_RELIEF_RE.exec(s))) {
+    const reason = norm(m[2]).replace(/[\s.;,]+$/, "");
+    for (let code of m[1].toUpperCase().split(/[\s,;\/&+]+/).filter(Boolean)) {
+      code = COP_RELIEF_ALIAS[code] || code;
+      const def = COP_RELIEF_CODES.find((d) => d[0] === code);
+      if (!def) { out.unknown.push(code); continue; }
+      if (!out.list.some((x) => x.code === code)) out.list.push({ code, reason, keys: def[2] });
+    }
+  }
+  return out;
+}
+/** The relief on one record (parsed once). */
+function copReliefFor(rec) {
+  const txt = (rec.ship && rec.ship[COP_SHIP_FIELDS.notes]) || "";
+  if (!rec._relief || rec._relief.src !== txt) { rec._relief = copParseRelief(txt); rec._relief.src = txt; }
+  return rec._relief;
+}
+/** { request number: [{code, reason, keys}] } for every record in a UDQ grid whose
+    Shipping Team Notes carry a relief tag. Read from the grid itself so the
+    metrics engines (PMR, Metrics tab, rollup) can ask without the Dashboard. */
+const _copReliefCache = new WeakMap();
+function copReliefByRequest(grid) {
+  if (!grid || typeof grid !== "object") return {};
+  let m = _copReliefCache.get(grid);
+  if (m) return m;
+  m = {};
+  const maxRow = gridMaxRow(grid), maxCol = gridMaxCol(grid);
+  let req = "";
+  for (let r = 2; r <= maxRow; r++) {
+    const a = norm(gridCell(grid, r, 1));
+    if (a && xtLooksWmtr(a)) { req = xtStripSuffix(a); continue; }
+    if (!req || copLow(gridCell(grid, r, 2)) !== "shipping activity & history") continue;
+    for (let col = 2; col <= maxCol; col++) {
+      if (copLow(gridCell(grid, r + 1, col)) !== COP_SHIP_FIELDS.notes) continue;
+      const rel = copParseRelief(gridCell(grid, r + 2, col));
+      if (rel.list.length) m[req] = rel.list;
+      break;
+    }
+  }
+  _copReliefCache.set(grid, m);
+  return m;
+}
+/** The relief entry that covers a check with these acknowledge keys, or null. */
+function copReliefHit(relief, keys) {
+  if (!relief || !relief.list.length) return null;
+  return relief.list.find((x) => x.keys.indexOf("*") !== -1 || x.keys.some((k) => keys.indexOf(k) !== -1)) || null;
+}
+/** "Relieved (RFQ) — reason. " — prefix for a relieved check's detail. */
+function copReliefText(hit) { return `Relieved (${hit.code})${hit.reason ? " — " + hit.reason : ""}. `; }
+/** Team notes with each [RELIEF: …] tag shown as a pill. */
+function copNotesHtml(text) {
+  return esc(text).replace(/\[\s*RELIEF\s*[:\-–—]?\s*([^\]]*)\]/gi, (m0, codes) => `<span class="copx-pill t">Relief: ${norm(codes).toUpperCase()}</span>`);
+}
+/** Hover legend for the relief codes (page header + Team notes column). */
+function copReliefLegend() {
+  return `<span class="copx-help" tabindex="0" role="button" aria-label="Relief codes — how to relieve a shipment from a check">Relief codes
+    <span class="pop" role="tooltip"><b class="t">Relief codes</b>
+      Type a tag in ATLAS › Shipping Activity › <b>Shipping Team Notes</b>, then the reason:<br>
+      <code>[RELIEF: RFQ] DTRA asked for the quote before packing</code>
+      <table>${COP_RELIEF_CODES.map((d) => `<tr><td>${d[0]}</td><td>${esc(d[1])}</td></tr>`).join("")}</table>
+      <span class="ex">Several at once: <code>[RELIEF: RFQ, EEI] reason</code>. The item then shows “Relieved” with the reason, for everyone, instead of a miss.</span></span></span>`;
+}
+const COP_RELIEF_TITLE = "ATLAS field: Shipping Team Notes. Relief codes — [RELIEF: CODE] reason — " + COP_RELIEF_CODES.map((d) => `${d[0]} = ${d[1]}`).join("; ");
+
 /** Key dates of one request, start to finish — the Ops Tracker's date columns,
     read from the Workflow Logs (oldest stamp of each status), the milestone
     fields and Shipping Activity. Missing = null. */
@@ -617,6 +709,7 @@ function copEvaluate(rec, ctx) {
   const hasDoc = (k) => copHasType(types, COP_DOC_TYPES[k]);
   // Milestone fields (ATLAS): null when this record isn't held to them — `ms.why` says why.
   const ms = copMsFor(rec, ctx.ds);
+  const relief = copReliefFor(rec);                    // [RELIEF: …] tags in Shipping Team Notes
   const trk = ms.trk;
   const ig = ctx.ignores[rec.reqNo] || [];
   const isAcked = (keys) => ig.indexOf("*") !== -1 || keys.some((k) => ig.indexOf(k) !== -1);
@@ -668,7 +761,9 @@ function copEvaluate(rec, ctx) {
     }
     let detail = res.detail || "";
     const keys = ackKeys || ["cop." + id];
-    if ((state === "fail" || state === "warn" || state === "due") && isAcked(keys)) {
+    const rl = copReliefHit(relief, keys);
+    if (rl && state !== "ok" && state !== "na") { detail = copReliefText(rl) + detail; state = "relief"; }
+    else if ((state === "fail" || state === "warn" || state === "due") && isAcked(keys)) {
       detail = "Acknowledged — " + detail;
       state = "ack";
     }
@@ -953,7 +1048,7 @@ function copEvaluate(rec, ctx) {
     dest: copShortCountry(f["country of destination"] || ""), origin: copShortCountry(f["country of origin"] || ""),
     mode: sc.as || f["requested mode of transit"] || "",
     latest, daily: rec.daily, carrier: xrow.tracking_carrier, awb: xrow.tracking_awb, tracklink: xrow.tracking_link,
-    consol, checks, counts, stageWorst, trk, requestor: f["requestor name"] || "",
+    consol, checks, counts, stageWorst, trk, relief: relief.list, requestor: f["requestor name"] || "",
   };
 }
 
@@ -1115,6 +1210,7 @@ function copActiveEvaluate(rec, ctx) {
   const types = rec.att.map((a) => a.type);
   const hasType = (list) => copHasType(types, list);
   const ms = copMsFor(rec, ctx.ds);
+  const relief = copReliefFor(rec);                    // [RELIEF: …] tags in Shipping Team Notes
   const trk = ms.trk;                                  // ATLAS milestone fields (null: see ms.why)
   const ig = ctx.ignores[rec.reqNo] || [];
   const isAcked = (keys) => ig.indexOf("*") !== -1 || keys.some((k) => ig.indexOf(k) !== -1);
@@ -1127,7 +1223,9 @@ function copActiveEvaluate(rec, ctx) {
   const checks = [];
   const add = (id, step, label, state, detail, ackKeys, brief) => {
     const keys = ackKeys || ["cop." + id];
-    if ((state === "fail" || state === "warn") && isAcked(keys)) { detail = "Acknowledged — " + detail; state = "ack"; }
+    const rl = copReliefHit(relief, keys);
+    if (rl && state !== "ok" && state !== "na") { detail = copReliefText(rl) + detail; state = "relief"; }
+    else if ((state === "fail" || state === "warn") && isAcked(keys)) { detail = "Acknowledged — " + detail; state = "ack"; }
     checks.push({ id, stage: step, label, state, detail, ackKey: keys[0], brief: brief || label });   // brief = hover line
   };
   /** A requirement of `step`: "to do" while it's that step's job, amber once
@@ -1180,7 +1278,7 @@ function copActiveEvaluate(rec, ctx) {
   // with a firm date (training event, travellers) is switched to RDD
   // monitoring in its details — then it's amber 5 business days out and red
   // once passed, at any step.
-  const rddWatch = !!(ctx.prefs.rddWatch && ctx.prefs.rddWatch[rec.reqNo]) || copIsYes(rec.ship[COP_SHIP_FIELDS.monitor]);
+  const rddWatch = copIsYes(rec.ship[COP_SHIP_FIELDS.monitor]);   // ATLAS "Monitor this RDD" — the only switch (2.9.4)
   if (rddWatch && !delivered && si.low !== "delivered - pending pod") {
     const tag = "Monitored RDD";
     if (!rdd) add("rdd", "general", tag, "unknown", "No NLT Completion Date (RDD) on the request.");
@@ -1394,6 +1492,8 @@ function copActiveEvaluate(rec, ctx) {
       null, d < 0 ? `MARAD overdue (due ${copFmt(due)})` : `MARAD due ${copFmt(due)}`);
   })();
 
+  // Relieved of daily updates: nothing counts as missed or due (bubble badge, tiles).
+  if (copReliefHit(relief, ["activity"])) { daily.missed = []; daily.dueToday = false; }
   const counts = { red: 0, amber: 0, todo: 0 };
   for (const c of checks) {
     if (c.state === "fail") counts.red++;
@@ -1414,7 +1514,7 @@ function copActiveEvaluate(rec, ctx) {
     dest: copShortCountry(f["country of destination"] || ""), origin: copShortCountry(f["country of origin"] || ""),
     mode: sc.as || f["requested mode of transit"] || "",
     latest, daily, carrier: xrow.tracking_carrier, awb: xrow.tracking_awb, tracklink: xrow.tracking_link, trk,
-    consol, checks, counts, health: counts.red ? "red" : counts.amber ? "amber" : "green",
+    consol, checks, counts, relief: relief.list, rddWatch, health: counts.red ? "red" : counts.amber ? "amber" : "green",
   };
 }
 
@@ -1881,7 +1981,7 @@ tr.copx-det td{background:var(--ax-soft)}
 .copx-filter[open]{flex-basis:100%}
 .copx-seg button{min-height:30px;padding:4px 11px}
 /* board: tinted step headers, slimmer */
-.copx-col .ch{min-height:0;padding:9px 50px 9px 14px;box-shadow:none;border-bottom:1px solid var(--ax-line);background:color-mix(in srgb,var(--ax-blue) 5%,var(--ax-card))}
+.copx-col .ch{min-height:54px;padding:9px 50px 9px 14px;box-shadow:none;border-bottom:1px solid var(--ax-line);background:color-mix(in srgb,var(--ax-blue) 5%,var(--ax-card))}
 .copx-col.review .ch{box-shadow:none;background:color-mix(in srgb,var(--ax-blue) 9%,var(--ax-card))}
 .copx-col.estimate .ch{box-shadow:none;background:color-mix(in srgb,var(--ax-blue) 13%,var(--ax-card))}
 .copx-col.exec .ch{box-shadow:none;background:color-mix(in srgb,var(--ax-teal) 11%,var(--ax-card))}
@@ -1905,6 +2005,18 @@ tr.copx-det td{background:var(--ax-soft)}
 .copx-ibtn.go{color:var(--ax-green);margin-left:-8px}
 .copx-ibtn.go:hover:not(:disabled){background:var(--ax-green-soft);color:var(--ax-green)}
 body.theme-dark .copx-ibtn.go{color:#66bb6a}
+/* relief-codes legend (hover / keyboard focus) */
+.copx-help{position:relative;display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;color:var(--ax-muted);cursor:help;padding:6px 8px;border-radius:7px;white-space:nowrap}
+.copx-help:hover,.copx-help:focus,.copx-help:focus-within{color:var(--ax-ink);background:var(--ax-line2);outline:none}
+.copx-help .pop{display:none;position:absolute;right:0;top:100%;z-index:60;width:390px;max-width:calc(100vw - 32px);background:var(--ax-card);color:var(--ax-ink);border:1px solid var(--ax-line);border-radius:12px;
+  box-shadow:0 10px 28px rgba(20,30,60,.22);padding:12px 14px;font-weight:400;font-size:12px;line-height:1.5;cursor:default;white-space:normal;text-align:left}
+.copx-help:hover .pop,.copx-help:focus .pop,.copx-help:focus-within .pop{display:block}
+.copx-help .pop b.t{display:block;font-size:13px;margin-bottom:4px}
+.copx-help .pop code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:var(--ax-soft);border:1px solid var(--ax-line2);border-radius:5px;padding:1px 5px}
+.copx-help .pop table{border-collapse:collapse;margin:8px 0;width:100%}
+.copx-help .pop td{padding:2px 10px 2px 0;vertical-align:top;font-size:12px;border:0}
+.copx-help .pop td:first-child{font-weight:700;white-space:nowrap}
+.copx-help .pop .ex{display:block;color:var(--ax-muted)}
 `;
 
 /* Display groups for a check's stage (active steps + the audit engine's lanes). */
@@ -1973,6 +2085,7 @@ function renderCopWorkspace(container) {
       ${vbtn("active", "In progress", built.active.length)}${vbtn("tracker", "Tracker", null)}${vbtn("closed", "Closed audit", built.closed.length)}
     </div>
     <div class="acts">
+      ${copReliefLegend()}
       ${view === "tracker" ? "" : `<button class="copx-ibtn" id="copPrint" type="button" title="Print this view" aria-label="Print">${ico('<path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/>')}</button>`}
       <button class="copx-ibtn" id="${view === "tracker" ? "copTrkExport" : "copExport"}" type="button" title="Export to Excel" aria-label="Export to Excel">${ico('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/>')}</button>
     </div>
@@ -2139,6 +2252,12 @@ function copTrackerRows(built) {
       const sub = xtParseDate(m.maradSub);
       marad = { due, sub, st: sub ? "done" : /^n\/?a$/i.test(m.maradSub) ? "na" : !due ? "later" : today.getTime() > due.getTime() ? "overdue" : "due" };
     }
+    // Relief codes: an open / late / missing item shows "Relieved" instead.
+    const rel = copReliefFor(rec), rh = (k) => copReliefHit(rel, [k]);
+    if (rh("cop.rfq") && /late|overdue|due|wait|missing/.test(rfq.st)) rfq = { st: "relief", due: null, why: rh("cop.rfq").reason };
+    let eeiWhy = "";
+    if (rh("cop.itn") && (eei === "hold" || eei === "missed" || eei === "later")) { eeiWhy = rh("cop.itn").reason; eei = "relief"; }
+    if (rh("cop.marad") && /overdue|due|later/.test(marad.st)) marad = { st: "relief", due: null, sub: null, why: rh("cop.marad").reason };
     const changed = !!(tl.origRdd && tl.rdd && xtIso(tl.origRdd) !== xtIso(tl.rdd));
     const { items } = copInvLines(rec);
     // DG: a real UN number, or a hazard class with a digit in it ("9", "Class 2.1").
@@ -2146,7 +2265,7 @@ function copTrackerRows(built) {
       || (/\d/.test(norm(copInv(x, /^hazmat/))) && !COP_NA_RE.test(norm(copInv(x, /^hazmat/)))));
     const temp = !COP_NA_RE.test(norm(rec.f["temperature-control requirements"] || ""));
     const note = rec.daily.length ? rec.daily.slice().sort((a, b) => b.date - a.date)[0] : null;
-    return { r, active, tl, sc, m, rfq, eei, marad, changed, slip: changed ? copCalDays(tl.origRdd, tl.rdd) : 0, haz, temp, note,
+    return { r, active, tl, sc, m, rfq, eei, eeiWhy, marad, changed, slip: changed ? copCalDays(tl.origRdd, tl.rdd) : 0, haz, temp, note,
       whInv: xtParseDate(m.whInv), shipInv: xtParseDate(m.shipInv) };
   };
   // Furthest along first (like the details table), then the delivered ones, newest first.
@@ -2185,10 +2304,10 @@ function copTrkCols(today) {
   const dcol = (id, label, key, prev, title) => ({ id, label, title,
     sort: (x) => x.tl[key] ? x.tl[key].getTime() : null, ex: (x) => copFmt(x.tl[key]),
     td: (x) => `<td class="nw">${x.tl[key] ? esc(sd(x.tl[key])) + gap(prev && x.tl[prev], x.tl[key]) : dash}</td>` });
-  const RFQ = { ontime: ["g", "On time"], late: ["r", "Late"], overdue: ["r", "Overdue"], due: ["b", "Due"], wait: ["", "Waiting on pack date"], missing: ["", "Not recorded"], na: ["", "No RFQ needed"], sent: ["", ""], none: ["", ""] };
+  const RFQ = { ontime: ["g", "On time"], late: ["r", "Late"], overdue: ["r", "Overdue"], due: ["b", "Due"], wait: ["", "Waiting on pack date"], missing: ["", "Not recorded"], na: ["", "No RFQ needed"], relief: ["t", "Relieved"], sent: ["", ""], none: ["", ""] };
   const rfqWord = (x) => { const w = RFQ[x.rfq.st][1]; return w + (x.rfq.due && /late|overdue|due/.test(x.rfq.st) ? ` · due ${sd(x.rfq.due)}` : ""); };
-  const EEI = { filed: ["g", "Released"], hold: ["a", "Hold · ITN needed"], missed: ["r", "Departed without ITN"], later: ["", "Needed before departure"], na: ["", "Not a US export"] };
-  const MAR = { done: ["g", "Submitted"], overdue: ["r", "Overdue"], due: ["b", "Due"], later: ["", "After departure"], na: ["", ""] };
+  const EEI = { filed: ["g", "Released"], hold: ["a", "Hold · ITN needed"], missed: ["r", "Departed without ITN"], later: ["", "Needed before departure"], relief: ["t", "Relieved"], na: ["", "Not a US export"] };
+  const MAR = { done: ["g", "Submitted"], overdue: ["r", "Overdue"], due: ["b", "Due"], later: ["", "After departure"], relief: ["t", "Relieved"], na: ["", ""] };
   const pill = (cls, text) => !text ? "" : cls ? `<span class="copx-pill ${cls}">${esc(text)}</span>` : `<span class="mut">${esc(text)}</span>`;
   return [
     { id: "wmtr", label: "WMTR", sort: (x) => x.r.num, ex: (x) => x.r.wmtr, ft: "text", fv: (x) => `${x.r.wmtr} ${x.r.status}`,
@@ -2204,7 +2323,7 @@ function copTrkCols(today) {
     dcol("packed", "Packed", "packed", "compliance", "ATLAS field: Date Packed"),
     { id: "rfq", label: "RFQ sent", title: "ATLAS field: RFQ Sent Date — due 1 business day after the later of Compliance approval and Date Packed",
       sort: (x) => x.tl.rfq ? x.tl.rfq.getTime() : null, ex: (x) => copFmt(x.tl.rfq), exx: rfqWord, fv: (x) => RFQ[x.rfq.st][1],
-      td: (x) => `<td class="nw">${x.tl.rfq ? esc(sd(x.tl.rfq)) : ""} ${pill(RFQ[x.rfq.st][0], rfqWord(x)) || (x.tl.rfq ? "" : dash)}</td>` },
+      td: (x) => `<td class="nw"${x.rfq.st === "relief" ? ` title="${esc("Relieved — " + (x.rfq.why || "no reason given"))}"` : ""}>${x.tl.rfq ? esc(sd(x.tl.rfq)) : ""} ${pill(RFQ[x.rfq.st][0], rfqWord(x)) || (x.tl.rfq ? "" : dash)}</td>` },
     dcol("quoteSub", "Quote sub.", "quoteSub", "rfq", "Estimate submitted to DTRA (first DTRA Estimate Review stamp)"),
     dcol("quoteAppr", "Quote appr.", "quoteAppr", "quoteSub", "DTRA Estimate Review approved"),
     { id: "origRdd", label: "Original RDD", title: "ATLAS field: Original RDD", sort: (x) => x.tl.origRdd ? x.tl.origRdd.getTime() : null, ex: (x) => copFmt(x.tl.origRdd),
@@ -2216,11 +2335,11 @@ function copTrkCols(today) {
       sort: (x) => (x.tl.departed || x.tl.etd) ? (x.tl.departed || x.tl.etd).getTime() : null, ex: (x) => copFmt(x.tl.departed || x.tl.etd), exx: (x) => x.tl.departed ? "Actual" : x.tl.etd ? "Estimate" : "",
       td: (x) => `<td class="nw">${x.tl.departed ? esc(sd(x.tl.departed)) + gap(x.tl.quoteAppr, x.tl.departed) : x.tl.etd ? `${esc(sd(x.tl.etd))}<small>estimate</small>` : dash}</td>` },
     { id: "eei", label: "EEI · ITN / NOEEI", title: "ATLAS field: ITN / NOEEI Citation — must be in before a US export departs",
-      sort: (x) => ({ missed: 0, hold: 1, later: 2, filed: 3, na: 4 })[x.eei], ex: (x) => x.m.itn, exx: (x) => EEI[x.eei][1], fv: (x) => EEI[x.eei][1],
-      td: (x) => `<td class="nw">${pill(EEI[x.eei][0], EEI[x.eei][1])}${x.m.itn ? `<small class="mono">${esc(x.m.itn)}</small>` : ""}</td>` },
+      sort: (x) => ({ missed: 0, hold: 1, later: 2, filed: 3, relief: 4, na: 5 })[x.eei], ex: (x) => x.m.itn, exx: (x) => EEI[x.eei][1], fv: (x) => EEI[x.eei][1],
+      td: (x) => `<td class="nw"${x.eei === "relief" ? ` title="${esc("Relieved — " + (x.eeiWhy || "no reason given"))}"` : ""}>${pill(EEI[x.eei][0], EEI[x.eei][1])}${x.m.itn ? `<small class="mono">${esc(x.m.itn)}</small>` : ""}</td>` },
     { id: "marad", label: "MARAD", fv: (x) => MAR[x.marad.st][1], title: "Sealift only — due 20 working days after departure (30 from abroad); ATLAS field: MARAD Submitted Date",
-      sort: (x) => ({ overdue: 0, due: 1, later: 2, done: 3, na: 4 })[x.marad.st], ex: (x) => copFmt(x.marad.sub), exx: (x) => MAR[x.marad.st][1] + (x.marad.due && !x.marad.sub ? ` · due ${copFmt(x.marad.due)}` : ""),
-      td: (x) => `<td class="nw">${x.marad.st === "na" ? dash : pill(MAR[x.marad.st][0], MAR[x.marad.st][1] + (x.marad.sub ? ` ${sd(x.marad.sub)}` : x.marad.due ? ` ${sd(x.marad.due)}` : ""))}</td>` },
+      sort: (x) => ({ overdue: 0, due: 1, later: 2, done: 3, relief: 4, na: 5 })[x.marad.st], ex: (x) => copFmt(x.marad.sub), exx: (x) => MAR[x.marad.st][1] + (x.marad.due && !x.marad.sub ? ` · due ${copFmt(x.marad.due)}` : ""),
+      td: (x) => `<td class="nw"${x.marad.st === "relief" ? ` title="${esc("Relieved — " + (x.marad.why || "no reason given"))}"` : ""}>${x.marad.st === "na" ? dash : pill(MAR[x.marad.st][0], MAR[x.marad.st][1] + (x.marad.sub ? ` ${sd(x.marad.sub)}` : x.marad.due ? ` ${sd(x.marad.due)}` : ""))}</td>` },
     dcol("delivered", "Delivered", "delivered", "departed", "ATLAS field: Delivery Date"),
     { id: "inv", label: "Invoices rec’d", xl: "Warehouse invoice rec'd", xl2: "Final shipping invoice rec'd", title: "ATLAS fields: Warehouse Invoice Received · Final Shipping Invoice Received",
       sort: (x) => (x.whInv ? 1 : 0) + (x.shipInv ? 2 : 0), ex: (x) => copFmt(x.whInv), exx: (x) => copFmt(x.shipInv),
@@ -2231,9 +2350,9 @@ function copTrkCols(today) {
       sort: (x) => x.note ? x.note.date.getTime() : null, ex: (x) => x.note ? copFmt(x.note.date) : "", exx: (x) => x.note ? x.note.note : "",
       td: (x) => `<td class="up">${x.note ? `<span class="d">${esc(sd(x.note.date))}</span><span class="x">${esc(x.note.note)}</span>` : dash}</td>` },
     // Shipping Team Notes is its own ATLAS field (team notes; later, the relief codes).
-    { id: "team", label: "Team notes", title: "ATLAS field: Shipping Team Notes", ft: "text", fv: (x) => x.m.notes,
+    { id: "team", label: "Team notes", title: COP_RELIEF_TITLE, ft: "text", fv: (x) => x.m.notes,
       sort: (x) => copLow(x.m.notes) || null, ex: (x) => x.m.notes,
-      td: (x) => `<td class="up">${x.m.notes ? `<span class="x keep">${esc(x.m.notes)}</span>` : dash}</td>` },
+      td: (x) => `<td class="up">${x.m.notes ? `<span class="x keep">${copNotesHtml(x.m.notes)}</span>` : dash}</td>` },
   ];
 }
 
@@ -2557,9 +2676,10 @@ function copColDefs(isActive) {
     td: (r) => { const xs = copAuditItems(r);
       return `<td class="aud">${xs.length ? xs.map((x) => `<div class="${x.cls === "r" ? "copx-red" : "copx-amber"}">${esc(x.text)}</div>`).join("") : `<span class="copx-pill g">Clear</span>`}</td>`; } };
   const rddCat = (r) => !r.rdd ? "No RDD" : r.rddDays === null ? "Delivered" : r.rddDays < 0 ? "Past RDD" : r.rddDays <= 7 ? "Within 7 days" : r.rddDays <= 30 ? "8–30 days" : "More than 30 days";
-  const rdd = { id: "rdd", label: "RDD", opt: !isActive, sort: (r) => r.rdd ? r.rdd.getTime() : null, fv: rddCat,
+  const rdd = { id: "rdd", label: "RDD", opt: true, sort: (r) => r.rdd ? r.rdd.getTime() : null, fv: rddCat,
     td: (r) => {
-      const cls = !isActive || r.rddDays === null ? "" : r.rddDays < 0 ? "copx-red" : r.rddDays <= 7 ? "copx-amber" : "";
+      // Coloured only when the RDD is monitored in ATLAS — otherwise it's just a date.
+      const cls = !isActive || !r.rddWatch || r.rddDays === null ? "" : r.rddDays < 0 ? "copx-red" : r.rddDays <= 7 ? "copx-amber" : "";
       return `<td class="nw ${cls}">${r.rdd ? esc(copFmt(r.rdd)) : "—"}${isActive && r.rddDays !== null ? `<br><small class="d" style="color:var(--ax-muted)">${r.rddDays < 0 ? `${-r.rddDays}d past` : `${r.rddDays}d`}</small>` : ""}</td>`;
     } };
   // Reference fields — off by default, picked under Columns.
@@ -2584,19 +2704,21 @@ function copColDefs(isActive) {
     const step = { id: "step", label: "Step / Status",
       sort: (r) => `${r.stepIdx + 1}|${copLow(r.status)}`, fv: (r) => r.status || "",
       td: (r) => `<td class="st">${esc(r.step ? COP_STEPS[COP_STEP_IDX[r.step]].label : "—")}<small>${r.problem ? `<span class="copx-red">${esc(r.status)}</span>` : esc(r.status)}</small></td>` };
+    // Where the daily updates stand, as a small bubble beside the date (was its own "Daily" column).
+    const dWord = (r) => (r.relief || []).some((x) => x.code === "DAILY" || x.code === "ALL") ? "Relieved"
+      : r.daily.missed.length ? "Missing" : r.daily.dueToday ? "Due today" : "Current";
+    const dTag = (r) => { const w = dWord(r), n = r.daily.missed.length;
+      return w === "Missing" ? `<span class="copx-pill r" title="${esc(`No update on ${copPlural(n, "business day")}: ${xtFmtDayList(r.daily.missed.slice(-5))}`)}">Missing${n > 1 ? ` ${n}` : ""}</span>`
+        : `<span class="copx-pill ${w === "Current" ? "g" : w === "Relieved" ? "t" : "p"}">${w}</span>`; };
     const upd = { id: "update", label: "Latest Daily Update", ft: "text",
       sort: (r) => { const u = copUpdatesFor(r)[0]; return u ? u.date.getTime() : null; },
-      fv: (r) => { const u = copUpdatesFor(r)[0]; return u ? copFmt(u.date) + " " + u.note : ""; },
+      fv: (r) => { const u = copUpdatesFor(r)[0]; return dWord(r) + " " + (u ? copFmt(u.date) + " " + u.note : ""); },
       td: (r) => { const lu = copUpdatesFor(r)[0];
-        return `<td class="up">${lu ? `<span class="d">${esc(copFmt(lu.date))}${lu.pending ? ' · <b class="copx-amber">pending</b>' : ""}</span><span class="x">${esc(lu.note)}</span>` : `<span class="d">No updates yet</span>`}</td>`; } };
-    const daily = { id: "daily", label: "Daily",
-      sort: (r) => r.daily.missed.length + (r.daily.dueToday ? 0.5 : 0),
-      fv: (r) => r.daily.missed.length ? "Missed" : r.daily.dueToday ? "Today's due" : "Current",
-      td: (r) => `<td class="nw">${r.daily.missed.length ? `<span class="copx-red">${r.daily.missed.length} missed</span>` : r.daily.dueToday ? `<span class="copx-pill p">Today's due</span>` : `<span class="copx-pill g">Current</span>`}</td>` };
+        return `<td class="up"><span class="d">${lu ? esc(copFmt(lu.date)) : "No updates yet"} ${dTag(r)}${lu && lu.pending ? ' <b class="copx-amber">pending</b>' : ""}</span>${lu ? `<span class="x">${esc(lu.note)}</span>` : ""}</td>`; } };
     const days = { id: "days", label: "Days in Step", opt: true, ft: "text",
       sort: (r) => r.daysInStep, fv: (r) => r.daysInStep === null ? "" : String(r.daysInStep),
       td: (r) => `<td class="nw ${r.stuck === "fail" ? "copx-red" : r.stuck === "warn" ? "copx-amber" : ""}">${r.daysInStep === null ? "—" : r.daysInStep}</td>` };
-    return [health, wmtr, step, poc, upd, daily, rdd, route, items, days].concat(extras,
+    return [health, wmtr, step, poc, upd, rdd, route, items, days].concat(extras,
       [trkCol("packed", "Date Packed", "packed"), trkCol("rfq", "RFQ Sent", "rfq"), trkCol("itn", "ITN", "itn")]);
   }
   const status = textCol("status", "Status", (r) => r.status);
@@ -2754,7 +2876,6 @@ function copDetailRow(r, ncol, isActive) {
   const log = copUpdatesFor(r).slice(0, 10)
     .map((d) => `<div><span>${esc(copFmt(d.date))}</span>${d.pending ? '<b class="copx-amber">pending · </b>' : ""}${esc(d.note)}</div>`).join("");
   const link = r.tracklink && /^https?:\/\//i.test(r.tracklink) ? ` · <a href="${esc(r.tracklink)}" target="_blank" rel="noopener">Track</a>` : "";
-  const watch = isActive ? !!(copGetPrefs().rddWatch || {})[r.reqNo] : false;
   return el(`<tr class="copx-det"><td colspan="${ncol}"><div class="copx-det-grid">
     <div class="copx-info">
       ${isActive && copCanEdit() ? copUpdateForm(r) : ""}
@@ -2762,8 +2883,9 @@ function copDetailRow(r, ncol, isActive) {
       <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
       <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
       ${r.rdd || isActive ? `<div><div class="k">RDD</div>${r.rdd ? esc(copFmt(r.rdd)) : "—"}
-        ${isActive ? `<label class="copx-chk copx-watch"><input type="checkbox" data-rddwatch="${esc(r.reqNo)}" ${watch ? "checked" : ""}> Monitor RDD for this request (firm date, e.g. a training event)</label>` : ""}</div>` : ""}
+        ${isActive && r.rddWatch ? ` <span class="copx-pill b" title="Monitor this RDD is ticked in ATLAS">Monitored</span>` : ""}</div>` : ""}
       ${r.consol && r.consol.length ? `<div><div class="k">Consolidated with</div>${esc(r.consol.join(", "))}</div>` : ""}
+      ${r.relief && r.relief.length ? `<div><div class="k">Relieved</div>${r.relief.map((x) => `<span class="copx-pill t">${esc(x.code)}</span> ${esc(x.reason || "")}`).join("<br>")}</div>` : ""}
       <div class="log"><div class="k">Recent daily updates${copUpdatesFor(r).length > 10 ? ` <button class="lnk" type="button" data-hist="${esc(r.wmtr)}">All ${copUpdatesFor(r).length}</button>` : ""}</div>${log || "<div>None yet.</div>"}</div>
     </div>
     <div class="copx-steps">${steps}</div>
@@ -3372,11 +3494,6 @@ function copWire(root, built, rows, isActive) {
       else openRow(r.wmtr, false);
     });
   });
-  // Per-request RDD monitoring (firm dates). Saved in this browser.
-  root.querySelectorAll("input[data-rddwatch]").forEach((cb) => cb.addEventListener("change", () => prefSet((p) => {
-    p.rddWatch = (p.rddWatch && typeof p.rddWatch === "object") ? p.rddWatch : {};
-    if (cb.checked) p.rddWatch[cb.dataset.rddwatch] = true; else delete p.rddWatch[cb.dataset.rddwatch];
-  })));
   root.querySelectorAll("button[data-ack]").forEach((b) => b.addEventListener("click", () => {
     if (typeof xtAddIgnore === "function") xtAddIgnore(b.dataset.req, b.dataset.ack);
     copRerender();
@@ -3831,5 +3948,5 @@ async function copHubIngest(fileList) {
 
 /* Node test support */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { copParseGrid, copEvaluate, copActiveEvaluate, copStepInfo, copTimeline, copTrackerRows, copDailyGaps, COP_STEPS };
+  module.exports = { copParseGrid, copEvaluate, copActiveEvaluate, copStepInfo, copTimeline, copTrackerRows, copDailyGaps, copParseRelief, COP_STEPS };
 }

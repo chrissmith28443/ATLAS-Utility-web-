@@ -4,7 +4,7 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.9.2-drop-box-auto";
+const CACHE = "atlas-cache-v2.9.4-relief-metrics";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
@@ -12,12 +12,12 @@ const APP_SHELL = [
   "css/app.css?v=96",
   "js/app.js?v=114",
   "js/assets.js?v=64",
-  "js/about.js?v=190",
+  "js/about.js?v=192",
   "js/a11y.js?v=61",
   "js/backup.js?v=69",
-  "js/constants.js?v=181",
+  "js/constants.js?v=183",
   "js/dangerous_goods.js?v=69",
-  "js/metrics_dashboard.js?v=89",
+  "js/metrics_dashboard.js?v=90",
   "js/pwa.js?v=62",
   "js/audit.js?v=62",
   "js/formcache.js?v=65",
@@ -48,7 +48,7 @@ const APP_SHELL = [
   "js/tools/placards.js?v=63",
   "js/tools/awb.js?v=1",
   "js/offline.js?v=3",
-  "js/tools/pmr.js?v=85",
+  "js/tools/pmr.js?v=86",
   "js/tools/pmr_template.js?v=61",
   "js/tools/po.js?v=66",
   "js/tools/propo.js?v=64",
@@ -63,9 +63,9 @@ const APP_SHELL = [
   "js/tools/topdocs.js?v=61",
   "js/tools/topdocs_template.js?v=61",
   "js/tools/validate.js?v=70",
-  "js/tools/xmastree.js?v=48",
+  "js/tools/xmastree.js?v=49",
   "js/tools/record_audit.js?v=3",
-  "js/tools/cop.js?v=40",
+  "js/tools/cop.js?v=42",
   "js/tools/pmdash.js?v=11",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",

@@ -13,6 +13,27 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.4",
+    title: "Relieved shipments pass their metric; RDD and Daily tidy-up",
+    notes: [
+      "Relief codes now reach the numbers: a shipment relieved with [RELIEF: RDD], DAILY, DOCS, COST or ALL is still counted in every total, and is scored as a pass for that metric \u2014 on the Metrics tab, in the PMR export and in the quarterly rollup.",
+      "RDD is only an issue when \"Monitor this RDD\" is ticked in ATLAS. The per-browser \"Monitor RDD\" tick box is gone, the RDD column is off by default in Shipment Details (add it back under Columns), and its date is only coloured when the RDD is monitored.",
+      "The Daily column is gone from Shipment Details. A small bubble beside the date in Latest Daily Update says Current, Due today, Missing (hover for the days) or Relieved.",
+      "Board: the step headings are all the same height.",
+    ],
+  },
+  {
+    version: "2.9.3",
+    title: "Relief codes in Shipping Team Notes",
+    notes: [
+      "A shipment can now be relieved of a check by typing a tag in ATLAS \u203a Shipping Activity \u203a Shipping Team Notes, followed by the reason \u2014 for example: [RELIEF: RFQ] DTRA asked for the quote before packing.",
+      "Codes: RFQ, EEI, DAILY, RDD, COST, DOCS, MARAD, and ALL for every check on the shipment. Several can share a tag: [RELIEF: RFQ, EEI] reason.",
+      "On the Shipments tab (In progress, Tracker and Closed audit) a relieved item shows \"Relieved\" with the reason instead of a miss, for everyone, and no longer colours the shipment or counts in the tiles.",
+      "Hover \"Relief codes\" at the top right of the Shipments tab for the list. The Tracker's Team notes column shows each tag as a small label.",
+      "Not changed yet: the percentages on the Metrics tab and the PMR export still score a relieved shipment as before.",
+    ],
+  },
+  {
     version: "2.9.2",
     title: "Dashboard drop box only when not connected to ATLAS",
     notes: [

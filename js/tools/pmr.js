@@ -461,6 +461,9 @@ function pmrDailyUpdateCheck(grid, startIso, endIso) {
       cur = pmrAddDays(cur, 1);
     }
 
+    // [RELIEF: DAILY] in Shipping Team Notes: still counted, scored as compliant.
+    if (missing.length && typeof xtRelievedBy === "function" && xtRelievedBy(grid, b.wmtr, "daily")) missing.length = 0;
+
     // Entries that fall inside the clipped span (for display).
     const entriesInSpan = b.dates.filter(
       (d) => pmrDayDiff(spanStart, d) >= 0 && pmrDayDiff(d, spanEnd) >= 0
@@ -632,7 +635,9 @@ function pmrRun(grid, startIso, endIso) {
       const nlt = pmrToDate(b["NLT Completion Date"]);
       if (nlt && deliveryIso <= pmrIso(nlt)) onTimeCount += 1;
       if (nlt && deliveryIso > pmrIso(nlt)) {
-        lateRows.push([wmtr, pmrIso(nlt), deliveryIso, pmrDayDiff(nlt, delivery)]);
+        // [RELIEF: RDD] in Shipping Team Notes: still counted, scored as on time.
+        if (typeof xtRelievedBy === "function" && xtRelievedBy(grid, wmtr, "delivery")) onTimeCount += 1;
+        else lateRows.push([wmtr, pmrIso(nlt), deliveryIso, pmrDayDiff(nlt, delivery)]);
       }
       if (!nlt) {
         // Delivered on/after the cutoff and in-window, but no usable NLT

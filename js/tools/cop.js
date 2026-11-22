@@ -2991,7 +2991,8 @@ function copDetailRow(r, ncol, isActive) {
   return el(`<tr class="copx-det"><td colspan="${ncol}"><div class="copx-det-grid">
     <div class="copx-info">
       ${isActive && copCanEdit() ? copUpdateForm(r) : ""}
-      <div><div class="k">Request</div>${copWmtrLink(r, r.wmtr)}<br>${esc(r.title || "")}</div>
+      <div><div class="k">Request</div>${copWmtrLink(r, r.wmtr)}<br>${esc(r.title || "")}
+        ${typeof appOpenShipment === "function" ? `<br><button class="lnk" type="button" data-openship="${esc(r.wmtr)}" title="Open this shipment to make its CIV, packing list, SLI and other documents">Create documents</button>` : ""}</div>
       <div><div class="k">Route</div>${esc(r.origin || "?")} → ${esc(r.dest || "?")}${r.mode ? ` · ${esc(r.mode)}` : ""}</div>
       <div><div class="k">Carrier / AWB-BoL</div>${esc(r.carrier || "—")} · ${esc(r.awb || "—")}${link}</div>
       ${r.rdd || isActive ? `<div><div class="k">RDD</div>${r.rdd ? esc(copFmt(r.rdd)) : "—"}
@@ -3412,6 +3413,11 @@ function copRenderRequestor(root, built) {
 
 /** "Open in ATLAS" links without a request ID (utility): say so instead of navigating. */
 function copWireOpenLinks(root) {
+  // "Create documents": open that one shipment out of the full UDQ, with the Shipping tools.
+  root.querySelectorAll("button[data-openship]").forEach((x) => x.addEventListener("click", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    appOpenShipment(x.dataset.openship).then((why) => { if (why) { CopUi.msg = why; copRerender(); } });
+  }));
   root.querySelectorAll("a.copx-open[data-noid]").forEach((a) => a.addEventListener("click", (e) => {
     e.preventDefault(); e.stopPropagation();
     CopUi.msg = "Opens the request in ATLAS once the COP is built into ATLAS (the UDQ doesn't carry the request's ATLAS ID).";
@@ -3831,7 +3837,9 @@ function copRailButton() {
       <span><span class="t">Dashboard</span></span>
     </button>`);
   // Every UDQ the Dashboard uses starts pulling at once: Metrics (copAutoFetch) + PR, PMCT, PLS (pmAutoPull).
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
+    // A shipment opened out of the full SRF UDQ: put the full UDQ back first, so the Dashboard has its data.
+    if (typeof appBackToFull === "function" && typeof AppFull !== "undefined" && AppFull.grid) await appBackToFull();
     copHubSelect("cop"); copAutoFetch();
     if (typeof pmAutoPull === "function") pmAutoPull();
   });

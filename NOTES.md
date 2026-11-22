@@ -676,3 +676,26 @@ Arrived Warehouse or the warehouse actual date is filled.
   on PM_PR_LANES "sourcing" and PM_PLS_LANES "approval"; violet / yellow / green unchanged. Pink was tried and rejected
   (fails vs green for red-green colour-blindness).
   Pushed 2026-11-22.
+
+## v2.9.11 (2026-11-22) — pick a shipment from the full UDQ; restyle of the rest of the Utility starts (CIV first)
+- User: the 2.9.10 Settings window "is the kind of look/style revamp I'm looking for". Dashboard is done for now; he
+  wants the REST of the Utility restyled the same way, tool by tool, starting with the Shipping section; CIV page
+  first. UI only — never change the output documents (CIV / PL / SLI layouts stay exactly as they are).
+- "ui2" = the opt-in new look for a tool page: give the panel class "ui2" (styles at the end of app.css) and call
+  uiQuiet(panel) (app.js) — converts .hint / .note into hover "i" tips (uiTipHtml for hand-placed ones; hints <= 12
+  chars become a quiet word after the label). Put the tool's action buttons in the header inside <span class="ui-acts">.
+  Done so far: Commercial Invoice (renderCiWorkspace in app.js): actions in the header, 4-across form, signer moved
+  after the remarks so the grid fills evenly, "Invoice details" fold. NEXT: the other Shipping tools (Packing List,
+  Placards, SLI, RFQ, DD1149, IPC, Packet…), same recipe.
+- PICK A SHIPMENT (app.js): AppFull { grid, name } keeps the full SRF UDQ aside; appShipmentList(grid) /
+  appOpenShipment(wmtr) slices [header row + that record's rows] and loads it through loadFile({ name, _keepFull },
+  grid) so it detects as "srf"; appBackToFull() reloads the full grid. Rail box = appShipmentPicker (shown while
+  udqType is "metrics" or AppFull.grid is set). Dashboard rail button restores the full UDQ first. Shipments tab
+  detail panel has a "Create documents" link (data-openship). Any other load clears AppFull.
+  appOpenShipment returns "" when it opened, else a plain reason for the screen. It test-reads the slice with
+  readUdq first: a shipment with no inventory lines yet can't feed the document tools (readUdq throws), so it stays
+  on the full UDQ and says so (5 of 250 in the 22 Nov export). Tested with the 22 Nov SRF export: 245 open fine.
+- ui2 also restyles the two "manual" bars (.md-docbar / .mp-docbar) via app.css only. Dark mode: the highlighted
+  tool in the left menu was unreadable (peach box, light text) — fixed with one rule in app.css.
+- Not checked by me: real mouse hover on the "i" marks (preview tab is in the background), Save as PDF print window.
+  Pushed 2026-11-22.

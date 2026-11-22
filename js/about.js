@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.11",
+    title: "Pick a shipment out of the full SRF UDQ; new look for the Commercial Invoice page",
+    notes: [
+      "With the full SRF UDQ loaded (the one with every record), the left menu has an \"Open a shipment\" box. Type or pick a WMTR number and that shipment opens with all the Shipping tools \u2014 CIV, packing list, SLI and the rest \u2014 exactly as if you had dropped its own UDQ.",
+      "\"All shipments\" under the box, or the Dashboard button, brings the full UDQ straight back. On the Shipments tab, a shipment's details also have a \"Create documents\" link that does the same thing.",
+      "Commercial Invoice page restyled (the invoice itself is unchanged): a quiet heading with Save as PDF and Refresh at its right, tidier fields four across, and the small print behind hover \"i\" marks.",
+    ],
+  },
+  {
     version: "2.9.10",
     title: "New Settings window; tidier Day limits; less in the default views",
     notes: [

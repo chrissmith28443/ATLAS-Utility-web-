@@ -1376,12 +1376,32 @@ async function generateIpc() {
 
 /* ---- Purchase Order workspace (print-to-PDF document) ---- */
 
+/** Last DTRA-approved cost in the loaded WMTR's Workflow Logs — the newest
+    "DTRA Estimate Review (Approved)" entry carrying a cost (the Christmas Tree's
+    governing amount). "" when nothing is loaded or no approved cost exists. */
+function poLastApprovedCost() {
+  try {
+    if (typeof raudRecord !== "function") return "";
+    const rec = raudRecord(AppState.grid);
+    if (!rec || !rec.wfl.length) return "";
+    const want = XT_WFL.estReviewApproved.toLowerCase();
+    const hit = rec.wfl.find((e) => norm(e.status).toLowerCase() === want && e.cost);
+    return hit ? hit.cost.toFixed(2) : "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function renderPoWorkspace(container) {
   // The PO works standalone; WMTR is editable and prefilled from a loaded SRF.
   const prefillWmtr = (AppState.data && AppState.data.meta && AppState.data.meta.wmtr) || "";
   const badge = prefillWmtr || "Manual entry";
+  const prefillCost = prefillWmtr ? poLastApprovedCost() : "";
+  const costHint = prefillCost
+    ? "Pre-filled with the last DTRA-approved cost from the Workflow Logs. Edit if needed."
+    : "Digits and an optional decimal point only.";
 
-  const vendorOpts = ['<option value="">(select a vendor)</option>']
+  const vendorOpts =['<option value="">(select a vendor)</option>']
     .concat(PO_VENDORS.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`))
     .join("");
 
@@ -1415,8 +1435,8 @@ function renderPoWorkspace(container) {
           </div>
           <div class="field">
             <label for="poCost">Cost amount</label>
-            <input type="text" id="poCost" inputmode="decimal" placeholder="e.g. 4250.00">
-            <div class="hint">Digits and an optional decimal point only.</div>
+            <input type="text" id="poCost" inputmode="decimal" value="${esc(prefillCost)}" placeholder="e.g. 4250.00">
+            <div class="hint">${esc(costHint)}</div>
           </div>
           <div class="field" id="poUsdWrap" hidden>
             <label for="poUsd">Approx. USD value</label>
@@ -1706,8 +1726,12 @@ function savePdfPo() {
 function renderProPoWorkspace(container) {
   const prefillWmtr = (AppState.data && AppState.data.meta && AppState.data.meta.wmtr) || "";
   const badge = prefillWmtr || "Manual entry";
+  const prefillCost = prefillWmtr ? poLastApprovedCost() : "";
+  const costHint = prefillCost
+    ? "Pre-filled with the last DTRA-approved cost from the Workflow Logs. Edit if needed."
+    : "Digits and an optional decimal point only.";
 
-  const vendors = (typeof propoVendorList === "function") ? propoVendorList() : [];
+  const vendors =(typeof propoVendorList === "function") ? propoVendorList() : [];
   const pickOpts = ['<option value="">— pick a saved vendor —</option>']
     .concat(vendors.map((v, i) =>
       `<option value="${i}">${esc(v.name)}${v.custom ? " (saved)" : ""}</option>`))
@@ -1749,8 +1773,8 @@ function renderProPoWorkspace(container) {
           </div>
           <div class="field">
             <label for="ppoCost">Awarded price</label>
-            <input type="text" id="ppoCost" inputmode="decimal" placeholder="e.g. 4250.00">
-            <div class="hint">Digits and an optional decimal point only.</div>
+            <input type="text" id="ppoCost" inputmode="decimal" value="${esc(prefillCost)}" placeholder="e.g. 4250.00">
+            <div class="hint">${esc(costHint)}</div>
           </div>
           <div class="field" id="ppoUsdWrap" hidden>
             <label for="ppoUsd">Approx. USD value</label>

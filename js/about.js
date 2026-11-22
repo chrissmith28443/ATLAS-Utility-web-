@@ -13,6 +13,24 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.8.14",
+    title: "One UDQ per service module",
+    notes: [
+      "SRF: fetching a shipment, the Metrics dashboard and the Christmas Tree's SRF pull now all use the same SRF UDQ (cfb99354…). The separate Shipping UDQ (b33fe12e…) and Christmas Tree SRF UDQ (fc32d169…) are no longer used.",
+      "PR: the Christmas Tree (and the Procurement / Property tabs) now pull PR from the same UDQ as the Property fetch (75abb665…). The separate Christmas Tree PR UDQ (d7636e76…) is no longer used.",
+      "PMCT, WS and PLS are unchanged. The DTR and IR UDQs are now on file for future tools.",
+      "A single request is still narrowed by request number on the server, so it pulls one record, not the whole UDQ.",
+    ],
+  },
+  {
+    version: "2.8.13",
+    title: "Purchase Order cost pre-fills with the approved cost",
+    notes: [
+      "Opening a Purchase Order on a loaded or fetched WMTR now fills the cost box with the last DTRA-approved cost from the request's Workflow Logs (the newest \"DTRA Estimate Review (Approved)\" amount, so a re-approval wins over the original). It's only a starting value — edit it as needed.",
+      "If the request has no approved cost yet, the box stays blank as before. Applies to both the shipping and the property PO.",
+    ],
+  },
+  {
     version: "2.8.12",
     title: "New Inventory Packing Checklist (IPC) layout",
     notes: [

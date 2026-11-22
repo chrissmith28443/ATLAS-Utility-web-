@@ -46,22 +46,25 @@ const ATLAS_UDQ_CONFIG = {
       // The Metrics UDQ carries every WMTR's full detail — the combined, all-WMTR
       // dataset the Metrics dashboard and the Christmas Tree read.
       metrics:  "cfb99354-d596-4a86-b067-7b19eea14708",
-      // Shipping now has its OWN dedicated UDQ (it is no longer the same ID as
-      // Metrics). A single shipment is still narrowed SERVER-SIDE via
-      // requestNumberParam ("requestNumber") so it pulls ~1 record instead of the
-      // whole UDQ; the client re-checks the result and shows the picker on any
-      // multi-match.
-      shipping: "b33fe12e-6e1f-4b25-b296-d77d0b8cf6d1",
+      // Shipping uses the same SRF UDQ as Metrics (one UDQ per service module).
+      // A single shipment is narrowed SERVER-SIDE via requestNumberParam
+      // ("requestNumber") so it pulls ~1 record instead of the whole UDQ; the
+      // client re-checks the result and shows the picker on any multi-match.
+      shipping: "cfb99354-d596-4a86-b067-7b19eea14708",
       // Property (PR) also pulls the FULL property dataset from ATLAS (all
       // records, not a single request); the utility filters to the entered
       // WMTR / PR number client-side, exactly like Shipping.
       property: "75abb665-d493-47ab-be82-20210a09282c",
       // PLS (Personnel Logistics Services) — the Dashboard's PLS tab (full PLS dataset).
       pls: "6ef19319-e7ad-4726-9c41-7d19f1961844",
-      // Christmas Tree pulls per-service UDQs in one action, each with its own ID.
+      // DTR and IR service modules — recorded for future tools; nothing reads them yet.
+      dtr: "61198689-9693-4490-843a-e676f00d9030",
+      ir:  "f2e4ad3c-cb32-4086-9b29-8e4ffc0f7bfd",
+      // Christmas Tree pulls per-service UDQs in one action, one UDQ per service
+      // module: SRF = Metrics / Shipping UDQ, PR = Property UDQ.
       christmasTree: {
-        srf:  "fc32d169-1701-4202-a601-183d43a68c8c",
-        pr:   "d7636e76-d298-4e73-8a78-39848a88d0e7",
+        srf:  "cfb99354-d596-4a86-b067-7b19eea14708",
+        pr:   "75abb665-d493-47ab-be82-20210a09282c",
         pmct: "3f12340c-0b35-4e1d-a32c-3ae1385d425a",
         ws:   "7ce9dfef-82ee-43f2-9c24-8105a10ee909",
       },
@@ -71,6 +74,8 @@ const ATLAS_UDQ_CONFIG = {
       shipping: "",
       property: "",
       pls: "",
+      dtr: "",
+      ir: "",
       christmasTree: { srf: "", pr: "", pmct: "", ws: "" }, // TODO: fill at publish
     },
   },

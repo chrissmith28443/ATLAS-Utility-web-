@@ -1008,6 +1008,9 @@ const ATLAS_SCHEMES = [
   { id: "orchid",   label: "Orchid",   hdr: "#4a2a66", brand: "#c77dff", ink: "#2a0a44" },
   { id: "rose",     label: "Rose",     hdr: "#8e2f5c", brand: "#f7a8c8", ink: "#4a0f2a" },
   { id: "lavender", label: "Lavender", hdr: "#5b55a6", brand: "#cdbdfa", ink: "#221a4d" },
+  // Light headers: dark header text (hdrInk) and a deeper tint so the request bar / highlighted tool still read.
+  { id: "greige",   label: "Greige",   hdr: "#d6cec2", hdrInk: "#3b352d", tint: "#7d7264", brand: "#6e6355", ink: "#ffffff" },
+  { id: "beige",    label: "Beige",    hdr: "#ebdfc6", hdrInk: "#4a3b24", tint: "#a08458", brand: "#9c7a46", ink: "#ffffff" },
   // Holiday schemes (listed on their own row in Settings). hdr = header background, hdrInk = the text on it,
   // tint = the colour used for the request bar edge, badge and highlighted tool (defaults to hdr).
   // Their artwork lives in js/holiday.js; special styling in app.css under body[data-scheme="<id>"].

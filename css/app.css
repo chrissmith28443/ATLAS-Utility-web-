@@ -1855,6 +1855,12 @@ body[data-scheme="xmas"]:not(.theme-dark) .manifest{ background:color-mix(in srg
 body[data-scheme="xmas"]:not(.theme-dark) .route .lane .mode{ background:color-mix(in srgb, var(--sch) 5%, var(--card)); }
 body[data-scheme="xmas"] .rail-cop.active{ outline-color:color-mix(in srgb, #b3202f 45%, transparent); }
 
+/* ---- Greige / Beige: pale header with dark text; a hairline under it; white text again in Dark mode ---- */
+body[data-scheme="greige"]:not(.theme-dark) .topbar,
+body[data-scheme="beige"]:not(.theme-dark) .topbar{ border-bottom:1px solid color-mix(in srgb, var(--sch) 35%, transparent); }
+body.theme-dark[data-scheme="greige"] .topbar,
+body.theme-dark[data-scheme="beige"] .topbar{ --hdr-ink:#ffffff; }
+
 /* A "steel" button: the header colour a few shades lighter (follows the colour scheme). First use: the
    Inventory Sheet button on the Packing List page (2.9.21). */
 .ui2 .btn.steel{ background:color-mix(in srgb, var(--sch, #2f496f) 76%, #ffffff); color:#fff; border-color:transparent; }

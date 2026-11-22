@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.23",
+    title: "Greige and Beige colour options",
+    notes: [
+      "Settings › Appearance: two new colours, Greige and Beige. Each has a pale header with dark text and soft taupe or caramel buttons. In Dark mode the header darkens and its text turns white.",
+    ],
+  },
+  {
     version: "2.9.22",
     title: "Commercial Invoice item list half a point smaller",
     notes: [

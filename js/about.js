@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.24",
+    title: "Commercial Invoice signature lines lined up and spaced out",
+    notes: [
+      "Commercial Invoice: the Printed Name line now sits level with the Signature line, and there is more room between those two lines and the Title / Date lines below them.",
+    ],
+  },
+  {
     version: "2.9.23",
     title: "Greige and Beige colour options",
     notes: [

@@ -1014,7 +1014,7 @@ body{
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
-  row-gap: 2px;
+  row-gap: 12px;             /* room between the Printed Name / Signature lines and Title / Date */
   column-gap: 12px;
 }
 .sign-printed   { grid-column: 1; grid-row: 1; }
@@ -1032,6 +1032,7 @@ body{
 }
 /* Form-style lines to write / sign on. */
 .fieldbox .value{
+  margin-top: auto;          /* sit on the bottom of the cell, level with the Signature line */
   border-bottom: 1px solid var(--ci-rule);
   min-height: 1.1em;
   padding: 0 0 1px 0;

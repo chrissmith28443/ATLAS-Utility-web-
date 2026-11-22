@@ -151,46 +151,157 @@ function atlasRememberSigner(name) {
    Settings modal UI
    ========================================================================= */
 
+/* Settings window (2.9.10 look): sections listed down the left, one section showing at a time on the
+   right; every explanatory line is an "i" you hover (see _setDecorate). Less is more. */
 const SETTINGS_STYLE = `
-  .settings-overlay{position:fixed;inset:0;background:rgba(12,18,28,.55);display:flex;align-items:flex-start;justify-content:center;z-index:1000;padding:5vh 16px;overflow:auto;}
-  .settings-dialog{background:var(--card);color:inherit;border:1px solid var(--line);border-radius:12px;max-width:580px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.3);}
-  .settings-dialog header{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);}
-  .settings-dialog header h2{margin:0;font-family:var(--disp);}
-  .settings-dialog header .x{margin-left:auto;background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--steel);}
-  .settings-body{padding:16px 18px;}
+  .settings-overlay{position:fixed;inset:0;background:rgba(12,18,28,.5);display:flex;align-items:center;justify-content:center;z-index:1000;padding:24px 16px;}
+  .settings-dialog{--s-blue:#1e5aa8;--s-soft:color-mix(in srgb,#1e5aa8 5%,var(--card));background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;
+    width:min(880px,100%);height:min(680px,calc(100vh - 48px));display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(10,18,40,.35);
+    font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;font-size:13px;}
+  body.theme-dark .settings-dialog{--s-blue:#8fbaf0;}
+  .settings-dialog header{display:flex;align-items:center;gap:10px;padding:14px 18px 12px;border-bottom:1px solid var(--line);}
+  .settings-dialog header h2{margin:0;font:650 17px/1.2 inherit;letter-spacing:-.01em;text-transform:none;}
+  .settings-dialog header .x{margin-left:auto;width:30px;height:30px;border-radius:8px;background:none;border:0;font-size:20px;line-height:1;cursor:pointer;color:var(--steel);}
+  .settings-dialog header .x:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink);}
+  .settings-body{flex:1;min-height:0;display:flex;padding:16px 18px;overflow:auto;}
+  .settings-dialog.navd .settings-body{padding:0;overflow:hidden;}
+  .set-nav{flex:0 0 204px;display:flex;flex-direction:column;gap:2px;padding:10px 8px;overflow:auto;border-right:1px solid var(--line);background:var(--s-soft);}
+  .set-nav button{text-align:left;border:0;background:transparent;border-radius:8px;padding:8px 11px;font:600 12.5px/1.3 inherit;color:var(--steel);cursor:pointer;}
+  .set-nav button:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,transparent);}
+  .set-nav button.on{background:var(--card);color:var(--s-blue);box-shadow:0 1px 2px rgba(16,24,40,.14);}
+  .set-pane{flex:1;min-width:0;overflow:auto;padding:20px 24px 24px;}
   .settings-section{margin-bottom:18px;}
-  .settings-section h3{margin:0 0 8px;font:600 .82rem/1 var(--disp);letter-spacing:.04em;text-transform:uppercase;color:var(--steel);}
-  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
-  .settings-field{display:flex;flex-direction:column;gap:4px;}
+  .settings-dialog.navd .settings-section{display:none;margin:0;}
+  .settings-dialog.navd .settings-section.on{display:block;}
+  .settings-section h3{margin:0 0 14px;font:650 15px/1.25 inherit;letter-spacing:0;text-transform:none;color:var(--ink);display:flex;align-items:center;gap:8px;}
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+  .settings-field{display:flex;flex-direction:column;gap:5px;}
   .settings-field.span2{grid-column:1 / -1;}
-  .settings-field label{font-size:.82rem;font-weight:600;}
+  .settings-field label{font-size:11px;font-weight:650;color:var(--steel);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:6px;}
+  .settings-dialog input[type=text],.settings-dialog input[type=number],.settings-dialog input[type=date],.settings-dialog input:not([type]),.settings-dialog select,.settings-dialog textarea{
+    border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;}
+  .settings-dialog input:focus,.settings-dialog select:focus,.settings-dialog textarea:focus{outline:2px solid color-mix(in srgb,var(--s-blue) 30%,transparent);border-color:var(--s-blue);}
   .settings-field input,.settings-field select{width:100%;}
-  .settings-checks{display:flex;flex-wrap:wrap;gap:12px;}
-  .settings-checks label{display:flex;align-items:center;gap:7px;font-weight:400;}
+  .settings-checks{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:2px 0 6px;}
+  .settings-checks label{display:flex;align-items:center;gap:8px;font-weight:500;}
   .settings-checks input{width:auto;}
-  .settings-foot{display:flex;align-items:center;gap:10px;padding:14px 18px;border-top:1px solid var(--line);}
+  .settings-dialog input[type=checkbox],.settings-dialog input[type=radio]{width:16px;height:16px;accent-color:var(--s-blue);flex:none;}
+  .settings-foot{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line);}
   .settings-foot .spacer{margin-left:auto;}
-  .settings-note{color:var(--steel);font-size:.8rem;margin-top:4px;}
-  .ref-builtin{font-size:.78rem;color:var(--steel);margin-bottom:8px;}
+  .settings-dialog .btn{font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;border-radius:9px;padding:7px 14px;}
+  .settings-dialog .btn.ghost{background:var(--card);border-color:var(--line);color:var(--ink);}
+  .settings-dialog .btn.ghost:hover{border-color:var(--s-blue);color:var(--s-blue);}
+  .settings-dialog .btn.primary{background:#1e2a4a;color:#fff;}
+  .settings-dialog .btn.primary:hover{background:#2a3a63;}
+  body.theme-dark .settings-dialog .btn.primary{background:#3d5a8c;}
+  .settings-note{color:var(--steel);font-size:12px;margin-top:4px;}
+  .ref-builtin{font-size:12px;color:var(--steel);margin-bottom:8px;}
+  /* the "i" that replaces a line of small print */
+  .set-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;border-radius:50%;border:1.4px solid currentColor;
+    font:italic 700 10px/1 Georgia,"Times New Roman",serif;color:var(--steel);opacity:.65;cursor:help;text-transform:none;letter-spacing:0;}
+  .set-tip:hover,.set-tip:focus{opacity:1;color:var(--s-blue);outline:none;}
+  .set-tip .pop{display:none;position:absolute;left:-6px;top:calc(100% + 6px);z-index:20;width:300px;max-width:56vw;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 10px 28px rgba(20,30,60,.22);padding:10px 12px;font:400 12px/1.5 Inter,"Segoe UI",system-ui,sans-serif;text-align:left;white-space:normal;cursor:default;}
+  .set-tip.r .pop{left:auto;right:-6px;}
+  .set-tip:hover .pop,.set-tip:focus .pop{display:block;}
   .ref-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;}
   .ref-row .ref-name{flex:0 0 38%;}
   .ref-row .ref-title{flex:1 1 auto;}
   .ref-row .ref-addr{flex:1 1 auto;resize:vertical;}
   .ref-row .ref-abbrev{flex:0 0 22%;}
-  .ref-row .ref-del{flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:7px;width:30px;height:30px;cursor:pointer;color:var(--steel);font-size:16px;line-height:1;}
+  .ref-row .ref-del{flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:9px;width:32px;height:32px;cursor:pointer;color:var(--steel);font-size:16px;line-height:1;}
   .ref-row .ref-del:hover{border-color:var(--warn);color:var(--warn);}
-  .ref-empty{font-size:.8rem;color:var(--steel);margin-bottom:8px;}
-  .set-appearance{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
-  .set-appx{background:var(--card);color:var(--ink);border:0;padding:7px 16px;font:600 .8rem var(--disp);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;}
-  .set-appx+.set-appx{border-left:1px solid var(--line);}
-  .set-appx.active{background:var(--accent);color:#fff;}
-  .set-check{display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;}
-  .udq-id{font-family:var(--mono);font-size:.82rem;}
+  .ref-empty{font-size:12px;color:var(--steel);margin-bottom:8px;}
+  .set-appearance{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:color-mix(in srgb,var(--ink) 6%,transparent);}
+  .set-appx{background:transparent;color:var(--steel);border:0;border-radius:7px;padding:6px 14px;font:600 12.5px inherit;letter-spacing:0;text-transform:none;cursor:pointer;}
+  .set-appx+.set-appx{border-left:0;}
+  .set-appx.active{background:var(--card);color:var(--s-blue);box-shadow:0 1px 2px rgba(16,24,40,.14);}
+  .set-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer;margin:9px 0;}
+  .udq-id{font-family:var(--mono);font-size:12px;}
   .udq-id.udq-bad{border-color:var(--warn);outline:1px solid var(--warn);}
-  .udq-summary{font-family:var(--mono);font-size:.78rem;color:var(--steel);margin:2px 0 10px;word-break:break-all;}
+  .udq-summary{font-family:var(--mono);font-size:11.5px;color:var(--steel);margin:2px 0 10px;word-break:break-all;}
   .udq-adv{display:none;margin-top:10px;}
   .udq-adv.open{display:block;}
+  @media (max-width:680px){
+    .settings-dialog.navd .settings-body{flex-direction:column;}
+    .set-nav{flex:none;flex-direction:row;border-right:0;border-bottom:1px solid var(--line);}
+    .set-nav button{white-space:nowrap;}
+  }
 `;
+
+/* Which section was open last (kept while the Utility stays open). */
+let _setLastSec = 0;
+/** Turns the built Settings window into the two-pane layout and moves every line of small print
+    into a hover "i". Works on the finished overlay, so field ids and the save logic are untouched. */
+function _setDecorate(overlay) {
+  const dlg = overlay.querySelector(".settings-dialog"), body = overlay.querySelector(".settings-body");
+  if (!dlg || !body || dlg.classList.contains("navd")) return;
+  const secs = Array.from(body.children).filter((c) => c.classList && c.classList.contains("settings-section"));
+  if (!secs.length) return;
+  const nav = document.createElement("nav");
+  nav.className = "set-nav"; nav.setAttribute("aria-label", "Settings sections");
+  const pane = document.createElement("div");
+  pane.className = "set-pane";
+  while (body.firstChild) pane.appendChild(body.firstChild);
+  body.appendChild(nav); body.appendChild(pane);
+  const show = (i) => {
+    if (i < 0 || i >= secs.length) i = 0;
+    secs.forEach((s, k) => s.classList.toggle("on", k === i));
+    Array.from(nav.children).forEach((b, k) => { b.classList.toggle("on", k === i); if (k === i) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current"); });
+    pane.scrollTop = 0; _setLastSec = i;
+  };
+  secs.forEach((s, i) => {
+    const h = s.querySelector("h3");
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = h ? h.textContent.trim() : "Section " + (i + 1);
+    b.addEventListener("click", () => show(i));
+    nav.appendChild(b);
+  });
+  // small print -> hover tips (anything with an id is a live message, e.g. an error line: left alone)
+  pane.querySelectorAll(".settings-note, .ref-builtin").forEach((n) => {
+    if (n.id || !n.textContent.trim()) return;
+    const tip = document.createElement("span");
+    tip.className = "set-tip"; tip.tabIndex = 0; tip.setAttribute("role", "note"); tip.setAttribute("aria-label", n.textContent.trim());
+    tip.innerHTML = 'i<span class="pop"></span>';
+    tip.lastChild.innerHTML = n.innerHTML;
+    tip.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
+    const place = () => { const r = tip.getBoundingClientRect(), p = pane.getBoundingClientRect(); tip.classList.toggle("r", r.left - p.left > p.width * 0.5); };
+    tip.addEventListener("mouseenter", place); tip.addEventListener("focus", place);
+    // Hang it on the thing the note is about: the label / button row / heading just before it (a field or a
+    // grid of fields counts by its label); failing that the field it sits in, then the section heading.
+    let host = null;
+    for (let p = n.previousElementSibling; p && !host; p = p.previousElementSibling) {
+      if (p.matches("label, .settings-checks, h3, h4")) host = p;
+      else if (p.matches(".settings-field")) host = p.querySelector("label");
+      else if (p.matches(".settings-grid")) { const ls = p.querySelectorAll(".settings-field label"); host = ls.length ? ls[ls.length - 1] : null; }
+    }
+    const field = n.closest(".settings-field"), sec = n.closest(".settings-section");
+    if (!host && field) host = field.querySelector("label");
+    if (!host && sec) host = sec.querySelector("h3");
+    if (!host) return;
+    // one "i" per label: a second note for the same thing joins the first one's pop-up
+    const had = Array.from(host.children).find((c) => c.classList.contains("set-tip"));
+    if (had) {
+      const pop = had.querySelector(".pop");
+      pop.innerHTML += '<div style="margin-top:8px">' + n.innerHTML + "</div>";
+      had.setAttribute("aria-label", pop.textContent.trim());
+    } else host.appendChild(tip);
+    n.remove();
+  });
+  dlg.classList.add("navd");
+  show(_setLastSec);
+  // a section the rest of openSettings hides (e.g. Application, once installed) drops out of the list
+  setTimeout(() => {
+    secs.forEach((s, i) => { if (s.style.display === "none") nav.children[i].style.display = "none"; });
+    if (secs[_setLastSec] && secs[_setLastSec].style.display === "none") show(0);
+  }, 0);
+  // Save refused (a bad UDQ ID…): bring the section with the problem into view
+  const save = overlay.querySelector("#setSave");
+  if (save) save.addEventListener("click", () => setTimeout(() => {
+    const bad = pane.querySelector(".udq-bad") || Array.from(pane.querySelectorAll("#setUdqErr")).find((e) => e.style.display !== "none" && e.textContent.trim());
+    if (bad && document.body.contains(bad)) show(secs.indexOf(bad.closest(".settings-section")));
+  }, 0));
+}
 
 function _refSignerRow(name, title) {
   return `<div class="ref-row" data-kind="signer">
@@ -293,7 +404,6 @@ function openSettings() {
               <button class="btn ghost" id="setOpenCompare" type="button">Compare UDQs&hellip;</button>
               <button class="btn ghost" id="setOpenHistory" type="button">Run history&hellip;</button>
             </div>
-            <div class="settings-note">Less-used tools, moved here from the top bar.</div>
           </div>
 
           <div class="settings-section">
@@ -446,6 +556,7 @@ function openSettings() {
     </div>`);
 
   document.body.appendChild(overlay);
+  _setDecorate(overlay);
 
   const close = () => closeSettings();
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });

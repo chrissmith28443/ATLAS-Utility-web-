@@ -1015,9 +1015,15 @@ function copEvaluate(rec, ctx) {
   if (copLow(li.status) === "delivered - pending pod" && hasDoc("pod")) {
     add("podstatus", "delivered", "rec", "Status updated to POD Received", { state: "warn", detail: "POD is attached but the status is still \"Delivered - Pending POD\"." });
   }
-  for (const h of xHit("delivery")) add("late", "delivered", "req", "Delivered on or before RDD",
-    { state: "fail", detail: `${h.label} — delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
-  if (delivered && rdd && !xHit("delivery").length) add("late", "delivered", "req", "Delivered on or before RDD", { state: "ok", detail: `Delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
+  // Delivered after the RDD is only an audit hit when "Monitor this RDD" is ticked in ATLAS (2.9.10) — same switch
+  // as the In progress view. (The Metrics tab's on-time delivery % is a separate figure and still counts every RDD.)
+  if (!copIsYes(rec.ship[COP_SHIP_FIELDS.monitor])) {
+    if (delivered && rdd) add("late", "delivered", "req", "Delivered on or before RDD", { met: "na", detail: `RDD not monitored in ATLAS — delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
+  } else {
+    for (const h of xHit("delivery")) add("late", "delivered", "req", "Delivered on or before RDD",
+      { state: "fail", detail: `${h.label} — delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
+    if (delivered && rdd && !xHit("delivery").length) add("late", "delivered", "req", "Delivered on or before RDD", { state: "ok", detail: `Delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
+  }
 
   /* ---- roll-up ---- */
   // Closed before the 1 Oct 2025 measurement cutoff: shown for reference, not scored
@@ -1113,7 +1119,7 @@ const COP_STEP_SUBS = {
 };
 /* Inner boxes marked `optional` (rarely-used statuses) only show when a
    shipment in view is in them — keeps the board clean. */
-function copShowSub(p, n) { return !p.optional || n > 0; }
+function copShowSub(p, n) { return n > 0; }   // an empty box inside a step isn't drawn (2.9.10)
 function copStepSubOf(step, low) {
   const subs = COP_STEP_SUBS[step];
   if (!subs) return null;
@@ -1592,7 +1598,8 @@ const COP_QUICK = {
 function copTodayStrip(base) {
   const n = (f) => base.filter(f).length;
   const att = n((r) => r.counts.red || r.counts.amber);
-  const tile = (key, tone, count, label, hint, on) => `<button type="button" class="copx-kpi ${tone} ${on ? "on" : ""} ${count ? "" : "zero"}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}" title="${esc(hint)}">
+  // A tile that reads zero isn't shown (less on screen) — except "In progress", and one that's currently the filter.
+  const tile = (key, tone, count, label, hint, on) => (!count && !on && key) ? "" : `<button type="button" class="copx-kpi ${tone} ${on ? "on" : ""} ${count ? "" : "zero"}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}" title="${esc(hint)}">
       <span class="n">${count}</span><span class="l">${esc(label)}</span></button>`;
   return el(`<div class="copx-kpis copx-today" role="group" aria-label="Today — click a tile to filter">
     ${tile("", "", base.length, "In progress", "Every active shipment", !CopUi.quick && !CopUi.atRisk)}
@@ -1601,7 +1608,6 @@ function copTodayStrip(base) {
     ${tile("missed", "r", n(COP_QUICK.missed), "Missed updates", "A business day with no daily update", CopUi.quick === "missed")}
     ${tile("rfq", "b", n(COP_QUICK.rfq), "RFQs to send", "Compliance approved and packed — RFQ due within 1 business day", CopUi.quick === "rfq")}
     ${tile("eei", "t", n(COP_QUICK.eei), "EEI to file", "US exports in Execution with no ITN / NOEEI citation yet", CopUi.quick === "eei")}
-    ${tile("departing", "n", n(COP_QUICK.departing), `Departing ≤ ${COP_QUICK_DAYS} days`, "Estimated departure within the week", CopUi.quick === "departing")}
   </div>`);
 }
 
@@ -2026,7 +2032,33 @@ tr.copx-det td{background:var(--ax-soft)}
 .copx-trk tr.flt th.stick{z-index:3}
 .copx-ibtn.on{background:var(--ax-blue-soft);color:var(--ax-blue)}
 .copx-filters .copx-frow{flex:1 1 100%}
-.copx-limbox{flex:1 1 100%;background:var(--ax-soft);border:1px solid var(--ax-line);border-radius:10px;padding:10px 14px}
+/* Day limits: a pop-up card under the gear — switch at the top, one aligned row per step */
+.copx-filters{position:relative}
+.copx-lim{display:block;position:absolute;right:0;top:calc(100% + 4px);z-index:40;width:min(450px,calc(100vw - 48px));background:var(--ax-card);border:1px solid var(--ax-line);border-radius:14px;
+  box-shadow:0 14px 34px rgba(20,30,60,.2);padding:14px 16px 12px;font-size:12.5px}
+.copx-lim .lh{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.copx-lim .lh b{font-size:14px;font-weight:650}
+.copx-lim table{width:100%;border-collapse:collapse}
+.copx-lim th{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--ax-muted);text-align:left;padding:0 0 6px}
+.copx-lim th.c,.copx-lim td.c{text-align:center;width:86px}
+.copx-lim th .d{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.copx-lim td{padding:5px 0;border-top:1px solid var(--ax-line2)}
+.copx-lim input[type=number]{width:62px;margin:0;text-align:center;border:1px solid var(--ax-line);border-radius:8px;padding:4px 6px;background:var(--ax-card);color:var(--ax-ink);font:inherit}
+.copx-lim input[type=number]:focus{outline:2px solid var(--ax-blue-soft);border-color:var(--ax-blue)}
+.copx-lim.off table{opacity:.45}
+.copx-lim .lf{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:11.5px;color:var(--ax-muted)}
+.copx-lim .lnk:disabled{opacity:.4;cursor:default;text-decoration:none}
+.copx-sw{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--ax-ink2);cursor:pointer}
+.copx-sw input{position:absolute;opacity:0;width:0;height:0}
+.copx-sw i{position:relative;flex:none;width:34px;height:20px;border-radius:999px;background:var(--ax-neutral);transition:background .15s}
+.copx-sw i::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.copx-sw input:checked+i{background:var(--ax-green)}
+.copx-sw input:checked+i::after{transform:translateX(14px)}
+.copx-sw input:focus-visible+i{outline:2px solid var(--ax-blue);outline-offset:2px}
+/* legend as a hover (opens upward) */
+.copx-legendrow{display:flex;justify-content:flex-end;margin-top:6px}
+.copx-help.up .pop{top:auto;bottom:100%;width:250px}
+.copx-help .pop .copx-legend{display:flex;flex-direction:column;gap:7px;margin:0 0 8px;padding:0;border:0;font-size:12px;color:var(--ax-ink)}
 .copx-hd .acts{align-items:center}
 .copx-ibtn.go{color:var(--ax-green);margin-left:-8px}
 .copx-ibtn.go:hover:not(:disabled){background:var(--ax-green-soft);color:var(--ax-green)}
@@ -2136,9 +2168,11 @@ function renderCopWorkspace(container) {
     // The board shows exactly what's in the table: the filters above and the
     // table's column filters all drive it (counts and tallies follow).
     card.appendChild(copBoard(rows, rows));
-    card.appendChild(el(`<div class="copx-legend" title="Oldest in its status first · hover a shipment for its latest update · click it for details">
-      <span><i></i>On track</span><span><i class="p"></i>Today's update due</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
-      <span><em>3</em>updates missing</span><span>${COP_CONSOL_ICON}Consol</span></div>`));
+    card.appendChild(el(`<div class="copx-legendrow"><span class="copx-help up" tabindex="0" role="button" aria-label="Legend — what the colours on the board mean">Legend
+      <span class="pop" role="tooltip"><span class="copx-legend">
+        <span><i></i>On track</span><span><i class="p"></i>Today's update due</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
+        <span><em>3</em>updates missing</span><span>${COP_CONSOL_ICON}Consol</span></span>
+        <span class="ex">Oldest in its status first · hover a shipment for its latest update · click it for details</span></span></span></div>`));
   }
   /* ---- details table ---- */
   const edit = isActive && copCanEdit();
@@ -2231,9 +2265,9 @@ function copFilterPanel(built, all) {
   if (isActive || (CopUi.hit && !hits[CopUi.hit])) CopUi.hit = "";
   const hitOpts = opt("", "All metric hits", !CopUi.hit) + Object.keys(hits).sort((a, b) => hits[b].n - hits[a].n)
     .map((id) => opt(id, `${hits[id].label} (${hits[id].n})`, CopUi.hit === id)).join("");
-  const stuckRows = Object.keys(COP_STUCK_DEFAULTS).map((k) => `<div>${esc(COP_STUCK_LABELS[k])}:
-      amber<input type="number" min="1" max="200" data-k="${k}" data-i="0" value="${prefs.stuck[k][0]}">
-      red<input type="number" min="1" max="200" data-k="${k}" data-i="1" value="${prefs.stuck[k][1]}"></div>`).join("");
+  const lim = (k, i, word) => `<td class="c"><input type="number" min="1" max="200" data-k="${k}" data-i="${i}" value="${prefs.stuck[k][i]}" ${prefs.stuckOn ? "" : "disabled"}
+      aria-label="${esc(COP_STUCK_LABELS[k])} — ${word} after this many business days"></td>`;
+  const stuckRows = Object.keys(COP_STUCK_DEFAULTS).map((k) => `<tr><td>${esc(COP_STUCK_LABELS[k])}</td>${lim(k, 0, "amber")}${lim(k, 1, "red")}</tr>`).join("");
   CopUi.rddDays = 0;                     // the RDD filter is gone (2.9.9) — make sure none is left switched on
   return el(`<div class="copx-filters">
     <div class="copx-frow">
@@ -2246,8 +2280,13 @@ function copFilterPanel(built, all) {
         title="Day limits — flag shipments that sit too long in a step${prefs.stuckOn ? " (on)" : " (off)"}" aria-label="Day limits settings">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>` : ""}
     </div>
-    ${isActive && CopUi.settingsOpen ? `<div class="copx-limits copx-limbox"><label class="copx-chk" style="grid-column:1 / -1"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}>
-      Flag shipments that sit in a step longer than these limits (off by default — only the RFQ timeline is flagged)</label>${prefs.stuckOn ? stuckRows + `<div><button class="lnk" id="copStuckReset" type="button">Reset day limits</button></div>` : ""}</div>` : ""}
+    ${isActive && CopUi.settingsOpen ? `<div class="copx-limits copx-lim ${prefs.stuckOn ? "" : "off"}" role="dialog" aria-label="Day limits">
+      <div class="lh"><b title="Flags a shipment that sits in one step longer than these limits. Off by default — only the RFQ timeline is flagged.">Day limits</b>
+        <label class="copx-sw"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}><i></i><span>${prefs.stuckOn ? "On" : "Off"}</span></label></div>
+      <table><thead><tr><th>Step</th><th class="c"><span class="d" style="background:var(--ax-amber)"></span>Amber</th><th class="c"><span class="d" style="background:var(--ax-red)"></span>Red</th></tr></thead>
+        <tbody>${stuckRows}</tbody></table>
+      <div class="lf"><span>Business days in the step</span><button class="lnk" id="copStuckReset" type="button" ${prefs.stuckOn ? "" : "disabled"}>Reset</button></div>
+    </div>` : ""}
   </div>`);
 }
 
@@ -2420,12 +2459,16 @@ function copTrkCols(today) {
 /* Tracker view settings, kept in this browser: columns switched off and whether
    the step-time strip shows. Only what's OFF is stored, so a new column
    starts out visible. */
+/* Columns that start switched off (less in the default view; Columns brings them back). Delivered and
+   Invoices rec'd still show by themselves on the Delivered / All lists until the user makes their own pick. */
+const COP_TRK_OFF_DEFAULT = ["poc", "toDtra", "quoteSub", "origRdd", "marad", "delivered", "inv"];
 function copTrkPrefs() {
   const t = copGetPrefs().trk;
   const o = (t && typeof t === "object") ? t : {};
-  return { off: Array.isArray(o.off) ? o.off : [], flow: o.flow !== false };
+  const custom = o.v === 2 && Array.isArray(o.off);        // saved by this version's picker
+  return { off: custom ? o.off : COP_TRK_OFF_DEFAULT.slice(), flow: o.flow !== false, custom };
 }
-function copSetTrkPrefs(t) { const p = copGetPrefs(); p.trk = t; copSetPrefs(p); }
+function copSetTrkPrefs(t) { const p = copGetPrefs(); if (t) p.trk = { off: t.off, flow: t.flow, v: 2 }; else delete p.trk; copSetPrefs(p); }
 function copRenderTracker(root, built) {
   const today = built.ctx.today;
   const tp = copTrkPrefs();
@@ -2437,6 +2480,7 @@ function copRenderTracker(root, built) {
   const scope = ["all", "active", "delivered"].indexOf(CopUi.trkScope) !== -1 ? CopUi.trkScope : "active";
   const inScope = xs.filter((x) => scope === "all" || (scope === "active") === x.active);
   const allCols = copTrkCols(today);
+  if (!tp.custom && scope !== "active") tp.off = tp.off.filter((id) => id !== "delivered" && id !== "inv");
   const cols = allCols.filter((c) => c.id === "wmtr" || tp.off.indexOf(c.id) === -1);
   const F = CopUi.trkF || (CopUi.trkF = {});
   let rows = inScope;
@@ -2529,7 +2573,7 @@ function copRenderTracker(root, built) {
     ${CopUi.trkViewOpen ? `<div class="copx-colpick">
       <div><div class="k">Columns</div>${allCols.map((c) => box(c.id, c.label.replace("’", "'"), c.id === "wmtr" || tp.off.indexOf(c.id) === -1, c.id === "wmtr")).join("")}</div>
       <div><div class="k">Above the table</div>${box("@flow", "Average business days in each step", tp.flow)}</div>
-      <div class="ft"><button class="lnk" type="button" id="copTrkViewReset">Show everything</button></div>
+      <div class="ft"><button class="lnk" type="button" id="copTrkViewRec">Recommended</button> &nbsp;·&nbsp; <button class="lnk" type="button" id="copTrkViewReset">Show everything</button></div>
     </div>` : ""}
     <div class="copx-tbl copx-trk"><table><thead><tr class="hd">${head}</tr><tr class="flt">${fil}</tr></thead>
       <tbody>${shown.map((x) => `<tr class="row" data-w="${esc(x.r.wmtr)}" data-act="${x.active ? 1 : 0}">${cols.map((c) => c.td(x)).join("")}</tr>`).join("")
@@ -2553,6 +2597,8 @@ function copRenderTracker(root, built) {
   }));
   const vr = $("#copTrkViewReset");
   if (vr) vr.addEventListener("click", () => { copSetTrkPrefs({ off: [], flow: true }); copRerender(); });
+  const vrec = $("#copTrkViewRec");
+  if (vrec) vrec.addEventListener("click", () => { copSetTrkPrefs(null); copRerender(); });
   const sortBy = (id) => { CopUi.trkSort = sort.id === id ? { id, dir: -sort.dir } : { id, dir: 1 }; copRerender(); };
   root.querySelectorAll(".copx-trk th[data-sort]").forEach((th) => {
     th.addEventListener("click", () => sortBy(th.dataset.sort));
@@ -2639,7 +2685,7 @@ function copBoard(base, rows) {
         if (!copShowSub(p, ps.length)) return "";
         return `<div class="copx-ph"><div class="pl"><span>${esc(p.label)}</span><span>${ps.length}</span></div>
           <div class="bb">${ps.length ? ps.map(tag).join("") : `<span class="copx-empty">None</span>`}</div></div>`;
-      }).join("");
+      }).join("") || `<span class="copx-empty">None</span>`;
     } else body = xs.length ? xs.map(tag).join("") : `<span class="copx-empty">None</span>`;
     board.appendChild(el(`<div class="copx-col ${s.id}">
       <div class="ch" title="${esc(s.sub)}"><div class="t">${esc(s.label)}</div>
@@ -2787,7 +2833,7 @@ function copColDefs(isActive) {
     return [health, wmtr, step, poc, upd, rdd, route, items, days].concat(extras,
       [trkCol("packed", "Date Packed", "packed"), trkCol("rfq", "RFQ Sent", "rfq"), trkCol("itn", "ITN", "itn")]);
   }
-  const status = textCol("status", "Status", (r) => r.status);
+  const status = textCol("status", "Status", (r) => r.status, true);      // nearly always "Invoiced": off unless picked under Columns
   status.td = (r) => `<td class="st">${esc(r.status)}</td>`;
   const delivered = dateCol("delivered", "Delivered", (r) => r.delivered);
   return [health, wmtr, status, poc, delivered, route, items, rdd].concat(extras,

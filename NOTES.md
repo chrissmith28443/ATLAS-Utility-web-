@@ -651,3 +651,28 @@ Arrived Warehouse or the warehouse actual date is filled.
   Tile rule (user): a small tile and a larger card must never show the same thing at once. PM_VIEW_OFF now also
   hides proc t:open and prop t:open / t:out / t:o30 (duplicates of the heading, a step card, the TOP backlog panel).
   Pushed 2026-11-22.
+
+## v2.9.10 (2026-11-22) — Settings window restyle, Day limits card, open offers
+- User direction (repeat, applies to the WHOLE Utility restyle to come): clean, less-is-more; small instruction text
+  belongs in a hover, not on screen. He called the old Settings window "ugly" and the Day limits panel "basic, not
+  aligned, not creative".
+- SETTINGS (settings.js): new SETTINGS_STYLE + _setDecorate(overlay), called right after the overlay is appended.
+  It builds a left nav from the section <h3>s (one section shown at a time; _setLastSec remembers which), and moves
+  every .settings-note / .ref-builtin WITHOUT an id into an "i" hover (.set-tip) on the preceding label / button row /
+  heading. Markup of the fields, ids and save logic untouched. A Save that is refused jumps to the section with
+  .udq-bad / #setUdqErr. New sections added later get a nav entry automatically.
+- DAY LIMITS: .copx-lim pop-up card under the gear (switch .copx-sw + table: Step | Amber | Red), inputs disabled
+  while off.
+- "Yes to all open offers" — I took that as: the rest of the hide-by-default list, Closed-audit RDD tied to Monitor
+  this RDD, and toning down the Metrics cards:
+  In progress: zero tiles hidden (except "In progress" / the active one); Departing tile removed; empty step boxes
+  not drawn (copShowSub = n > 0); legend = "Legend" hover (.copx-help.up).
+  Tracker: COP_TRK_OFF_DEFAULT = poc, toDtra, quoteSub, origRdd, marad, delivered, inv (prefs.trk now { off, flow,
+  v: 2 }; unversioned saved lists are ignored; delivered + inv auto-show on Delivered / All until the user customises;
+  "Recommended" link clears prefs.trk).
+  Closed audit: Status column opt-in; "late" check is N/A unless Monitor this RDD = yes (Metrics on-time % NOT changed).
+  Metrics cards: white with coloured left edge + soft badge (app.css, body.cop-quiet).
+  Lane colours (user: dark blue vs dark purple too similar): blue step -> light sky blue #6da7ec (dark theme #256abf)
+  on PM_PR_LANES "sourcing" and PM_PLS_LANES "approval"; violet / yellow / green unchanged. Pink was tried and rejected
+  (fails vs green for red-green colour-blindness).
+  Pushed 2026-11-22.

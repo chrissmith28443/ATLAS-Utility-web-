@@ -1549,3 +1549,13 @@ body.cop-quiet .mx-secbadge{ font-family:inherit; letter-spacing:.03em; }
 body.theme-dark .mx-pk.on{ color:#8fbaf0; }
 .mx-pk:focus-visible{ outline:2px solid #1e5aa8; outline-offset:1px; }
 .mx-pick .mx-customrow{ flex-basis:100%; grid-template-columns:minmax(150px,200px) minmax(150px,200px) auto; margin-top:2px; }
+/* Metrics cards, toned down (2.9.10): white card, the status colour only on the left edge, the number and the badge */
+body.cop-quiet .mx-metric-card.is-good, body.cop-quiet .mx-metric-card.is-warn, body.cop-quiet .mx-metric-card.is-issue{ background:var(--card); border-color:var(--line); }
+body.cop-quiet .mx-metric-card.is-good{ border-left-color:var(--mx-good-bd); }
+body.cop-quiet .mx-metric-card.is-warn{ border-left-color:var(--mx-warn-bd); }
+body.cop-quiet .mx-metric-card.is-issue{ border-left-color:var(--mx-issue-bd); }
+body.cop-quiet .mx-metric-card.is-good .mx-metric-k, body.cop-quiet .mx-metric-card.is-warn .mx-metric-k, body.cop-quiet .mx-metric-card.is-issue .mx-metric-k{ color:var(--steel); }
+body.cop-quiet .mx-metric-card.is-good .mx-metric-v{ color:var(--ink); }
+body.cop-quiet .mx-metric-card.is-good .mx-metric-badge{ background:color-mix(in srgb, var(--mx-good-bd) 14%, var(--card)); color:var(--mx-good-fg); }
+body.cop-quiet .mx-metric-card.is-warn .mx-metric-badge{ background:color-mix(in srgb, var(--mx-warn-bd) 24%, var(--card)); color:var(--mx-warn-fg); }
+body.cop-quiet .mx-metric-card.is-issue .mx-metric-badge{ background:color-mix(in srgb, var(--mx-issue-bd) 12%, var(--card)); color:var(--mx-issue-fg); }

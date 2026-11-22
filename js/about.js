@@ -13,6 +13,19 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.10",
+    title: "New Settings window; tidier Day limits; less in the default views",
+    notes: [
+      "Settings has a new layout: the sections are listed down the left and one shows at a time on the right. Every line of small print is now a small \"i\" \u2014 hover it to read the note. Nothing about what the settings do has changed.",
+      "Day limits (the gear on Shipments) is a pop-up card: an On / Off switch and one aligned row per step with its amber and red limits.",
+      "Shipments, In progress: tiles that read zero aren't shown, the \"Departing \u2264 7 days\" tile is gone, empty boxes inside a step aren't drawn, and the colour legend is a \"Legend\" hover under the board.",
+      "Tracker: To DTRA, Quote sub., Original RDD, MARAD, TTI POC, Delivered and Invoices rec'd start switched off. Delivered and Invoices show by themselves on the Delivered list. The Columns icon brings any of them back (\"Recommended\" and \"Show everything\" are at the bottom of the list).",
+      "Closed audit: the Status column starts switched off, and \"delivered after the RDD\" is only flagged when Monitor this RDD is ticked in ATLAS. The on-time delivery figure on the Metrics tab is unchanged.",
+      "Procurement and PLS: the blue step is now a light sky blue, so it can't be mistaken for the violet one.",
+      "Metrics: the red / yellow / green cards are calmer \u2014 a white card with the colour on its left edge and its status badge.",
+    ],
+  },
+  {
     version: "2.9.9",
     title: "Tidier top bar; one date picker and one set of table tools everywhere",
     notes: [

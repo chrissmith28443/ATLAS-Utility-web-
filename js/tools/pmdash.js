@@ -96,14 +96,17 @@ function pmIsTool(id) { return PM_TOOLS.indexOf(id) !== -1; }
 
 /* Lanes (pipeline steps). Four clearly different hues (violet / yellow / blue / green), drafts neutral —
    the old one-blue ramp's dark shades couldn't be told apart. `color` reads the light- or dark-theme value;
-   `lt` is the light one (used for the weekly slide, which is always on white). */
+   `lt` is the light one (used for the weekly slide, which is always on white).
+   The blue step is a LIGHT sky blue on white (a deeper blue on the dark theme) so it can't be mistaken for the
+   violet step (user, 2026-11-22: "dark blue and dark purple are too similar"). Both sets pass the dataviz
+   validator with --pairs all (any two steps can sit side by side in the trips chart / dot plot). */
 const pmDarkTheme = () => typeof document !== "undefined" && !!document.body && document.body.classList.contains("theme-dark");
 const pmLaneDef = (id, label, lt, dk) => ({ id, label, lt, dk, get color() { return pmDarkTheme() ? this.dk : this.lt; } });
 const PM_PR_LANES = [
   pmLaneDef("draft",    "Draft",                 "#aab4c3", "#6b7888"),
   pmLaneDef("review",   "TTI / DTRA review",     "#6250d6", "#9085e9"),
   pmLaneDef("estimate", "Estimate / Approval",   "#eda100", "#c98500"),
-  pmLaneDef("sourcing", "Sourcing (PO pending)", "#2a78d6", "#3987e5"),
+  pmLaneDef("sourcing", "Sourcing (PO pending)", "#6da7ec", "#256abf"),
   pmLaneDef("exec",     "PO issued / delivery",  "#1baf7a", "#199e70"),
 ];
 /* PMCTs skip DTRA review (they go straight to DTRA Approved) — they hold the TOP package.
@@ -150,7 +153,7 @@ const PM_PLS_LANES = [
   pmLaneDef("draft",    "Draft",                  "#aab4c3", "#6b7888"),
   pmLaneDef("review",   "DTRA program review",    "#6250d6", "#9085e9"),
   pmLaneDef("estimate", "TTI estimate prep",      "#eda100", "#c98500"),
-  pmLaneDef("approval", "Estimate with DTRA",     "#2a78d6", "#3987e5"),
+  pmLaneDef("approval", "Estimate with DTRA",     "#6da7ec", "#256abf"),
   pmLaneDef("booked",   "Approved / in progress", "#1baf7a", "#199e70"),
 ];
 function pmPlsLane(status) {

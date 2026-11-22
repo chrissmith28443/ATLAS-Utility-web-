@@ -131,56 +131,24 @@ function rfqLinesToDivs(lines, country) {
   return all.map((ln) => `<div>${esc(ln)}</div>`).join("");
 }
 
-/** Render the commodity rows that replace <!--ITEM_ROWS--> (port of _rfq_render_item_rows). */
+/** Render the package rows that replace <!--ITEM_ROWS-->. Seven cells, matching the seven
+ *  columns of the email template (rfq_template.js): widths 250/100/60/65/65/65/95. */
 function rfqRenderItemRows(items) {
-  const cstyle =
-    "border-top:none;border-left:none;border-bottom:solid black 1.0pt;border-right:solid black 1.0pt;" +
-    "padding:0;mso-padding-alt:0;text-align:center;vertical-align:middle;" +
-    "height:.25in;mso-line-height-rule:exactly;";
-  const dstyle =
-    "border:solid black 1.0pt;border-top:none;padding:.75pt 5.4pt .75pt 5.4pt;" +
-    "text-align:left;vertical-align:middle;height:.25in;mso-line-height-rule:exactly;";
+  const B = "border:1px solid #C3CAD5;border-top:none;";
+  const dstyle = B + "padding:5px 10px;text-align:left;vertical-align:middle;";
+  const cstyle = B + "border-left:none;padding:5px 4px;text-align:center;vertical-align:middle;";
+  const cell = (w, v) => `<td width="${w}" align="center" valign="middle" style="width:${w}px;${cstyle}">${v}</td>`;
 
-  return (items || []).map((it) => {
-    const desc = esc(it.desc || "");
-    const qty = esc(rfqNum(it.qty));
-    const uom = esc(it.uom || "");
-    const L = esc(rfqNum(it.L));
-    const W = esc(rfqNum(it.W));
-    const H = esc(rfqNum(it.H));
-    const wt = esc(rfqNum(it.wt_lbs));
-    return (
-`<tr style="height:.25in;mso-line-height-rule:exactly;">
-    <td width=456 colspan=11 valign="middle" style="width:4.75in;${dstyle}">
-    ${desc}
-    </td>
-
-    <td width=60 colspan=4 valign="middle" style="width:45.0pt;${cstyle}">
-    ${qty}
-    </td>
-
-    <td width=60 colspan=3 valign="middle" style="width:45.0pt;${cstyle}">
-    ${uom}
-    </td>
-
-    <td width=66 colspan=2 valign="middle" style="width:49.5pt;${cstyle}">
-    ${L}
-    </td>
-
-    <td width=65 colspan=3 valign="middle" style="width:49.1pt;${cstyle}">
-    ${W}
-    </td>
-
-    <td width=61 colspan=3 valign="middle" style="width:45.4pt;${cstyle}">
-    ${H}
-    </td>
-
-    <td width=102 colspan=3 valign="middle" style="width:76.5pt;${cstyle}">
-    ${wt}
-    </td>
-</tr>`
-    );
-  }).join("\n");
+  return (items || []).map((it) => (
+`<tr>
+  <td width="250" valign="middle" style="width:250px;${dstyle}">${esc(it.desc || "")}</td>
+  ${cell(100, esc(rfqNum(it.qty)))}
+  ${cell(60, esc(it.uom || ""))}
+  ${cell(65, esc(rfqNum(it.L)))}
+  ${cell(65, esc(rfqNum(it.W)))}
+  ${cell(65, esc(rfqNum(it.H)))}
+  ${cell(95, esc(rfqNum(it.wt_lbs)))}
+</tr>`)).join("\n");
 }
 
 /* -------------------------------------------------------------------------

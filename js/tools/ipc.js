@@ -364,7 +364,7 @@ body{ font-family: Arial, Helvetica, sans-serif; font-size:10pt; color:#000; }
 .ipc-head{ width:100%; border-collapse:collapse; table-layout:fixed; }
 .ipc-head th{ background:#e9edf1; border:1px solid #000; padding:4px 6px; font-size:8pt; text-align:left; }
 .ipc-head td.hv{ border:1px solid #000; padding:6px; font-size:8pt; line-height:1.3; vertical-align:top; height:84px; white-space:pre-line; }
-.ipc-bar{ background:#1f3a5f; color:#fff; font-weight:bold; font-size:8.5pt; padding:4px 6px; margin-top:12px; border:1px solid #000; }
+.ipc-bar{ background:#cdd3dc; color:#16283c; font-weight:bold; font-size:8.5pt; padding:4px 6px; margin-top:12px; border:1px solid #000; }
 .ipc-units{ border:1px solid #000; border-top:0; font-size:8pt; padding:4px 6px; }
 .ipc-tbl{ width:100%; border-collapse:collapse; table-layout:fixed; }
 .ipc-tbl th{ background:#e9edf1; border:1px solid #000; border-top:0; padding:4px 5px; font-size:7.5pt; text-align:left; vertical-align:middle; }

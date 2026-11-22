@@ -52,8 +52,9 @@ const TOOLS = [
   // Required Attachments' Metrics role lives inside the Metrics dashboard (the
   // "Shipping docs" card embeds this same window), so it's hidden on Metrics
   // UDQs. On an SRF UDQ it's the single-WMTR attachment audit.
-  { id: "reqatt",   group: "Shipping",           label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
   { id: "audit",    group: "Shipping",           label: "Audit",               needs: "srf", needsGrid: true, ready: true  },
+  // Listed directly under Audit (user request, 2.9.17).
+  { id: "reqatt",   group: "Shipping",           label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },
@@ -2659,7 +2660,11 @@ function updateRfqPreview() {
     try {
       const doc = iframe.contentDocument;
       doc.body.style.zoom = "0.9";
-      doc.body.style.background = "transparent";
+      // The email has no page of its own, so the preview gives it one: a white sheet with a
+      // margin. (A see-through body let the grey preview box show between the email's white
+      // blocks.) Preview only — the .eml / copied email is untouched.
+      doc.body.style.background = "#fff";
+      doc.body.style.padding = "18px 24px";
     } catch (e) { /* ignore */ }
   }, { once: true });
 }

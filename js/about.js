@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.17",
+    title: "New RFQ email layout; Packing List, IPC and Inventory Sheet recoloured",
+    notes: [
+      "The RFQ email has a new layout: a steel-blue title line, blue-grey section bars, lighter borders, and the package count and cargo weight on a soft highlight. The wording, the fields and their order are the same.",
+      "Packing List, IPC and Inventory Sheet: the navy blocks are now the blue-grey of the request bar with dark text, and the orange stripe and tags are steel blue. This applies to the previews, the PDFs and the Excel files.",
+      "The RFQ email preview is shown on a white sheet, so the grey preview box no longer shows through between parts of the email. The email itself is unchanged.",
+      "In the left menu, Required Attachments now sits directly under Audit.",
+    ],
+  },
+  {
     version: "2.9.16",
     title: "New header colour",
     notes: [

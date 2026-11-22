@@ -768,3 +768,29 @@ Arrived Warehouse or the warehouse actual date is filled.
   Navy scheme hdr is now #2f496f. If he asks again, show the picker again rather than guessing.
   Header history: #16283C -> white -> #1b2b4b -> #2f4f86 -> #3d63a5 -> #516890 -> #2f496f (his pick).
   Pushed 2026-11-22.
+
+## v2.9.17 (2026-11-22) — RFQ preview on a white sheet; Required Attachments under Audit
+- User: "the rfq preview looks jacked up a bit. Has some off color boxes." Cause: updateRfqPreview set the email
+  body to transparent, so the grey .previewwrap showed between the email's own white blocks (it was like this before
+  the restyle too). The other previews draw their own white page; the RFQ email has none. Fix (app.js
+  updateRfqPreview): body background #fff + padding 18px 24px, applied to the preview iframe only — rfqRenderHtml,
+  the .eml and Copy email are untouched.
+- User: "move required attachments tool to be under the audit feature in the menu" — done as a reorder in TOOLS
+  (Audit, then Required Attachments). I read it as position, not nesting; offered nesting as an alternative.
+- SAME VERSION (2.9.17 was never pushed before the next request came in). User then asked to revamp the RFQ
+  template ("see what you can come up with that looks good") and recolour PL, IPC and Inventory Sheet: no orange
+  stripe with dark blue; steel blue of the header as the dark line, the request-bar grey where dark blue was.
+  This is the first time he asked to change OUTPUT documents (earlier rule was UI only) — only these four.
+  * Document palette: steel #2F496F (line, labels, tags), band #CDD3DC (was navy; dark text #16283C on it),
+    band-2 #DDE2E9, sub-text #44566B.
+  * RFQ: js/tools/rfq_template.js is now a readable String.raw HTML template (was base64 of the desktop Word
+    HTML). One 700px table, 7 columns 250/100/60/65/65/65/95, Outlook-safe (bgcolor + inline styles, no classes).
+    rfq.js rfqRenderItemRows rewritten to match those 7 cells. Wording / fields / order unchanged; emoji ticks
+    became a green check mark character; totals highlight is pale gold #FFF4CC (was bright yellow).
+  * PL (pl.js PL_CSS screen + print, and _plXlsxStyles for Excel) and Inventory Sheet (INV_CSS; its Excel shares
+    the PL styles). IPC: IPC_CSS bar + the workbook inside ipc_template.js (xl/styles.xml fill 1F3A5F -> CDD3DC,
+    white font -> 16283C; repacked with Python zipfile and re-encoded).
+  * Checked in the preview: all four previews; IPC workbook re-opens with SheetJS; PL / Inventory Excel parts build.
+    NOT checked: the files opened in real Excel, the RFQ .eml opened in real Outlook, Save-as-PDF print of the PL.
+  * Not touched (still navy / orange in places): CIV, SLI, Placards, DD1149, TOP, PO — offered.
+  Pushed 2026-11-22.

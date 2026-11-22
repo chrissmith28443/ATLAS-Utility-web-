@@ -565,7 +565,10 @@ function printPl() {
 const PL_CSS = `
 :root{
   --ink:#16283C; --ink-2:#23364D; --steel:#5B6B7C; --paper:#EFF1F3;
-  --line:#D4DAE0; --line-soft:#E7EBEF; --accent:#E8590C; --crate:#FBF7F2;
+  --line:#D4DAE0; --line-soft:#E7EBEF; --accent:#2F496F; --crate:#F4F6F8;
+  /* 2.9.17 colours: --accent is the steel blue of the app header (the dark line and the tags);
+     --band is the blue-grey of the request bar, used where the navy blocks were (dark text on it). */
+  --band:#CDD3DC; --band-2:#DDE2E9; --band-ink:#44566B;
   --disp:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
   --body:-apple-system,"Segoe UI",system-ui,Roboto,Arial,sans-serif;
   --mono:"IBM Plex Mono",Consolas,monospace;
@@ -580,24 +583,24 @@ body{ font-family:var(--body); color:var(--ink); padding:18px 14px 40px; }
   box-shadow:0 10px 30px rgba(22,40,60,.10);
 }
 
-/* Header band — dark, so the logo's black field reads as part of it */
+/* Header band — blue-grey with a steel-blue line under it */
 .pl-head{
-  background:var(--ink); color:#fff; display:flex; align-items:center;
+  background:var(--band); color:var(--ink); display:flex; align-items:center;
   justify-content:space-between; gap:20px; padding:18px 24px;
   border-bottom:3px solid var(--accent);
 }
 .pl-brand{ display:flex; flex-direction:column; line-height:1; }
-.pl-brand-1{ font-family:var(--disp); font-weight:700; font-size:30px; letter-spacing:2px; color:#fff; }
+.pl-brand-1{ font-family:var(--disp); font-weight:700; font-size:30px; letter-spacing:2px; color:var(--ink); }
 .pl-brand-2{ font-family:var(--disp); font-weight:500; font-size:12px; letter-spacing:3px;
-  text-transform:uppercase; color:#9FB0C2; margin-top:5px; }
+  text-transform:uppercase; color:var(--band-ink); margin-top:5px; }
 .pl-brand-1.sm{ font-size:20px; letter-spacing:1px; margin-top:6px; }
 .pl-brand-logo{ display:inline-block; background:#fff; border-radius:6px; padding:4px 8px; align-self:flex-start; }
 .pl-brand-logo img{ display:block; max-height:42px; max-width:200px; }
 .pl-ttl{ text-align:right; }
 .pl-ttl h1{ font-family:var(--disp); font-weight:700; letter-spacing:3px; text-transform:uppercase;
   font-size:32px; margin:0; line-height:.95; }
-.pl-ttl .sub{ font-family:var(--mono); font-size:11px; color:#9FB0C2; letter-spacing:1px; margin-top:5px; }
-.pl-ttl .sub b{ color:#fff; font-weight:600; }
+.pl-ttl .sub{ font-family:var(--mono); font-size:11px; color:var(--band-ink); letter-spacing:1px; margin-top:5px; }
+.pl-ttl .sub b{ color:var(--ink); font-weight:600; }
 
 /* Route strip */
 .pl-route{ display:grid; grid-template-columns:1fr 42px 1fr; border-bottom:1px solid var(--line); }
@@ -627,10 +630,10 @@ body{ font-family:var(--body); color:var(--ink); padding:18px 14px 40px; }
 /* Crate card = one parent package */
 .pl-crate{ border:1px solid var(--line); border-radius:9px; overflow:hidden; margin-bottom:15px;
   break-inside:avoid; page-break-inside:avoid; }
-.pl-crate-h{ display:flex; align-items:center; gap:12px; background:var(--ink); color:#fff; padding:10px 15px; }
-.pl-crate.loose .pl-crate-h{ background:var(--ink-2); }
+.pl-crate-h{ display:flex; align-items:center; gap:12px; background:var(--band); color:var(--ink); padding:10px 15px; }
+.pl-crate.loose .pl-crate-h{ background:var(--band-2); }
 .pl-pkgno{ font-family:var(--mono); font-weight:600; font-size:12.5px; letter-spacing:1px;
-  background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.22); padding:3px 9px; border-radius:5px; white-space:nowrap; }
+  background:#fff; border:1px solid #AAB4C3; padding:3px 9px; border-radius:5px; white-space:nowrap; }
 .pl-crate-desc{ font-family:var(--disp); font-size:17px; letter-spacing:.4px; font-weight:600;
   flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pl-tag{ font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.5px;
@@ -663,7 +666,7 @@ table.pl-items th:nth-child(5),table.pl-items td:nth-child(5){ width:9%; }
 table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
 
 /* Footer */
-.pl-foot{ padding:18px 24px 22px; border-top:2px solid var(--ink); margin-top:4px; break-inside:avoid; page-break-inside:avoid; }
+.pl-foot{ padding:18px 24px 22px; border-top:2px solid var(--accent); margin-top:4px; break-inside:avoid; page-break-inside:avoid; }
 .pl-foot-grid{ display:grid; grid-template-columns:1.2fr 1fr; gap:26px; }
 .pl-totals .row{ display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px dotted var(--line); font-size:12.5px; }
 .pl-totals .row:last-child{ border-bottom:0; }
@@ -677,8 +680,7 @@ table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
   background:#FAFBFC; border:1px solid var(--line-soft); border-radius:7px; padding:11px 14px; text-align:justify; }
 
 /* ── Print / Save-as-PDF ──────────────────────────────────────────────────
-   The on-screen scheme stays vivid; print mirrors it in a lighter gray-blue
-   band + softer orange, with smaller type and tighter spacing so the manifest
+   Print uses the same colours as the screen, with smaller type and tighter spacing so the manifest
    fits onto as few US-Letter pages as possible. Pagination keeps structural
    blocks intact, never orphans a package header, never splits a row, and
    repeats the column header on continued pages. */
@@ -697,16 +699,16 @@ table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
   table.pl-items tr{ break-inside:avoid; page-break-inside:avoid; }
   .pl-foot{ break-inside:avoid; page-break-inside:avoid; }
 
-  /* Lighter gray-blue band + softer orange, smaller type, tighter spacing */
-  .pl-head{ background:#647A91; border-bottom:3px solid #E8924F; padding:9px 16px; gap:14px; }
+  /* Same band + line as on screen; smaller type, tighter spacing */
+  .pl-head{ background:#CDD3DC; border-bottom:3px solid #2F496F; padding:9px 16px; gap:14px; }
   .pl-brand-1{ font-size:21px; letter-spacing:1.5px; }
-  .pl-brand-2{ font-size:9px; letter-spacing:2px; color:#D6DEE6; margin-top:3px; }
+  .pl-brand-2{ font-size:9px; letter-spacing:2px; color:#44566B; margin-top:3px; }
   .pl-ttl h1{ font-size:22px; letter-spacing:2px; }
-  .pl-ttl .sub{ font-size:9px; margin-top:3px; color:#D6DEE6; }
+  .pl-ttl .sub{ font-size:9px; margin-top:3px; color:#44566B; }
   .pl-route{ border-bottom:1px solid #CBD3DB; }
   .pl-route .end{ padding:7px 16px; }
   .pl-route.three .end{ padding:7px 11px; }
-  .pl-route .lab{ color:#CC7A36; font-size:9.5px; letter-spacing:1.5px; margin-bottom:2px; }
+  .pl-route .lab{ color:#2F496F; font-size:9.5px; letter-spacing:1.5px; margin-bottom:2px; }
   .pl-route .val{ font-size:10px; line-height:1.3; }
   .pl-route .arrow{ color:#9AA6B2; background:#FAFBFC; }
   .pl-chips{ border-bottom:1px solid #CBD3DB; }
@@ -716,11 +718,11 @@ table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
   .pl-body{ padding:9px 16px 2px; }
   .pl-sec{ font-size:11px; margin:0 0 7px; }
   .pl-crate{ border:1px solid #CBD3DB; border-radius:4px; margin-bottom:7px; }
-  .pl-crate-h{ background:#647A91; padding:4px 11px; gap:9px; }
-  .pl-crate.loose .pl-crate-h{ background:#7C8CA0; }
+  .pl-crate-h{ background:#CDD3DC; padding:4px 11px; gap:9px; }
+  .pl-crate.loose .pl-crate-h{ background:#DDE2E9; }
   .pl-pkgno{ font-size:10px; padding:1px 7px; }
   .pl-crate-desc{ font-size:13px; letter-spacing:.3px; }
-  .pl-tag{ background:#E8924F; font-size:9px; padding:1px 7px; }
+  .pl-tag{ background:#2F496F; font-size:9px; padding:1px 7px; }
   .pl-crate-m{ background:#F4F6F8; }
   .pl-crate-m .cell{ padding:3px 11px; border-right:1px solid #E1E6EB; }
   .pl-crate-m .k{ font-size:8px; }
@@ -729,7 +731,7 @@ table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
   table.pl-items td{ font-size:9.5px; padding:3px 11px; border-bottom:1px solid #E7EBEF; }
   .pl-mono{ font-size:9px; }
   table.pl-items td.pl-num{ font-size:9px; }
-  .pl-foot{ padding:9px 16px 12px; border-top:2px solid #647A91; }
+  .pl-foot{ padding:9px 16px 12px; border-top:2px solid #2F496F; }
   .pl-foot-grid{ gap:20px; }
   .pl-totals .row{ padding:2px 0; font-size:9.5px; }
   .pl-sign .lab{ font-size:9.5px; }
@@ -775,10 +777,10 @@ function _plXlsxStyles() {
   const fonts = [
     `<font><sz val="10"/><name val="Calibri"/><color rgb="FF1B2A3A"/></font>`,                 // 0 default
     `<font><b/><sz val="10"/><name val="Calibri"/><color rgb="FF1B2A3A"/></font>`,              // 1 bold
-    `<font><b/><sz val="16"/><name val="Calibri"/><color rgb="FFFFFFFF"/></font>`,              // 2 white bold 16
-    `<font><sz val="9"/><name val="Calibri"/><color rgb="FFDDE4EA"/></font>`,                   // 3 white-ish 9
+    `<font><b/><sz val="16"/><name val="Calibri"/><color rgb="FF16283C"/></font>`,              // 2 band title, bold 16 (dark on the blue-grey band)
+    `<font><sz val="9"/><name val="Calibri"/><color rgb="FF44566B"/></font>`,                   // 3 band sub-text 9
     `<font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF566B81"/></font>`,              // 4 gray-blue bold 11
-    `<font><b/><sz val="11"/><name val="Calibri"/><color rgb="FFFFFFFF"/></font>`,              // 5 white bold 11
+    `<font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF16283C"/></font>`,              // 5 group head, bold 11 (dark on the band)
     `<font><b/><sz val="8"/><name val="Calibri"/><color rgb="FF566B81"/></font>`,               // 6 label bold 8
     `<font><sz val="9"/><name val="Calibri"/><color rgb="FF5B6B7C"/></font>`,                   // 7 gray 9
     `<font><b/><sz val="12"/><name val="Calibri"/><color rgb="FF1B2A3A"/></font>`,              // 8 bold 12
@@ -789,10 +791,10 @@ function _plXlsxStyles() {
   const fills = [
     `<fill><patternFill patternType="none"/></fill>`,                                            // 0
     `<fill><patternFill patternType="gray125"/></fill>`,                                         // 1
-    `<fill><patternFill patternType="solid"><fgColor rgb="FF647A91"/></patternFill></fill>`,     // 2 band gray-blue
+    `<fill><patternFill patternType="solid"><fgColor rgb="FFCDD3DC"/></patternFill></fill>`,     // 2 band blue-grey
     `<fill><patternFill patternType="solid"><fgColor rgb="FFEAEEF2"/></patternFill></fill>`,     // 3 header light
     `<fill><patternFill patternType="solid"><fgColor rgb="FFF4F6F8"/></patternFill></fill>`,     // 4 manifest light
-    `<fill><patternFill patternType="solid"><fgColor rgb="FFE8924F"/></patternFill></fill>`,     // 5 tag orange
+    `<fill><patternFill patternType="solid"><fgColor rgb="FF2F496F"/></patternFill></fill>`,     // 5 tag steel blue (white text)
   ];
   const thin = `<left style="thin"><color rgb="FFD0D7DE"/></left><right style="thin"><color rgb="FFD0D7DE"/></right><top style="thin"><color rgb="FFD0D7DE"/></top><bottom style="thin"><color rgb="FFD0D7DE"/></bottom><diagonal/>`;
   const borders = [

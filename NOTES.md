@@ -638,3 +638,16 @@ Arrived Warehouse or the warehouse actual date is filled.
   cop.js copSwapInMetrics carry `sel`. He first asked to rename "FY First/Second Half" to "Current / Previous FY
   Half" — superseded by the chips in the same message.
   Pushed 2026-11-22.
+- v2.9.9 (user, 2026-11-22): TOP BAR — #compareBtn / #historyBtn removed (Settings > new "Tools" section opens
+  openCompare / openHistory after closing Settings); #consolBtn removed (Fetch menu button #apConsol -> openConsol).
+  Fetch menu: no Metrics button. PMR + Export-Controlled use the shared mxDrawWindowPicker(host, st, onChange)
+  (metrics_dashboard.js; state in PmrUi.win / EcmUi.win, default mxCurrentHalfDefault(); every pick runs; PMR now
+  runs on open; the old FY / Quarter selects, date boxes and Run buttons are gone). Procurement lanes = the PLS four
+  hues (PM_PR_LANES via pmLaneDef; weekly slide uses the light value `lt`). Procurement / Property tables got the
+  PLS tools (filter row, search in the table heading, columns icon); the filter-bar search box is gone on all three.
+  PLS small tiles: all off by default (PM_VIEW_OFF.pls).
+  Shipments filter row (same day): "More" <details> + RDD filter removed (CopUi.rddDays forced to 0); Day limits =
+  gear icon #copLimits at the right of the row (In progress only) -> .copx-limbox panel. Rail button says just "Dashboard".
+  Tile rule (user): a small tile and a larger card must never show the same thing at once. PM_VIEW_OFF now also
+  hides proc t:open and prop t:open / t:out / t:o30 (duplicates of the heading, a step card, the TOP backlog panel).
+  Pushed 2026-11-22.

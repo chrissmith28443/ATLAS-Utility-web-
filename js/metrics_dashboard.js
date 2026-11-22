@@ -88,6 +88,64 @@ function mxWindowFor(sel, cur) {
   const q = [null, [fy - 1, 10, 1, fy - 1, 12, 31], [fy, 1, 1, fy, 3, 31], [fy, 4, 1, fy, 6, 30], [fy, 7, 1, fy, 9, 30]][sel.part] || [fy - 1, 10, 1, fy - 1, 12, 31];
   return { start: iso(q[0], q[1], q[2]), end: iso(q[3], q[4], q[5]), label: `FY${fy} · Q${sel.part || 1}`, quick: `fy${fy}q${sel.part || 1}` };
 }
+/** The reporting-window chips, shared by Metrics, PMR and Export-Controlled.
+    `st` = { sel, start, end, label, quick, _warn } and is changed in place;
+    onChange() runs after a pick (or Apply on Custom). Picking Custom only opens
+    the two date boxes, pre-filled with the window on screen — nothing changes
+    until Apply. */
+function mxDrawWindowPicker(host, st, onChange) {
+  if (!host) return;
+  const sel = st.sel || (st.sel = mxCurrentSel());
+  const cfy = pmrCurrentFiscalYear();
+  const dated = sel.span === "year" || sel.span === "half" || sel.span === "qtr";
+  const chip = (attr, val, label, on, title) => `<button type="button" class="mx-pk ${on ? "on" : ""}" data-${attr}="${val}" aria-pressed="${!!on}" ${title ? `title="${esc(title)}"` : ""}>${esc(label)}</button>`;
+  const group = (label, html, cls) => `<div class="mx-pks ${cls || ""}" role="group" aria-label="${esc(label)}">${html}</div>`;
+  host.innerHTML =
+    group("Fiscal year", chip("fy", cfy, `FY${cfy}`, dated && sel.fy === cfy, "Current fiscal year") + chip("fy", cfy - 1, `FY${cfy - 1}`, dated && sel.fy === cfy - 1, "Previous fiscal year")) +
+    group("Period", chip("span", "year", "Full year", sel.span === "year") + chip("span", "half", "Half", sel.span === "half") + chip("span", "qtr", "Quarter", sel.span === "qtr")) +
+    (sel.span === "half" ? group("Which half", chip("part", 1, "1st half", sel.part === 1, "October – March") + chip("part", 2, "2nd half", sel.part === 2, "April – September")) : "") +
+    (sel.span === "qtr" ? group("Which quarter", [["Q1", "October – December"], ["Q2", "January – March"], ["Q3", "April – June"], ["Q4", "July – September"]]
+      .map(([l, t], i) => chip("part", i + 1, l, sel.part === i + 1, t)).join("")) : "") +
+    group("Other ranges", chip("span", "all", "All time", sel.span === "all") + chip("span", "custom", "Custom", sel.span === "custom", "Pick your own start and end dates"), "end") +
+    (sel.span === "custom" ? `<div class="mx-customrow">
+        <div class="field"><label>Start<input type="date" class="mx-d1" value="${esc(st.start || "")}"></label></div>
+        <div class="field"><label>End<input type="date" class="mx-d2" value="${esc(st.end || "")}"></label></div>
+        <div class="field mx-applycell"><button class="btn primary mx-apply" type="button">Apply</button></div>
+        ${st._warn ? `<div class="statusline err" style="grid-column:1 / -1">${esc(st._warn)}</div>` : ""}
+      </div>` : "");
+  const redraw = () => mxDrawWindowPicker(host, st, onChange);
+  const pick = (next) => {
+    const s = Object.assign({}, sel, next);
+    st._warn = "";
+    if (s.span === "custom") { st.sel = s; redraw(); return; }        // dates first, then Apply
+    if (s.span === "year" || s.span === "half" || s.span === "qtr") {
+      if (!dated && next.fy === undefined) s.fy = cfy;                       // coming back from All time / Custom
+      // Switching between Half and Quarter (or coming from All time / Custom) starts on the current one
+      // for the current FY, the first one for the previous FY. Changing only the year keeps the pick.
+      if (s.span !== sel.span || !dated) {
+        if (s.span === "half") s.part = s.fy === cfy ? mxCurrentSel().part : 1;
+        if (s.span === "qtr") s.part = s.fy === cfy ? mxCurrentQuarter() : 1;
+      }
+      if (next.part) s.part = next.part;
+    }
+    st.sel = s;
+    const w = mxWindowFor(s, st);
+    Object.assign(st, { start: w.start, end: w.end, label: w.label, quick: w.quick });
+    onChange();
+  };
+  host.querySelectorAll("[data-fy]").forEach((b) => b.addEventListener("click", () => pick({ fy: Number(b.dataset.fy), span: dated ? sel.span : "half" })));
+  host.querySelectorAll("[data-span]").forEach((b) => b.addEventListener("click", () => pick({ span: b.dataset.span })));
+  host.querySelectorAll("[data-part]").forEach((b) => b.addEventListener("click", () => pick({ part: Number(b.dataset.part) })));
+  const ap = host.querySelector(".mx-apply");
+  if (ap) ap.addEventListener("click", () => {
+    const s = host.querySelector(".mx-d1").value, e = host.querySelector(".mx-d2").value;
+    if (!s || !e) { st._warn = "Pick both a start and an end date."; redraw(); return; }
+    if (s > e) { st._warn = "Start date is after end date."; redraw(); return; }
+    st._warn = "";
+    Object.assign(st, { quick: "custom", start: s, end: e, label: s + " → " + e });
+    onChange();
+  });
+}
 function mxCurrentHalfDefault() {
   const sel = mxCurrentSel();
   const w = mxWindowFor(sel);
@@ -540,57 +598,8 @@ function renderMetricsDashboard(dash) {
   mxRenderDocsSection(hDocs);
   mxRenderConsolSection(hConsol);
 
-  /* ---- reporting-window chips ---- */
-  function drawPicker() {
-    const host = control.querySelector("#mxPick");
-    const sel = MetricsUi.sel || (MetricsUi.sel = mxCurrentSel());
-    const cfy = pmrCurrentFiscalYear();
-    const dated = sel.span === "year" || sel.span === "half" || sel.span === "qtr";
-    const chip = (attr, val, label, on, title) => `<button type="button" class="mx-pk ${on ? "on" : ""}" data-${attr}="${val}" aria-pressed="${!!on}" ${title ? `title="${esc(title)}"` : ""}>${esc(label)}</button>`;
-    const group = (label, html) => `<div class="mx-pks" role="group" aria-label="${esc(label)}">${html}</div>`;
-    host.innerHTML =
-      group("Fiscal year", chip("fy", cfy, `FY${cfy}`, dated && sel.fy === cfy, "Current fiscal year") + chip("fy", cfy - 1, `FY${cfy - 1}`, dated && sel.fy === cfy - 1, "Previous fiscal year")) +
-      group("Period", chip("span", "year", "Full year", sel.span === "year") + chip("span", "half", "Half", sel.span === "half") + chip("span", "qtr", "Quarter", sel.span === "qtr")) +
-      (sel.span === "half" ? group("Which half", chip("part", 1, "1st half", sel.part === 1, "October – March") + chip("part", 2, "2nd half", sel.part === 2, "April – September")) : "") +
-      (sel.span === "qtr" ? group("Which quarter", [["Q1", "October – December"], ["Q2", "January – March"], ["Q3", "April – June"], ["Q4", "July – September"]]
-        .map(([l, t], i) => chip("part", i + 1, l, sel.part === i + 1, t)).join("")) : "") +
-      `<div class="mx-pks end" role="group" aria-label="Other ranges">${chip("span", "all", "All time", sel.span === "all")}${chip("span", "custom", "Custom", sel.span === "custom", "Pick your own start and end dates")}</div>` +
-      (sel.span === "custom" ? `<div class="mx-customrow">
-          <div class="field"><label for="mxStart">Start</label><input type="date" id="mxStart" value="${esc(MetricsUi.start || "")}"></div>
-          <div class="field"><label for="mxEnd">End</label><input type="date" id="mxEnd" value="${esc(MetricsUi.end || "")}"></div>
-          <div class="field mx-applycell"><button class="btn primary" id="mxApply" type="button">Apply</button></div>
-          ${MetricsUi._warn ? `<div class="statusline err" style="grid-column:1 / -1">${esc(MetricsUi._warn)}</div>` : ""}
-        </div>` : "");
-    const pick = (next) => {
-      const s = Object.assign({}, sel, next);
-      if (s.span === "year" || s.span === "half" || s.span === "qtr") {
-        if (!dated && next.fy === undefined) s.fy = cfy;                       // coming back from All time / Custom
-        // Switching between Half and Quarter (or coming from All time / Custom) starts on the current one
-        // for the current FY, the first one for the previous FY. Changing only the year keeps the pick.
-        if (s.span !== sel.span || !dated) {
-          if (s.span === "half") s.part = s.fy === cfy ? mxCurrentSel().part : 1;
-          if (s.span === "qtr") s.part = s.fy === cfy ? mxCurrentQuarter() : 1;
-        }
-        if (next.part) s.part = next.part;
-      }
-      MetricsUi.sel = s; MetricsUi._warn = "";
-      const w = mxWindowFor(s, MetricsUi);
-      Object.assign(MetricsUi, { start: w.start, end: w.end, label: w.label, quick: w.quick });
-      repaint();
-    };
-    host.querySelectorAll("[data-fy]").forEach((b) => b.addEventListener("click", () => pick({ fy: Number(b.dataset.fy), span: dated ? sel.span : "half" })));
-    host.querySelectorAll("[data-span]").forEach((b) => b.addEventListener("click", () => pick({ span: b.dataset.span })));
-    host.querySelectorAll("[data-part]").forEach((b) => b.addEventListener("click", () => pick({ part: Number(b.dataset.part) })));
-    const ap = host.querySelector("#mxApply");
-    if (ap) ap.addEventListener("click", () => {
-      const s = host.querySelector("#mxStart").value, e = host.querySelector("#mxEnd").value;
-      if (!s || !e) { MetricsUi._warn = "Pick both a start and an end date."; drawPicker(); return; }
-      if (s > e) { MetricsUi._warn = "Start date is after end date."; drawPicker(); return; }
-      MetricsUi._warn = "";
-      Object.assign(MetricsUi, { quick: "custom", start: s, end: e, label: s + " → " + e });
-      repaint();
-    });
-  }
+  /* ---- reporting-window chips (shared picker) ---- */
+  function drawPicker() { mxDrawWindowPicker(control.querySelector("#mxPick"), MetricsUi, repaint); }
 
   const repaint = () => {
     document.getElementById("mxWindowLabel").textContent = MetricsUi.label;

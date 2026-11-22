@@ -288,6 +288,15 @@ function openSettings() {
         </header>
         <div class="settings-body">
           <div class="settings-section">
+            <h3>Tools</h3>
+            <div class="settings-checks" style="gap:10px;flex-direction:row;flex-wrap:wrap;">
+              <button class="btn ghost" id="setOpenCompare" type="button">Compare UDQs&hellip;</button>
+              <button class="btn ghost" id="setOpenHistory" type="button">Run history&hellip;</button>
+            </div>
+            <div class="settings-note">Less-used tools, moved here from the top bar.</div>
+          </div>
+
+          <div class="settings-section">
             <h3>Packet defaults</h3>
             <div class="settings-grid">
               <div class="settings-field span2">
@@ -503,6 +512,13 @@ function openSettings() {
 
   // Install app (moved here from the header). Hidden when already running as an
   // installed/standalone app.
+  // Tools that used to be icons in the top bar: close Settings, then open the tool.
+  const openTool = (sel, name) => {
+    const b = overlay.querySelector(sel);
+    if (b) b.addEventListener("click", () => { closeSettings(); if (typeof window[name] === "function") window[name](); });
+  };
+  openTool("#setOpenCompare", "openCompare");
+  openTool("#setOpenHistory", "openHistory");
   const installBtn = overlay.querySelector("#setInstallApp");
   const appSection = overlay.querySelector("#setAppSection");
   if (installBtn && window.AtlasPWA) {

@@ -2025,6 +2025,8 @@ tr.copx-det td{background:var(--ax-soft)}
 .copx-tbl td{padding:8px 12px}
 .copx-trk tr.flt th.stick{z-index:3}
 .copx-ibtn.on{background:var(--ax-blue-soft);color:var(--ax-blue)}
+.copx-filters .copx-frow{flex:1 1 100%}
+.copx-limbox{flex:1 1 100%;background:var(--ax-soft);border:1px solid var(--ax-line);border-radius:10px;padding:10px 14px}
 .copx-hd .acts{align-items:center}
 .copx-ibtn.go{color:var(--ax-green);margin-left:-8px}
 .copx-ibtn.go:hover:not(:disabled){background:var(--ax-green-soft);color:var(--ax-green)}
@@ -2209,9 +2211,10 @@ function copWireTop(root) {
   if (rf) rf.addEventListener("click", () => copAutoFetch(true));
 }
 
-/** Filters: TTI POC always in view (plus Metric hits / needs-attention on the
-    Closed audit); "More" holds the rest (RDD, day limits). No search box — the
-    table's own column filters do that. */
+/** Filters: TTI POC (plus Metric hits / needs-attention on the Closed audit). No
+    search box — the table's own column filters do that. The gear at the right
+    of the row opens the Day limits (time-in-step flags); the old "More"
+    dropdown and its RDD filter are gone (2.9.9). */
 function copFilterPanel(built, all) {
   const prefs = copGetPrefs();
   // TTI POC choices come from the shipments in this view only.
@@ -2231,29 +2234,23 @@ function copFilterPanel(built, all) {
   const stuckRows = Object.keys(COP_STUCK_DEFAULTS).map((k) => `<div>${esc(COP_STUCK_LABELS[k])}:
       amber<input type="number" min="1" max="200" data-k="${k}" data-i="0" value="${prefs.stuck[k][0]}">
       red<input type="number" min="1" max="200" data-k="${k}" data-i="1" value="${prefs.stuck[k][1]}"></div>`).join("");
-  const more = (CopUi.rddDays ? 1 : 0);
+  CopUi.rddDays = 0;                     // the RDD filter is gone (2.9.9) — make sure none is left switched on
   return el(`<div class="copx-filters">
     <div class="copx-frow">
       <select id="copPoc" class="copx-sel" aria-label="TTI POC">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select>
       ${isActive ? "" : `<select id="copHit" class="copx-sel" aria-label="Metric hits">${hitOpts}</select>
       <label class="copx-chk"><input type="checkbox" id="copRisk" ${CopUi.atRisk ? "checked" : ""}> Needs attention only</label>`}
       <button class="copx-btn ghost sm" id="copReset" type="button">Reset</button>
+      <span class="copx-msg" id="copMsg">${esc(CopUi.msg)}</span>
+      ${isActive ? `<button class="copx-ibtn ${CopUi.settingsOpen ? "on" : ""}" id="copLimits" type="button" style="margin-left:auto" aria-expanded="${!!CopUi.settingsOpen}"
+        title="Day limits — flag shipments that sit too long in a step${prefs.stuckOn ? " (on)" : " (off)"}" aria-label="Day limits settings">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>` : ""}
     </div>
-    <details class="copx-filter"${CopUi.filterOpen ? " open" : ""}>
-      <summary>More${more ? ` <span class="copx-pill b" style="margin-left:6px">${more} on</span>` : ""}<span class="chev" aria-hidden="true" style="margin-left:4px">▾</span></summary>
-      <div class="fbody">
-        <div class="copx-f"><label for="copRdd">RDD</label><select id="copRdd">
-          ${[[0, "Any"], [-1, "Past RDD"], [7, "Within 7 days"], [14, "Within 14 days"], [30, "Within 30 days"]].map(([v, t]) => opt(v, t, CopUi.rddDays === v)).join("")}</select></div>
-        <div class="copx-sub">
-          <button class="lnk" id="copLimits" type="button">${CopUi.settingsOpen ? "Hide day limits" : "Day limits"}</button>
-          <span class="copx-msg" id="copMsg">${esc(CopUi.msg)}</span>
-        </div>
-        ${CopUi.settingsOpen ? `<div class="copx-limits"><label class="copx-chk" style="grid-column:1 / -1"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}>
-          Flag shipments that sit in a step longer than these limits (off by default — only the RFQ timeline is flagged)</label>${prefs.stuckOn ? stuckRows + `<div><button class="lnk" id="copStuckReset" type="button">Reset day limits</button></div>` : ""}</div>` : ""}
-      </div>
-    </details>
+    ${isActive && CopUi.settingsOpen ? `<div class="copx-limits copx-limbox"><label class="copx-chk" style="grid-column:1 / -1"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}>
+      Flag shipments that sit in a step longer than these limits (off by default — only the RFQ timeline is flagged)</label>${prefs.stuckOn ? stuckRows + `<div><button class="lnk" id="copStuckReset" type="button">Reset day limits</button></div>` : ""}</div>` : ""}
   </div>`);
 }
+
 /* =========================================================================
    TRACKER VIEW (2.9.0) — the Ops Tracker, straight from ATLAS. One row per
    shipment that's in progress or was delivered on / after COP_FIELDS_FROM_ISO,
@@ -3463,12 +3460,9 @@ function copWire(root, built, rows, isActive) {
   copWireTop(root);
 
   // filter panel
-  const det = $(".copx-filter");
-  det.addEventListener("toggle", () => { CopUi.filterOpen = det.open; });
   const prefSet = (fn) => { const p = copGetPrefs(); fn(p); copSetPrefs(p); copRerender(); };
   $("#copPoc").addEventListener("change", (e) => { CopUi.poc = e.target.value; copRerender(); });
   if ($("#copHit")) $("#copHit").addEventListener("change", (e) => { CopUi.hit = e.target.value; copRerender(); });
-  $("#copRdd").addEventListener("change", (e) => { CopUi.rddDays = Number(e.target.value) || 0; copRerender(); });
   if ($("#copRisk")) $("#copRisk").addEventListener("change", (e) => { CopUi.atRisk = e.target.checked; copRerender(); });
   root.querySelectorAll(".copx-today button[data-quick]").forEach((b) => b.addEventListener("click", () => {
     const k = b.dataset.quick;
@@ -3483,7 +3477,7 @@ function copWire(root, built, rows, isActive) {
     const st = copTblState(isActive); st.f = {}; st.sort = "";
     copRerender();
   });
-  $("#copLimits").addEventListener("click", () => { CopUi.settingsOpen = !CopUi.settingsOpen; CopUi.filterOpen = true; copRerender(); });
+  if ($("#copLimits")) $("#copLimits").addEventListener("click", () => { CopUi.settingsOpen = !CopUi.settingsOpen; copRerender(); });
   root.querySelectorAll(".copx-limits input[type=number]").forEach((inp) => inp.addEventListener("change", () => {
     const p = copGetPrefs();
     const k = inp.dataset.k, i = Number(inp.dataset.i);
@@ -3784,11 +3778,11 @@ function copHubSelect(id) {
 }
 function copRailButton() {
   const btn = el(`
-    <button class="rail-cop ${copHubActive() ? "active" : ""}" type="button" title="Dashboard — Common Operational Picture (COP): shipments, metrics, PMR, Christmas Tree">
+    <button class="rail-cop ${copHubActive() ? "active" : ""}" type="button" title="Dashboard — shipments, procurement, property, PLS and metrics">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="10" rx="1"/><rect x="17" y="4" width="4" height="6" rx="1"/>
       </svg>
-      <span><span class="t">Dashboard</span><span class="s">Common Operational Picture (COP)</span></span>
+      <span><span class="t">Dashboard</span></span>
     </button>`);
   // Every UDQ the Dashboard uses starts pulling at once: Metrics (copAutoFetch) + PR, PMCT, PLS (pmAutoPull).
   btn.addEventListener("click", () => {

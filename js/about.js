@@ -13,6 +13,21 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.9",
+    title: "Tidier top bar; one date picker and one set of table tools everywhere",
+    notes: [
+      "Top bar: Compare UDQs and Run history moved into Settings (new Tools section at the top). Consolidated shipment moved into the Fetch menu.",
+      "The Dashboard button in the left menu just says Dashboard.",
+      "Shipments: the \"More\" dropdown and its RDD filter are gone. Day limits open from a small gear at the right of the filter row.",
+      "Fetch menu: the Metrics button is gone \u2014 the Dashboard pulls the whole UDQ itself when it opens.",
+      "PMR and Export-Controlled use the same date picker as Metrics: fiscal year, then Full year / Half / Quarter, then which one; All time and Custom at the right. Each pick runs the report straight away, and both open on the current fiscal year's current half.",
+      "Procurement steps use the same four colours as PLS (violet, yellow, blue, green) on the step cards, the buyer chart, the table and the weekly slide.",
+      "Procurement and Property tables have the filter row, the search box in the table heading and the columns icon, like PLS.",
+      "Procurement and Property: small tiles that only repeat a number already on screen are off by default (Open PRs; Open TOPs, Out for signature, Out > 30 days). The ones that add something stay. View settings can bring any back.",
+      "PLS: the last three small tiles are off by default; the step cards carry the picture. View settings can bring any of them back.",
+    ],
+  },
+  {
     version: "2.9.8",
     title: "PLS chart, colours and table tools; simpler Metrics date picker",
     notes: [

@@ -346,16 +346,10 @@ function ecmStamp() {
    Workspace UI
    ========================================================================= */
 
-const EcmUi = { result: null };
+const EcmUi = { result: null, win: null };   // win = reporting window { sel, start, end, label, … }
 
 function renderEcmWorkspace(container) {
   EcmUi.result = null;
-
-  const thisYear = new Date().getFullYear();
-  const years = [];
-  for (let y = thisYear - 3; y <= thisYear + 1; y++) years.push(y);
-  const yearOpts = years.map((y) => `<option value="${y}">${y}</option>`).join("");
-  const periodOpts = REQATT_PERIODS.map((p) => `<option value="${p}">${esc(p)}</option>`).join("");
 
   const panel = el(`
     <div class="panel">
@@ -370,25 +364,7 @@ function renderEcmWorkspace(container) {
           (12 columns, one row per controlled line item).
         </div>
 
-        <div class="pmr-quick">
-          <label class="pmr-qlabel">Quick window</label>
-          <div class="btnrow"><button class="btn ghost" id="ecmAllTime">All Time</button></div>
-          <div class="hint">"All Time" scans every WMTR in the UDQ, ignoring the fiscal period.</div>
-        </div>
-
-        <div class="pmr-window">
-          <div class="field">
-            <label for="ecmFy">Fiscal year</label>
-            <select id="ecmFy" data-fc-skip>${yearOpts}</select>
-          </div>
-          <div class="field">
-            <label for="ecmPeriod">Period</label>
-            <select id="ecmPeriod" data-fc-skip>${periodOpts}</select>
-          </div>
-          <div class="field pmr-runcell">
-            <button class="btn primary" id="ecmRun">Run</button>
-          </div>
-        </div>
+        <div class="mx-pick" id="ecmPick" title="WMTRs are filtered by Delivery Date. All time scans every WMTR in the UDQ, ignoring dates."></div>
 
         <div class="btnrow">
           <button class="btn primary" id="ecmGen" disabled>Generate list (.xlsx)</button>
@@ -407,24 +383,13 @@ function renderEcmWorkspace(container) {
     </div>`);
   container.appendChild(panel);
 
-  panel.querySelector("#ecmFy").value = String(thisYear);
-  panel.querySelector("#ecmPeriod").value = reqattCurrentQtrLabel();
-
-  // Quick-window highlight, consistent with the Metrics tool.
-  const ecmClearQuick = () => panel.querySelector("#ecmAllTime").classList.remove("active");
-
-  panel.querySelector("#ecmRun").addEventListener("click", () => { ecmClearQuick(); runEcmScan(); });
-  panel.querySelector("#ecmPeriod").addEventListener("change", ecmClearQuick);
-  panel.querySelector("#ecmFy").addEventListener("change", ecmClearQuick);
-  panel.querySelector("#ecmAllTime").addEventListener("click", () => {
-    panel.querySelector("#ecmPeriod").value = "Show All";
-    panel.querySelector("#ecmAllTime").classList.add("active");
-    runEcmScan();
-  });
+  // Reporting window: the same chips as the Metrics and PMR tabs. Every pick re-runs the scan.
+  const win = EcmUi.win || (EcmUi.win = Object.assign({ _warn: "" }, mxCurrentHalfDefault()));
+  const run = () => { mxDrawWindowPicker(panel.querySelector("#ecmPick"), win, run); runEcmScan(); };
   panel.querySelector("#ecmGen").addEventListener("click", generateEcm);
   panel.querySelector("#ecmCopy").addEventListener("click", copyEcm);
 
-  runEcmScan();
+  run();
 }
 
 function runEcmScan() {
@@ -432,12 +397,10 @@ function runEcmScan() {
   const summary = document.getElementById("ecmSummary");
   status.classList.remove("err");
 
-  const fy = Number(document.getElementById("ecmFy").value);
-  const period = document.getElementById("ecmPeriod").value;
-  const win = reqattPeriodDates(fy, period);          // [start,end] or null (Show All)
-  const start = win ? win[0] : null;
-  const end = win ? win[1] : null;
-  const windowText = win ? `${start} to ${end}` : "All WMTRs (no date filter)";
+  const w = EcmUi.win || {};
+  const start = w.start || null, end = w.end || null;     // null / null = All time
+  const win = start && end;
+  const windowText = win ? `${w.label && !/→/.test(w.label) ? w.label + " · " : ""}${start} to ${end}` : "All WMTRs (no date filter)";
 
   try {
     const result = ecmBuildResult(AppState.grid, start, end);

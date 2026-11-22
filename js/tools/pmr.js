@@ -1079,14 +1079,10 @@ function pmrDownloadXlsxB64(b64, fname) {
    Workspace UI
    ========================================================================= */
 
-const PmrUi = { result: null, ignoreOpen: false };
+const PmrUi = { result: null, ignoreOpen: false, win: null };   // win = reporting window { sel, start, end, label, … }
 
 function renderPmrWorkspace(container) {
   PmrUi.result = null;
-
-  const fy = pmrCurrentFiscalYear();
-  const yearOpts = pmrBuildYearList().map((y) => `<option value="${y}">${y}</option>`).join("");
-  const qtrOpts = PMR_QTRS.map((q) => `<option value="${q}">${esc(q)}</option>`).join("");
 
   const panel = el(`
     <div class="panel">
@@ -1100,43 +1096,7 @@ function renderPmrWorkspace(container) {
           single section.
         </div>
 
-        <div class="pmr-quick">
-          <label class="pmr-qlabel">Quick windows</label>
-          <div class="btnrow" style="flex-wrap:wrap;gap:6px;">
-            <button class="btn ghost" data-quick="cq">Current Qtr</button>
-            <button class="btn ghost" data-quick="pq">Previous Qtr</button>
-            <button class="btn ghost" data-quick="cfy">Current FY</button>
-            <button class="btn ghost" data-quick="pfy">Previous FY</button>
-            <button class="btn ghost" data-quick="h1">FY First Half</button>
-            <button class="btn ghost" data-quick="h2">FY Second Half</button>
-            <button class="btn ghost" data-quick="all">All Time</button>
-          </div>
-          <div class="hint">Fiscal year starts Oct 1. Quick buttons fill the dates and run immediately. "All Time" reports on every delivered WMTR, ignoring the date window.</div>
-        </div>
-
-        <div class="pmr-window">
-          <div class="field">
-            <label for="pmrFy">Fiscal year</label>
-            <select id="pmrFy" data-fc-skip>${yearOpts}</select>
-          </div>
-          <div class="field">
-            <label for="pmrQtr">Quarter</label>
-            <select id="pmrQtr" data-fc-skip>${qtrOpts}</select>
-          </div>
-          <div class="pmr-spacer"></div>
-
-          <div class="field">
-            <label for="pmrStart">Start</label>
-            <input type="date" id="pmrStart">
-          </div>
-          <div class="field">
-            <label for="pmrEnd">End</label>
-            <input type="date" id="pmrEnd">
-          </div>
-          <div class="field pmr-runcell">
-            <button class="btn primary" id="pmrRun">Run report</button>
-          </div>
-        </div>
+        <div class="mx-pick" id="pmrPick" title="Fiscal year starts Oct 1. All time reports on every delivered WMTR, ignoring dates."></div>
 
         <div class="btnrow">
           <button class="btn primary" id="pmrExportAll" disabled>Export full PMR (.xlsx)</button>
@@ -1149,54 +1109,15 @@ function renderPmrWorkspace(container) {
   container.appendChild(panel);
 
   const g = (id) => panel.querySelector("#" + id);
-  g("pmrFy").value = String(fy);
-  g("pmrQtr").value = pmrCurrentQuarterLabel();
-
-  // Seed the custom dates from the current FY/Qtr selection.
-  const applyFyQtr = () => {
-    const [s, e] = pmrQuarterDates(Number(g("pmrFy").value), g("pmrQtr").value);
-    g("pmrStart").value = s; g("pmrEnd").value = e;
-    pmrClearActiveQuick();
+  // Reporting window: the same chips as the Metrics tab (fiscal year -> full year / half / quarter ->
+  // which one; All time; Custom). Every pick runs the report. Opens on the current FY's current half
+  // and keeps the pick while the Utility stays open.
+  const win = PmrUi.win || (PmrUi.win = Object.assign({ _warn: "" }, mxCurrentHalfDefault()));
+  const run = () => {
+    mxDrawWindowPicker(g("pmrPick"), win, run);
+    executePmr(win.start || null, win.end || null);
   };
-
-  g("pmrFy").addEventListener("change", applyFyQtr);
-  g("pmrQtr").addEventListener("change", applyFyQtr);
-
-  const setWindow = (info) => {
-    g("pmrStart").value = info.start; g("pmrEnd").value = info.end;
-    g("pmrFy").value = String(info.fy); g("pmrQtr").value = info.qtr;
-  };
-
-  /** Highlight the quick button whose window is active (matches the Metrics
-      tool), and clear it when the window is set another way. */
-  function pmrClearActiveQuick() {
-    panel.querySelectorAll("[data-quick].active").forEach((b) => b.classList.remove("active"));
-  }
-  function pmrMarkActiveQuick(key) {
-    pmrClearActiveQuick();
-    const b = panel.querySelector(`[data-quick="${key}"]`);
-    if (b) b.classList.add("active");
-  }
-
-  // Default the reporting window to the current fiscal half on open.
-  const _half = pmrCurrentHalfDates();
-  setWindow(_half);
-  pmrMarkActiveQuick(pmrToday().mo >= 10 || pmrToday().mo <= 3 ? "h1" : "h2");
-
-  const quickMap = {
-    cq: pmrCurrentQtrDates, pq: pmrPreviousQtrInfo, cfy: pmrCurrentFyDates,
-    pfy: pmrPreviousFyDates, h1: pmrFirstHalfDates, h2: pmrSecondHalfDates,
-  };
-  panel.querySelectorAll("[data-quick]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.quick === "all") { pmrMarkActiveQuick("all"); runPmrAllTime(); return; }
-      setWindow(quickMap[btn.dataset.quick]());
-      pmrMarkActiveQuick(btn.dataset.quick);
-      runPmrReport();
-    });
-  });
-
-  g("pmrRun").addEventListener("click", () => { pmrClearActiveQuick(); runPmrReport(); });
+  run();
   g("pmrExportAll").addEventListener("click", exportPmrFull);
 }
 
@@ -1226,16 +1147,6 @@ function executePmr(start, end) {
     status.textContent = `Could not run PMR: ${e.message}`;
     status.classList.add("err");
   }
-}
-
-function runPmrReport() {
-  const status = document.getElementById("pmrStatus");
-  status.classList.remove("err");
-  const start = document.getElementById("pmrStart").value;
-  const end = document.getElementById("pmrEnd").value;
-  if (!start || !end) { status.textContent = "Pick a start and end date."; status.classList.add("err"); return; }
-  if (start > end) { status.textContent = "Start date is after end date."; status.classList.add("err"); return; }
-  executePmr(start, end);
 }
 
 function runPmrAllTime() { executePmr(null, null); }

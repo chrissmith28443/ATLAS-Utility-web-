@@ -41,12 +41,6 @@
   <button class="ver" id="aboutBtn" type="button" title="About ATLAS Utility — version & changelog">WEB 2.5.59</button>
   <span class="tagline"></span>
   <span class="topbar-right">
-    <button class="hist-btn" id="compareBtn" type="button" title="Compare UDQs" aria-label="Compare UDQs">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M3 13v4a2 2 0 0 0 2 2h4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M21 13v4a2 2 0 0 1-2 2h-4"/><path d="M12 7v10"/></svg>
-    </button>
-    <button class="hist-btn" id="historyBtn" type="button" title="Run history" aria-label="Run history">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
-    </button>
     <span class="fetch-wrap">
       <button class="fetchbtn" id="atlasFetchBtn" type="button" title="Fetch a UDQ from ATLAS, or load a UDQ file" aria-haspopup="true" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 3v6h-6"/></svg>
@@ -54,9 +48,6 @@
       </button>
       <div id="atlasFetchPop" class="atlas-pop hidden" role="dialog" aria-label="Fetch from ATLAS"></div>
     </span>
-    <button class="hist-btn" id="consolBtn" type="button" title="Consolidate multiple WMTRs into one shipment" aria-label="Consolidate WMTRs">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-    </button>
     <button class="gear" id="settingsBtn" type="button" title="Settings" aria-label="Settings">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M19.43,12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49,1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65c-.03-.24-.24-.42-.49-.42h-4c-.25,0-.46.18-.49.42l-.38,2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49,0-.61.22l-2,3.46c-.13.22-.07.49.12.64l2.11,1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11,1.65c-.19.15-.24.42-.12.64l2,3.46c.12.22.39.3.61.22l2.49-1c.52.4,1.08.73,1.69.98l.38,2.65c.03.24.24.42.49.42h4c.25,0,.46-.18.49-.42l.38-2.65c.61-.25,1.17-.59,1.69-.98l2.49,1c.23.09.49,0,.61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65ZM12,15.5c-1.93,0-3.5-1.57-3.5-3.5s1.57-3.5,3.5-3.5,3.5,1.57,3.5,3.5-1.57,3.5-3.5,3.5Z"/></svg>
   </button>
@@ -84,12 +75,12 @@
   </main>
 </div>
 
-<script src="js/constants.js?v=187"></script>
+<script src="js/constants.js?v=188"></script>
 <script src="js/util.js?v=69"></script>
 <script src="js/a11y.js?v=61"></script>
-<script src="js/settings.js?v=74"></script>
+<script src="js/settings.js?v=75"></script>
 <script src="js/backup.js?v=69"></script>
-<script src="js/about.js?v=196"></script>
+<script src="js/about.js?v=197"></script>
 <script src="js/audit.js?v=62"></script>
 <script src="js/formcache.js?v=65"></script>
 <script src="js/udq.js?v=72"></script>
@@ -122,21 +113,21 @@
 <script src="js/tools/deltek_template.js?v=2"></script>
 <script src="js/tools/deltek.js?v=5"></script>
 <script src="js/tools/pmr_template.js?v=61"></script>
-<script src="js/tools/pmr.js?v=86"></script>
+<script src="js/tools/pmr.js?v=87"></script>
 <script src="js/tools/reqatt.js?v=65"></script>
 <script src="js/tools/ecm_template.js?v=61"></script>
-<script src="js/tools/ecm.js?v=64"></script>
+<script src="js/tools/ecm.js?v=65"></script>
 <script src="js/tools/validate.js?v=70"></script>
 <script src="js/data/history_index.js?v=67"></script>
 <script src="js/tools/search.js?v=64"></script>
 <script src="js/dangerous_goods.js?v=69"></script>
 <script src="js/tools/packet.js?v=64"></script>
-<script src="js/metrics_dashboard.js?v=92"></script>
-<script src="js/json_udq.js?v=33"></script>
+<script src="js/metrics_dashboard.js?v=93"></script>
+<script src="js/json_udq.js?v=34"></script>
 <script src="js/tools/xmastree.js?v=49"></script>
 <script src="js/tools/record_audit.js?v=3"></script>
-<script src="js/tools/cop.js?v=46"></script>
-<script src="js/tools/pmdash.js?v=13"></script>
+<script src="js/tools/cop.js?v=47"></script>
+<script src="js/tools/pmdash.js?v=14"></script>
 <script src="js/tools/invconv.js?v=4"></script>
 <script src="js/tools/invgen.js?v=3"></script>
 <script src="js/consol.js?v=9"></script>

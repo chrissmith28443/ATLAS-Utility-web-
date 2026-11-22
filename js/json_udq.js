@@ -1449,10 +1449,11 @@ async function loadFromAtlasXmasTree(opts) {
    UI — a "Fetch from ATLAS" popover anchored under the topbar button.
 
    ATLAS is becoming the primary data path, so Fetch lives in the header and the
-   manual UDQ drop zone is de-emphasised (see loaderView). The popover offers
-   two buttons: Metrics (pulls every record, no WMTR) and one "Shipping or
-   Property" button whose WMTR entry searches both single-WMTR UDQs and loads
-   whichever holds that number (atlasLoadRequest).
+   manual UDQ drop zone is de-emphasised (see loaderView). The popover has one
+   "Shipping or Property" WMTR entry that searches both single-WMTR UDQs and
+   loads whichever holds that number (atlasLoadRequest), a UDQ drop target,
+   Consolidated shipment and Manual entry. (No "Metrics" button since 2.9.9 —
+   the Dashboard pulls the whole UDQ itself when it opens.)
    ------------------------------------------------------------------------- */
 
 /** Where the multi-match WMTR picker renders (inside the header popover). */
@@ -1498,9 +1499,6 @@ function atlasBuildPop() {
     (AtlasSettings.get().loaderView !== "hide");   // default: checked/visible
   host.innerHTML = `
     <span class="ap-label">Fetch from ATLAS / UDQ</span>
-    <div class="ap-types">
-      <button class="ap-type ap-small ap-wide" type="button" data-ds="metrics">Metrics<span class="ap-sub">all records</span></button>
-    </div>
     <div class="ap-wmtr" id="apWmtr">
       <label for="apWmtrInput" id="apWmtrLabel">Shipping or Property — WMTR number</label>
       <div class="ap-wmtr-row">
@@ -1515,6 +1513,10 @@ function atlasBuildPop() {
       <div class="ap-drop-sub">or click to browse (.xlsx)</div>
     </div>
     <div class="ap-manual" style="margin-top:10px;">
+      <button class="btn ghost" type="button" id="apConsol" style="width:100%;font-size:12px;padding:7px 10px;"
+              title="Consolidate multiple WMTRs into one shipment">Consolidated shipment&hellip;</button>
+    </div>
+    <div class="ap-manual" style="margin-top:6px;">
       <button class="btn ghost" type="button" id="apManual" style="width:100%;font-size:12px;padding:7px 10px;"
               title="Build any Shipping or Property document by typing in the details — no UDQ needed">No UDQ? Manual entry</button>
     </div>
@@ -1562,6 +1564,12 @@ function atlasBuildPop() {
   drop.addEventListener("drop", (e) => {
     const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (f && typeof loadFile === "function") { loadFile(f); atlasClosePop(); }
+  });
+
+  // Consolidated shipment (consol.js) — moved here from its own top-bar icon.
+  host.querySelector("#apConsol").addEventListener("click", () => {
+    atlasClosePop();
+    if (typeof openConsol === "function") openConsol();
   });
 
   // Manual entry — build Shipping / Property documents with no UDQ (manual_details.js).

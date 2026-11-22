@@ -44,11 +44,16 @@ const PM_PLS_SOON_DAYS = 14;       // slide: "Trips starting ≤ 14 days" list
    The user's changes are saved per browser (atlas.pmdash.view) as { kind: { id: true|false } }. */
 const PM_VIEW_KEY = "atlas.pmdash.view";
 const PM_VIEW_OFF = {
-  proc: ["t:rdd"],
-  prop: ["t:flag"],
+  // A small tile that repeats a number already on screen is off by default (user, 2026-11-22: never both at once):
+  //   proc  t:open = the count in the card heading.
+  //   prop  t:open = the card heading; t:out = the "Out for signature" step card; t:o30 = "More than 30 days" in the TOP backlog panel.
+  // The others say something the step cards don't (estimates / POs due, over $100K / $200K, need attention).
+  proc: ["t:rdd", "t:open"],
+  prop: ["t:flag", "t:open", "t:out", "t:o30"],
   // t:open and t:dtra repeat what the step cards already show (total in the card heading; "Estimate with DTRA"
   // is its own step card), so they're off by default (user, 2026-11-22) — still available under View settings.
-  pls: ["t:open", "t:dtra", "t:ended", "p:actions"],          // p:actions = the "Trip ended, still In Progress" list
+  // (2.9.9) The last three small tiles are off by default too — user: just the step cards on PLS.
+  pls: ["t:open", "t:trips", "t:now", "t:dtra", "t:ended", "t:attn", "p:actions"],   // p:actions = the "Trip ended, still In Progress" list
 };
 const PM_VIEW_ITEMS = {
   proc: { tiles: [["open", "Open PRs"], ["est", `Estimates due ≤ ${PM_SOON_DAYS} days`], ["po", `POs expected ≤ ${PM_SOON_DAYS} days`], ["rdd", "Past RDD"], ["big", "Over $100K"], ["attn", "Need attention"]],
@@ -89,13 +94,17 @@ const PM_VIEW_BTN = (kind) => {
 };
 function pmIsTool(id) { return PM_TOOLS.indexOf(id) !== -1; }
 
-/* Lanes (pipeline steps). Colours = one blue ramp (ordinal), drafts neutral. */
+/* Lanes (pipeline steps). Four clearly different hues (violet / yellow / blue / green), drafts neutral —
+   the old one-blue ramp's dark shades couldn't be told apart. `color` reads the light- or dark-theme value;
+   `lt` is the light one (used for the weekly slide, which is always on white). */
+const pmDarkTheme = () => typeof document !== "undefined" && !!document.body && document.body.classList.contains("theme-dark");
+const pmLaneDef = (id, label, lt, dk) => ({ id, label, lt, dk, get color() { return pmDarkTheme() ? this.dk : this.lt; } });
 const PM_PR_LANES = [
-  { id: "draft",    label: "Draft",                 color: "#aab4c3" },
-  { id: "review",   label: "TTI / DTRA review",     color: "#5598e7" },
-  { id: "estimate", label: "Estimate / Approval",   color: "#2a78d6" },
-  { id: "sourcing", label: "Sourcing (PO pending)", color: "#184f95" },
-  { id: "exec",     label: "PO issued / delivery",  color: "#1e2a4a" },
+  pmLaneDef("draft",    "Draft",                 "#aab4c3", "#6b7888"),
+  pmLaneDef("review",   "TTI / DTRA review",     "#6250d6", "#9085e9"),
+  pmLaneDef("estimate", "Estimate / Approval",   "#eda100", "#c98500"),
+  pmLaneDef("sourcing", "Sourcing (PO pending)", "#2a78d6", "#3987e5"),
+  pmLaneDef("exec",     "PO issued / delivery",  "#1baf7a", "#199e70"),
 ];
 /* PMCTs skip DTRA review (they go straight to DTRA Approved) — they hold the TOP package.
    Two open steps, from Activity Tracker entries: TOP being prepared -> out for government signature. */
@@ -137,8 +146,6 @@ function pmTopLane(status, sigSent) {
    blue — the dark blues couldn't be told apart at a glance (user, 2026-11-22). Checked for colour-blind
    separation (worst neighbouring pair dE 23) on the light card and, with the darker set, on the dark card.
    `color` picks the light- or dark-theme value when it's read. */
-const pmDarkTheme = () => typeof document !== "undefined" && !!document.body && document.body.classList.contains("theme-dark");
-const pmLaneDef = (id, label, lt, dk) => ({ id, label, lt, dk, get color() { return pmDarkTheme() ? this.dk : this.lt; } });
 const PM_PLS_LANES = [
   pmLaneDef("draft",    "Draft",                  "#aab4c3", "#6b7888"),
   pmLaneDef("review",   "DTRA program review",    "#6250d6", "#9085e9"),
@@ -847,6 +854,7 @@ body.theme-dark .pmx-tools .copx-btn.pmx-refresh{color:#81c784;border-color:#3f7
 .pmx-tools .copx-ibtn.go{margin-left:-4px}
 .pmx-status.quiet:not(.err){display:none}
 .pmx-kpis{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.pmx-kpis:empty{display:none}
 .pmx-kpi{display:inline-flex;align-items:baseline;gap:6px;border-radius:8px;padding:5px 11px;font-size:12px;line-height:1.35;color:var(--ax-ink2)}
 .pmx-kpi:hover{box-shadow:none;border-color:var(--ax-blue)}
 .pmx-kpi.on{background:var(--ax-blue-soft);border-color:var(--ax-blue);box-shadow:none}
@@ -1143,7 +1151,8 @@ function pmRender(container, kind) {
   if (PmUi.slide) root.appendChild(pmSlideCard(D));
 
   const base = isActive ? active.filter((r) => ui.drafts || r.lane !== "draft") : pmClosedWindow(closed, ui.period);
-  const rows = pmFilter(base, ui, kind);
+  const preCf = pmFilter(base, ui, kind);
+  const rows = pmColFilter(kind, preCf, isActive);          // + the table's own column filters
 
   const card = el(`<section class="copx-card">
     <div class="copx-hd"><h2>${isPr ? (isActive ? "Procurement — Active PRs" : "Procurement — Closed PRs") : (isActive ? "Property — Open TOPs (PMCT)" : "Property — Closed TOPs (PMCT)")}</h2>
@@ -1162,10 +1171,16 @@ function pmRender(container, kind) {
       () => isPr ? pmPrActions(viewBase) : pmTopActions(viewBase, D));
   }
 
-  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2>${isActive ? (isPr ? "PR details" : "TOP details") : "Closed"}${pmInfo(isPr ? PM_INFO.prTable : PM_INFO.topTable)}</h2>
-    <span class="n">Click a row for dates, linked requests and the update history · click a header to sort</span></div><div class="copx-rule"></div></section>`);
+  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2 title="Click a row for dates, linked requests and the update history · click a header to sort">${isActive ? (isPr ? "PR details" : "TOP details") : "Closed"}${pmInfo(isPr ? PM_INFO.prTable : PM_INFO.topTable)}</h2>
+    ${rows.length === preCf.length ? "" : `<span class="n">${rows.length} of ${preCf.length}</span>`}
+    <div class="acts"><input type="search" id="pmQ" class="copx-in pmx-q" placeholder="Search" title="WMTR, title, country, note…" aria-label="Search" value="${esc(ui.q)}">
+      ${typeof copColsBtn === "function" ? copColsBtn("pmColsBtn", ui.colsOpen) : ""}</div></div></section>`);
   root.appendChild(tcard);
-  tcard.appendChild(pmTable(kind, rows, isActive));
+  if (ui.colsOpen) tcard.appendChild(pmColsPicker(kind, isActive));
+  tcard.appendChild(pmTable(kind, rows, isActive, { cf: true, pool: preCf }));
+  pmWireSearch(tcard, kind);
+  const colsBtn = tcard.querySelector("#pmColsBtn");
+  if (colsBtn) colsBtn.addEventListener("click", () => { ui.colsOpen = !ui.colsOpen; pmRerender(); });
   pmWireTips(root);
 }
 
@@ -1253,7 +1268,6 @@ function pmFilterBar(kind, pool, isActive, drafts) {
   const bar = el(`<div class="pmx-filters">
     <div class="copx-f"><label for="pmPoc">${kind === "proc" ? "Buyer (TTI POC)" : kind === "pls" ? "TTI POC" : "Owner (TTI POC)"}</label>
       <select id="pmPoc">${opt("", "Everyone", !ui.poc)}${pocs.map((p) => opt(p, p, p === ui.poc)).join("")}</select></div>
-    ${kind === "pls" ? "" : `<div class="copx-f q"><label for="pmQ">Search</label><input type="search" id="pmQ" placeholder="WMTR, title, country, note…" value="${esc(ui.q)}"></div>`}
     ${isActive ? `<label class="copx-chk"><input type="checkbox" id="pmAttn" ${ui.attn ? "checked" : ""}> Needs attention only</label>
       <label class="copx-chk"><input type="checkbox" id="pmDrafts" ${ui.drafts ? "checked" : ""}> Show drafts (${drafts})</label>
       ${kind === "pls" ? `<div class="copx-f"><label for="pmTripDays">Trips in next</label><select id="pmTripDays">
@@ -1263,7 +1277,6 @@ function pmFilterBar(kind, pool, isActive, drafts) {
     ${ui.quick ? `<button class="copx-btn blue" type="button" id="pmClearQuick">Clear tile filter</button>` : ""}
   </div>`);
   bar.querySelector("#pmPoc").addEventListener("change", (e) => { ui.poc = e.target.value; pmRerender(); });
-  pmWireSearch(bar, kind);
   const a = bar.querySelector("#pmAttn"); if (a) a.addEventListener("change", () => { ui.attn = a.checked; pmRerender(); });
   const d = bar.querySelector("#pmDrafts"); if (d) d.addEventListener("change", () => { ui.drafts = d.checked; pmRerender(); });
   const p = bar.querySelector("#pmPeriod"); if (p) p.addEventListener("change", () => { ui.period = p.value; pmRerender(); });
@@ -1272,7 +1285,7 @@ function pmFilterBar(kind, pool, isActive, drafts) {
   return bar;
 }
 
-/** The tab's search box (#pmQ) — in the filter bar, or in the table header on PLS. */
+/** The tab's search box (#pmQ) — it sits in the table heading on every tab. */
 function pmWireSearch(root, kind) {
   const ui = PmUi[kind], qi = root.querySelector("#pmQ");
   if (!qi) return;
@@ -1563,7 +1576,7 @@ function pmCell(kind, r, c, today) {
     default: { const v = r[c.k]; return `<td>${v instanceof Date ? pmFmt(v) : esc(v == null ? "" : v)}</td>`; }
   }
 }
-/* Column filters (opts.cf — PLS for now): a row of boxes under the headings. Pick-lists for the
+/* Column filters (opts.cf): a row of boxes under the headings on all three tables. Pick-lists for the
    few columns with a short set of values, "contains" boxes for the rest. State: PmUi[kind].cf. */
 const PM_CF_PICK = ["poc", "lane", "status", "dest"];
 /** Plain text of a table cell — what a "contains" filter matches. */
@@ -1850,7 +1863,7 @@ function pmSlideModel(D) {
       n: prs.length, value: pmSum(prs, "cost"), drafts: prPool.filter((r) => r.lane === "draft").length,
       groups: buyers,
       cats: buyers.map((g) => `${g.label}\n${pmMoney(pmSum(g.rs, "cost"))}`),
-      series: prLanes.map((l) => ({ name: l.label, color: l.color, values: buyers.map((g) => g.rs.filter((r) => r.lane === l.id).length) })),
+      series: prLanes.map((l) => ({ name: l.label, color: l.lt || l.color, values: buyers.map((g) => g.rs.filter((r) => r.lane === l.id).length) })),
       est, po,
     },
     top: {

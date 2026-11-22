@@ -1598,8 +1598,8 @@ const COP_QUICK = {
 function copTodayStrip(base) {
   const n = (f) => base.filter(f).length;
   const att = n((r) => r.counts.red || r.counts.amber);
-  // A tile that reads zero isn't shown (less on screen) — except "In progress", and one that's currently the filter.
-  const tile = (key, tone, count, label, hint, on) => (!count && !on && key) ? "" : `<button type="button" class="copx-kpi ${tone} ${on ? "on" : ""} ${count ? "" : "zero"}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}" title="${esc(hint)}">
+  // Every tile always shows, so all the tracked things stay in view; one that reads zero is greyed out and can't be clicked.
+  const tile = (key, tone, count, label, hint, on) => `<button type="button" class="copx-kpi ${tone} ${on ? "on" : ""} ${count ? "" : "zero"}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}" title="${esc(hint)}">
       <span class="n">${count}</span><span class="l">${esc(label)}</span></button>`;
   return el(`<div class="copx-kpis copx-today" role="group" aria-label="Today — click a tile to filter">
     ${tile("", "", base.length, "In progress", "Every active shipment", !CopUi.quick && !CopUi.atRisk)}

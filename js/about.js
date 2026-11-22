@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.25",
+    title: "Dashboard tiles stay in view at zero",
+    notes: [
+      "Dashboard › In progress: every tile at the top (Need attention, Updates due today, Missed updates, RFQs to send, EEI to file) now always shows, even when nothing matches. A tile at zero is greyed out.",
+    ],
+  },
+  {
     version: "2.9.24",
     title: "Commercial Invoice signature lines lined up and spaced out",
     notes: [

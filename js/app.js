@@ -7,7 +7,7 @@
 const AppState = {
   fileName: "",
   grid: null,        // array-of-arrays of strings (1-based access via gridCell)
-  udqType: "none",   // none | srf | metrics | property | unknown
+  udqType: "none",   // none | srf | metrics | property | ir | dtr | unknown
   data: null,        // ACTIVE SRF data model — pristine, or the manual-parent override
   dataBase: null,    // pristine readUdq output (override is rebuilt from this)
   manualParents: null, // { enabled, items[], perTool{} } — manual parent-item override (SRF only)
@@ -97,20 +97,54 @@ function workbookAllSheets(arrayBuffer) {
 
 /* ---------------- File loading ---------------- */
 
+/* A Dashboard UDQ dropped on the main drop zone — a PLS export, or a PR / PMCT /
+   WS export holding more than one request — goes to the Dashboard exactly as its
+   own drop box takes it (cop.js copHubIngest): PR → Procurement, PMCT → Property,
+   PLS → PLS. Before this, the main loader opened only the first request of a
+   PR / PMCT / WS export as if it were a single shipment, and refused a PLS export.
+   A single-request PR / PMCT / WS UDQ isn't touched — it loads here as it always
+   has. Returns true when the file was handled. */
+async function appMaybeDashboardUdq(file) {
+  if (typeof copHubIngest !== "function" || typeof xtClassifyService !== "function") return false;
+  if (!file || !/\.xls[xm]$/i.test(file.name || "")) return false;
+  let svc = null;
+  try {
+    const buf = await file.arrayBuffer();
+    // Cheap first look — the header row alone says which UDQ this is.
+    const wb = XLSX.read(buf, { type: "array", sheetRows: 1 });
+    const head = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: null });
+    svc = typeof pmIsPlsGrid === "function" && pmIsPlsGrid(head) ? "PLS" : xtClassifyService(head);
+    if (!svc || svc === "SRF") return false;
+    if (svc !== "PLS") {
+      const grid = workbookToGrid(buf);
+      let n = 0;
+      for (let r = 2; r <= gridMaxRow(grid) && n < 2; r++) if (/^WMTR-/i.test(norm(gridCell(grid, r, 1)))) n++;
+      if (n < 2) return false;
+    }
+  } catch (e) { return false; }
+  await copHubIngest([file]);
+  const status = document.getElementById("loadStatus");
+  status.classList.toggle("err", !!CopDrop.err);
+  status.textContent = (CopDrop.status || "").trim() || `Sent ${file.name} to the Dashboard.`;
+  const tab = { PR: "proc", PMCT: "prop", PLS: "pls" }[svc];
+  if (tab && !CopDrop.err && !copHubActive()) copHubSelect(tab);
+  return true;
+}
+
 /* preGrid: a grid fetched from ATLAS (json_udq.js), already in the exact shape a
    read .xlsx gives — loaded as-is, with no workbook to read. `file` then only
    needs a name. */
 async function loadFile(file, preGrid) {
-  // An Ops Tracker dropped here belongs to the COP — take it without replacing
-  // the loaded UDQ.
-  if (!preGrid && typeof copMaybeTrackerFile === "function" && await copMaybeTrackerFile(file)) return;
   // Offline mode reads only its own Excel template (offline.js); a template
   // dropped with offline mode off offers to switch it on.
   if (!preGrid && typeof offlineMaybeFile === "function" && await offlineMaybeFile(file)) return;
+  // A Dashboard UDQ dropped here (PLS, or a PR / PMCT / WS export of several
+  // requests) belongs to the Dashboard — hand it over without replacing the loaded UDQ.
+  if (!preGrid && await appMaybeDashboardUdq(file)) return;
   const status = document.getElementById("loadStatus");
   status.classList.remove("err");
   status.textContent = `Reading ${file.name}…`;
-  AppState.grid = null;   // clear stale state so a failed read can't show old diagnostics
+  AppState.grid = null;   // clear stale state so a failed read can't show old data
   AppState.data = null;
   AppState.dataBase = null;
   AppState.manualParents = null;
@@ -167,7 +201,7 @@ async function loadFile(file, preGrid) {
         MetricsUi.label = def.label; MetricsUi.quick = def.quick; MetricsUi._warn = "";
       }
       let wmtrCount = 0;
-      for (let r = 1; r <= Math.min(gridMaxRow(grid), 20000); r++) {
+      for (let r = 1; r <= gridMaxRow(grid); r++) {
         const v = normWs(gridCell(grid, r, 1)).toUpperCase();
         if (v.startsWith("WMTR-") && v.endsWith("-SRF")) wmtrCount++;
       }
@@ -184,6 +218,11 @@ async function loadFile(file, preGrid) {
         `${AppState.data.items.length === 1 ? "" : "s"}` +
         `${AppState.data.meta.ctr_program ? " · " + AppState.data.meta.ctr_program : ""}`;
       if (typeof mdOnSrfLoaded === "function") mdOnSrfLoaded();
+    } else if (udqType === "ir" || udqType === "dtr") {
+      // Interpretation / translation requests: summarized on the dashboard; no tool uses them.
+      const k = REQUEST_UDQ[udqType];
+      const n = readRequestUdq(grid, udqType).records.length;
+      status.textContent = `Loaded ${file.name} — ${k.label} UDQ · ${n} ${k.noun}${n === 1 ? "" : "s"}`;
     } else {
       status.textContent = `Loaded ${file.name} — but it doesn't look like a known UDQ layout. ` +
         `Check that this is an unmodified ATLAS export.`;
@@ -199,14 +238,12 @@ async function loadFile(file, preGrid) {
       status.textContent = `Couldn't read that file: ${e.message}. ` +
         `Make sure it's an .xlsx export from ATLAS and try again.`;
     } else {
-      // A grid was read but parsing the detected layout threw — keep the grid
-      // (and detected type) so "Diagnose layout" can show what's off.
+      // A grid was read but parsing the detected layout threw.
       status.textContent = `Loaded ${file.name} but couldn't fully parse it: ${e.message}. ` +
-        `Use "Diagnose layout" below to see which columns or sections are missing.`;
+        `Check that this is an unmodified ATLAS export.`;
     }
     status.classList.add("err");
   }
-  if (typeof recentsRecordFromState === "function") recentsRecordFromState();
   renderAll();
   // Speak the outcome (type + pre-flight result) without moving focus.
   if (typeof atlasAnnounce === "function") {
@@ -306,7 +343,6 @@ function renderDropzone() {
       ? "Drop a UDQ here to switch to it, or click to browse."
       : "Drop another UDQ here, or click to browse.";
   }
-  if (typeof recentsRender === "function") recentsRender();
 }
 
 function countryShort(s) {
@@ -415,6 +451,12 @@ function renderDashboard() {
       if (vb) dash.appendChild(vb);
     }
     renderMetricsDashboard(dash);
+    return;
+  }
+  if ((AppState.udqType === "ir" || AppState.udqType === "dtr") && AppState.grid) {
+    dash.classList.remove("hidden");
+    dash.classList.toggle("dash-collapsed", !!AppState.dashCollapsed);
+    renderRequestDashboard(dash);
     return;
   }
   if (AppState.udqType !== "srf" || !AppState.data) { dash.classList.add("hidden"); return; }
@@ -2587,6 +2629,98 @@ function renderPropertyDashboard(dash) {
           <thead><tr>
             <th>#</th><th>Description</th><th>Serial #</th><th>Manufacturer</th>
             <th>Model/Cat</th><th>UOM</th><th>Qty</th><th>Value (USD)</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`));
+}
+
+/* ---------------- IR / DTR dashboard ---------------- */
+
+/* Interpretation (IR) and translation (DTR) request UDQs: a summary of what the
+   export holds — how many requests, by status, what they cost — and the list. */
+function renderRequestDashboard(dash) {
+  const isIr = AppState.udqType === "ir";
+  const k = REQUEST_UDQ[AppState.udqType];
+  const recs = readRequestUdq(AppState.grid, AppState.udqType).records;
+  const n = recs.length;
+  const noun = `${k.noun}${n === 1 ? "" : "s"}`;
+  const total = recs.reduce((a, r) => a + r.cost, 0);
+  const flags = recs.filter((r) => r.red_flag).length;
+  const dateOnly = (v) => String(v || "").split(" ")[0];
+  const subs = recs.map((r) => xtParseDate(r.submitted)).filter(Boolean).sort((a, b) => a - b);
+  const range = subs.length ? `${xtDisplayDate(subs[0])} – ${xtDisplayDate(subs[subs.length - 1])}` : "—";
+
+  dash.appendChild(el(`
+    <div class="manifest">
+      <div class="manifest-head">
+        <span class="wmtr">${k.label} UDQ</span><span class="badge">${esc(k.noun)}s</span>
+        ${dashToggleHtml()}
+      </div>
+      <div class="title">${esc(AppState.fileName)}</div>
+      <div class="manifest-summary">
+        <span class="mchip">${n} ${esc(noun)}</span>
+        <span class="mchip">$${fmtFixed2(total)}</span>
+        <span class="mchip">submitted ${esc(range)}</span>
+      </div>
+    </div>`));
+  wireDashToggle(dash);
+
+  dash.appendChild(el(`
+    <div class="stats">
+      <div class="stat"><div class="k">Requests</div><div class="v">${n}</div></div>
+      <div class="stat"><div class="k">Total cost (USD)</div><div class="v mono">${fmtFixed2(total)}</div></div>
+      <div class="stat"><div class="k">Submitted</div><div class="v mono">${esc(range)}</div></div>
+      <div class="stat"><div class="k">Red flags</div><div class="v">${flags}</div></div>
+    </div>`));
+
+  /* By status — most common first */
+  const by = {};
+  for (const r of recs) {
+    const s = r.status || "(no status)";
+    if (!by[s]) by[s] = { n: 0, cost: 0 };
+    by[s].n++; by[s].cost += r.cost;
+  }
+  const statuses = Object.keys(by).sort((a, b) => by[b].n - by[a].n || a.localeCompare(b));
+  const statusRows = statuses.map((s) => `
+    <tr>
+      <td>${esc(s)}</td>
+      <td class="num">${by[s].n}</td>
+      <td class="num">${fmtFixed2(by[s].cost)}</td>
+    </tr>`).join("");
+  dash.appendChild(el(`
+    <div class="panel">
+      <header><h2>By status</h2><span class="count">${statuses.length} status${statuses.length === 1 ? "" : "es"}</span></header>
+      <table class="data">
+        <thead><tr><th>Status</th><th style="text-align:right;">Requests</th><th style="text-align:right;">Total cost (USD)</th></tr></thead>
+        <tbody>${statusRows}</tbody>
+      </table>
+    </div>`));
+
+  /* The requests, in export order */
+  const rows = recs.map((r) => `
+    <tr>
+      <td class="mono">${esc(r.number)}</td>
+      <td>${esc(r.status)}</td>
+      <td>${esc(r.title)}</td>
+      <td>${esc([countryShort(r.country), r.city].filter(Boolean).join(" · "))}</td>
+      <td>${esc(dateOnly(isIr ? r.start : r.due))}</td>
+      <td>${esc(dateOnly(isIr ? r.end : r.completed))}</td>
+      <td>${esc(r.program)}</td>
+      <td class="mono">${esc(r.pls)}</td>
+      <td class="num">${fmtFixed2(r.cost)}</td>
+    </tr>`).join("");
+  dash.appendChild(el(`
+    <div class="panel">
+      <header><h2>Requests</h2><span class="count">${n} ${esc(noun)}</span></header>
+      <div class="scrollwrap">
+        <table class="data">
+          <thead><tr>
+            <th>${k.label} #</th><th>Status</th><th>${isIr ? "Event title" : "Project title"}</th>
+            <th>${isIr ? "Destination" : "Funding country"}</th>
+            <th>${isIr ? "Start" : "Due"}</th><th>${isIr ? "End" : "Completed"}</th>
+            <th>Program</th><th>Associated PLS</th><th>Total cost (USD)</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>

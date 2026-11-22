@@ -129,7 +129,7 @@ This repo is **Git-connected to Cloudflare Pages** — deploys are automatic:
   - `app.js` (main), `constants.js`, `util.js`, `settings.js`, `pwa.js`,
     `audit.js`, `backup.js`, `compare.js`, `metrics_dashboard.js`,
     `dangerous_goods.js`, `udq.js` / `udq_tools.js` / `json_udq.js`,
-    `assets.js`, `item_split.js`, `consol.js`, `recents.js`, `formcache.js`,
+    `assets.js`, `item_split.js`, `consol.js`, `formcache.js`,
     `a11y.js`, `about.js`
   - `js/data/history_index.js` — history index
   - `js/tools/` — document generators & related:

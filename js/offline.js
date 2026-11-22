@@ -1388,7 +1388,7 @@ function _offEnsureStyle() {
   st.id = "offStyle";
   st.textContent = `
   body.offline-mode #compareBtn, body.offline-mode #historyBtn, body.offline-mode .fetch-wrap,
-  body.offline-mode #consolBtn, body.offline-mode #recentUdqs, body.offline-mode #dashboard,
+  body.offline-mode #consolBtn, body.offline-mode #dashboard,
   body.offline-mode .udq-actions, body.offline-mode #settingsBtn, body.offline-mode #dropzone,
   body.offline-mode #loadStatus, body.offline-mode .rail-packet{display:none !important;}
   .offline-badge{display:none;}

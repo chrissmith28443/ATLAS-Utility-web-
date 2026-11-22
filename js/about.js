@@ -13,6 +13,23 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.0",
+    title: "Shipping Operations dashboard — the Ops Tracker moves into ATLAS",
+    notes: [
+      "No more Ops Tracker upload. Date Packed, RFQ Sent Date, ITN / NOEEI Citation, MARAD Submitted Date, Warehouse and Final Shipping Invoice Received, Monitor this RDD, Shipping Team Notes and Original RDD are ATLAS fields now, and every dashboard check reads them straight from the SRF UDQ. Shipments delivered before 1 Oct 2026 aren't held to them — those stay on the archived tracker.",
+      "New Tracker view (Dashboard > Shipments): one row per shipment in progress or delivered since 1 Oct, laid out like the Ops Tracker — every milestone date from submitted to delivered with the business days each step took, Original vs. current RDD, RFQ on time / late, EEI released or on hold, MARAD, invoices received, team notes and the latest daily update. Click a header to sort, a row for its full checklist; Export gives the same table in Excel.",
+      "Tracker tiles: RFQs sent within 1 business day, EEI filed before departure, RDD changed, average days from submitted to delivered, final invoices outstanding, MARAD reports open. Click a tile to list just those shipments. Under them, the average business days in each step and the shipment that took longest.",
+      "In progress view: the row of chips is now a row of tiles, with two new ones — RFQs to send and EEI to file.",
+      "New look for the Shipments tab: white cards, lighter table headers, colour only where something needs attention. This is the trial run for restyling the rest of the Utility.",
+      "The Dashboard no longer opens on a saved copy of the last pull. It stays blank (\"Getting the latest from ATLAS…\") until the pull has finished, and the header always says where the data came from and when it was pulled. A Refresh button pulls again on demand.",
+      "\"Monitor this RDD\" ticked in ATLAS now switches RDD monitoring on for that request (the per-browser tick box still works too).",
+      "New UDQs recognized: the IR (interpretation) and DTR (translation) exports load with a summary — counts by status, total cost and the list of requests. Dropping a multi-request PR, PMCT, WS or PLS export on the main drop zone now sends it to its Dashboard tab instead of opening only the first request or showing an error.",
+      "Cost: a cost difference is now an issue only when the actual cost is more than 10% OVER the DTRA-approved amount. Coming in under the approved amount is never flagged — on the Shipments tab, the Closed audit, the Cost accuracy metric and the Christmas Tree. (Before, a delivered shipment was flagged for being 10% off in either direction.)",
+      "Removed: \"Diagnose layout\" and \"Recent UDQs\".",
+      "Fixed: the load message under-counted a large SRF UDQ (204 instead of 250 records).",
+    ],
+  },
+  {
     version: "2.8.14",
     title: "One UDQ per service module",
     notes: [

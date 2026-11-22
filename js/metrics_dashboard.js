@@ -53,7 +53,7 @@ const MX_SRF_METRIC_META = {
   qc:       { title: "WMTR Workflow QC",    target: "mxsec-qc",       noun: "passed" },
   docs:     { title: "Shipping docs",       target: "mxsec-docs",     noun: "complete" },
   tracking: { title: "Tracking (AWB/BoL)",  target: "mxsec-tracking", noun: "with tracking" },
-  cost_srf: { title: "Cost accuracy",       target: "mxsec-cost",     noun: "within 10%" },
+  cost_srf: { title: "Cost accuracy",       target: "mxsec-cost",     noun: "not over by 10%" },
   manual:   { title: "Manual flags",         target: "mxsec-manual",  noun: "clear" },
 };
 
@@ -1472,17 +1472,19 @@ function mxRenderCostSection(host, detail) {
   const slot = detail && detail.cost_srf;
   const money = (n) => (n == null || n === "") ? "—" : "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   mxMetricSectionShell(host, {
-    id: "mxsec-cost", title: "Cost accuracy", slot, passVerb: "within 10%", colspan: 4,
-    note: "Delivered SRFs in this window whose approved cost estimate differs from the actual (current Total Cost) by more than 10%. Only WMTRs that carry an approved estimate are scored.",
-    thead: "<th>WMTR #</th><th class=\"num\">Approved estimate</th><th class=\"num\">Actual cost</th><th class=\"num\">Variance</th>",
-    emptyMsg: (slot && slot.total) ? "Every scored estimate in this window is within 10% of actual." : "No WMTRs with an approved estimate in this window.",
+    id: "mxsec-cost", title: "Cost accuracy", slot, passVerb: "not over by 10%", colspan: 4,
+    note: "Delivered SRFs in this window whose actual cost (current Total Cost) came in more than 10% over the approved estimate. Coming in under the estimate isn't an issue. Only WMTRs that carry an approved estimate are scored.",
+    thead: "<th>WMTR #</th><th class=\"num\">Approved estimate</th><th class=\"num\">Actual cost</th><th class=\"num\">Over by</th>",
+    emptyMsg: (slot && slot.total) ? "No actual cost in this window is more than 10% over its approved estimate." : "No WMTRs with an approved estimate in this window.",
     rowHtml: (row) => {
-      const v = row.est_vs_actual;
-      const pctTxt = (typeof v === "number") ? ((v > 0 ? "+" : "") + Math.round(v * 100) + "%") : "—";
+      // Same basis as the score: the governing (most recent) approved amount.
+      const appr = typeof row.governing_amount === "number" ? row.governing_amount : row.approved_amount;
+      const pctTxt = (typeof appr === "number" && appr > 0 && typeof row.current_total_cost === "number")
+        ? ("+" + Math.round((row.current_total_cost / appr - 1) * 100) + "%") : "—";
       return `
       <tr>
         <td class="mono">${esc(_mxIdOf(row.wmtr_full))}</td>
-        <td class="num">${money(row.approved_amount)}</td>
+        <td class="num">${money(appr)}</td>
         <td class="num">${money(row.current_total_cost)}</td>
         <td class="num">${esc(pctTxt)}</td>
       </tr>`;

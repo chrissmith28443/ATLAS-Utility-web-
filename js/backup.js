@@ -3,7 +3,7 @@
    Settings & data backup / restore (Feature #1).
 
    Exports everything the app keeps in localStorage — settings, editable
-   reference data (custom signers + forwarders), run history, recent UDQs and
+   reference data (custom signers + forwarders), run history and
    the chosen theme — into a single portable JSON file, and re-imports it.
 
    WHY: localStorage is per-browser with no backend, so reference data a team
@@ -18,9 +18,8 @@
 
    What is NOT exported: the per-UDQ "form cache" (atlas.formcache.*). Those are
    transient, shipment-specific in-progress inputs — not reference data and not
-   meaningful to move between machines or share. Nor is the COP's copy of the
-   Ops Tracker (atlas.cop.tracker) — that's data, re-dropped whenever the
-   tracker is updated. Everything else under the "atlas." namespace is included.
+   meaningful to move between machines or share. Everything else under the
+   "atlas." namespace is included.
    ========================================================================= */
 
 /* Keys we back up, in a stable order. The theme is a bare string; the rest are
@@ -28,7 +27,6 @@
 const ATLAS_BACKUP_SPEC = [
   { key: "atlas.settings", kind: "json",   label: "Settings & reference data" },
   { key: "atlas.history",  kind: "json",   label: "Run history" },
-  { key: "atlas.recents",  kind: "json",   label: "Recent UDQs" },
   { key: "atlas.parents",  kind: "json",   label: "Saved manual parent items" },
   { key: "atlas.shipdetails", kind: "json", label: "Saved manual shipping details" },
   { key: "atlas.itemsplits", kind: "json", label: "Saved line-item splits" },
@@ -125,8 +123,6 @@ function atlasValidateBackup(obj) {
   }
   const hist = obj.data["atlas.history"];
   if (Array.isArray(hist)) summary.push(`${hist.length} history entr${hist.length === 1 ? "y" : "ies"}`);
-  const rec = obj.data["atlas.recents"];
-  if (Array.isArray(rec)) summary.push(`${rec.length} recent UDQ${rec.length === 1 ? "" : "s"}`);
   const ign = obj.data["atlas.xmastree.ignores"];
   if (ign && typeof ign === "object") { const n = Object.keys(ign).length; summary.push(`acknowledgements on ${n} WMTR${n === 1 ? "" : "s"}`); }
   if (Array.isArray(obj.data["atlas.xmastree.holidays"])) summary.push("holiday list");
@@ -176,7 +172,7 @@ function atlasMergeSettings(current, incoming) {
 
 /** Write an imported backup to localStorage.
  *  mode = "replace": overwrite each included key with the file's value.
- *  mode = "merge":   union reference data + append history/recents; keep theme.
+ *  mode = "merge":   union reference data + append history; keep theme.
  *  Returns { ok, applied: [keys] }. Does not reload globals — caller does. */
 function atlasApplyBackup(obj, mode) {
   const v = atlasValidateBackup(obj);
@@ -198,12 +194,6 @@ function atlasApplyBackup(obj, mode) {
       // history rows have a ts + filename; dedupe on that pair
       const key = (e) => String((e && e.ts) || "") + "|" + String((e && e.filename) || "");
       writeJson("atlas.history", atlasMergeByKey(cur, data["atlas.history"], key));
-    }
-    if (Array.isArray(data["atlas.recents"])) {
-      let cur = [];
-      try { cur = JSON.parse(_bkGet("atlas.recents") || "[]") || []; } catch (e) { cur = []; }
-      const key = (e) => String((e && e.wmtr) || (e && e.fileName) || "") + "|" + String((e && e.udqType) || "");
-      writeJson("atlas.recents", atlasMergeByKey(cur, data["atlas.recents"], key));
     }
     if (data["atlas.parents"] && typeof data["atlas.parents"] === "object") {
       let cur = {};
@@ -300,9 +290,9 @@ function _atlasBackupConfirmImport(obj) {
     ? `<p>This backup contains:</p>
        <ul class="bk-list">${v.summary.map((s) => `<li>${esc(s)}</li>`).join("") || "<li>(nothing recognizable)</li>"}</ul>
        <p>Choose how to apply it:</p>
-       <p class="bk-warn"><strong>Replace</strong> overwrites your settings, reference data, history and recents
+       <p class="bk-warn"><strong>Replace</strong> overwrites your settings, reference data and history
        with the file's contents. <strong>Merge</strong> adds the file's custom signers and forwarders to yours
-       (matching names are updated) and appends history/recents, keeping your current preferences and appearance.</p>`
+       (matching names are updated) and appends history, keeping your current preferences and appearance.</p>`
     : `<p class="bk-err">${esc(v.reason)}</p>`;
 
   const footHtml = v.ok
@@ -348,7 +338,6 @@ function _atlasBackupAfterImport() {
     if (typeof applyReferenceData === "function") applyReferenceData();
     if (typeof _xtHolidaySet !== "undefined") _xtHolidaySet = null; // re-read the holiday list
     if (typeof loadSavedTheme === "function") loadSavedTheme();
-    if (typeof recentsRender === "function") recentsRender();
     if (typeof renderAll === "function") renderAll();
     if (typeof closeSettings === "function") closeSettings();
   } catch (e) { /* non-fatal */ }

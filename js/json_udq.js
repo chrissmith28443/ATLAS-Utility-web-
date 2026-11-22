@@ -448,7 +448,7 @@ const ATLAS_ATTACH_COLUMNS = [
 ];
 
 /* Shipping Activity & History header (start at col B). INCOTERMS + AWB/BoL live here. */
-/* All 50 export columns, verified Oct 2026 against the Metrics JSON + its Excel
+/* All 58 export columns; the first 50 verified Oct 2026 against the Metrics JSON + its Excel
    export: JSON origin_Departure_* = "Warehouse Departure", departure_* =
    "Departure from Origin", arrival_* = "Arrival at Destination", dest_Custom_* =
    "Customs Clearance", dest_Delvry_* = "Destination Delivery". Dates use the
@@ -458,6 +458,16 @@ const ATLAS_SHIPACT_COLUMNS = [
   ["awlBol", "AWB/BoL"],
   ["incoterms", "INCOTERMS"],
   ["trackingLink", "Tracking Link"],
+  // Shipment milestones (added Nov 2026 — they replace the Ops Tracker). Names
+  // verified 22 Nov 2026 against the SRF UDQ JSON + its Excel export.
+  ["datePacked_UDQ", "Date Packed"],
+  ["rfqSentDate_UDQ", "RFQ Sent Date"],
+  ["itN_NoEEI_Citation", "ITN / NOEEI Citation"],
+  ["maradSubmittedDate_UDQ", "MARAD Submitted Date"],
+  ["warehouseInvoiceReceivedDate_UDQ", "Warehouse Invoice Received"],
+  ["finalShippingInvoiceReceivedDate_UDQ", "Final Shipping Invoice Received"],
+  ["monitorThisRDD_UDQ", "Monitor this RDD"],
+  ["shippingTeamNotes", "Shipping Team Notes"],
   ["origin_FirstItem_EstDate_UDQ", "First Item Warehouse Est. Date"],
   ["origin_FirstItem_ActDate_UDQ", "First Item Warehouse Act. Date"],
   ["origin_FirstItem_CountryText", "First Item Warehouse Country"],
@@ -1272,9 +1282,12 @@ async function loadFromAtlasUdq(opts) {
 
 /* -------------------------------------------------------------------------
    SAVED COPY — the last Metrics pull is kept in this browser (IndexedDB, ~5 MB)
-   so the COP opens at once and refreshes in the background, and so a
-   "changed since" pull has something to merge into. Keyed by env + UDQ ID.
-   Any storage failure just means no saved copy.
+   ONLY while "changed since" pulls are switched on (atlasChangesOn), so that
+   pull has something to merge into. It is never shown on its own: the
+   Dashboard stays blank until a pull from ATLAS has finished (2.9.0 — a saved
+   copy on screen looked like fresh data). With "changed since" off, nothing is
+   saved and any copy an older version left behind is deleted. Keyed by env +
+   UDQ ID. Any storage failure just means no saved copy.
    ------------------------------------------------------------------------- */
 function atlasCacheDb() {
   return new Promise((resolve, reject) => {
@@ -1344,8 +1357,12 @@ async function atlasPullMetricsRecords(opts) {
   const usable = recs.filter((r) => r && String(r.GMTRNumber || "").trim());
   if (!usable.length) throw new Error("ATLAS returned no usable records.");
   const now = Date.now();
-  await atlasCachePut(atlasMetricsCacheKey(),
-    { records: usable, at: now, fullAt: delta ? saved.fullAt : now, stamp: meta.stamp || "" });
+  if (atlasChangesOn()) {
+    await atlasCachePut(atlasMetricsCacheKey(),
+      { records: usable, at: now, fullAt: delta ? saved.fullAt : now, stamp: meta.stamp || "" });
+  } else {
+    try { indexedDB.deleteDatabase("atlas-udq-cache"); } catch (e) { /* nothing saved */ }
+  }
   return usable;
 }
 

@@ -492,7 +492,6 @@ function _consolLoadPrimary(data, grid, fileName, source) {
   if (typeof mpOnSrfLoaded === "function") mpOnSrfLoaded();
   if (typeof mdOnSrfLoaded === "function") mdOnSrfLoaded();
   if (typeof siOnSrfLoaded === "function") siOnSrfLoaded();
-  if (typeof recentsRecordFromState === "function") recentsRecordFromState();
   const status = document.getElementById("loadStatus");
   if (status) {
     status.classList.remove("err");

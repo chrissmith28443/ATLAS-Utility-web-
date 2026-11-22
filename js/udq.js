@@ -212,6 +212,12 @@ function detectUdqType(grid) {
 
     const a2 = normWs(gridCell(grid, 2, 1));
 
+    // --- IR / DTR (interpretation / translation requests): their own request
+    //     number heads column A, where every WMTR UDQ has "WMTR Number" ---
+    const a1 = normKey(row1[0]);
+    if (a1 === "ir number") return "ir";
+    if (a1 === "dtr number") return "dtr";
+
     // --- Metrics: 2+ "WMTR-...-SRF" values in column A ---
     let wmtrCount = 0;
     for (let r = 1; r <= maxRow; r++) {
@@ -248,6 +254,48 @@ function detectUdqType(grid) {
   } catch (e) {
     return "unknown";
   }
+}
+
+/* ---- IR / DTR UDQs (interpretation / translation requests) ----
+   Laid out like every other UDQ export — one record row per request (its number
+   in col A), its sub-sections beneath — but these aren't WMTRs and no tool
+   builds a document from them. The reader takes just the record-row fields the
+   dashboard summary shows, by header name. */
+const REQUEST_UDQ = {
+  ir:  { label: "IR",  noun: "interpretation request", idRe: /^IR-/i },
+  dtr: { label: "DTR", noun: "translation request",    idRe: /^DTR-/i },
+};
+
+function readRequestUdq(grid, type) {
+  const k = REQUEST_UDQ[type];
+  const H = buildHeaderMap(grid, SHIP_HDR_ROW);
+  const records = [];
+  for (let r = SHIP_VAL_ROW; r <= gridMaxRow(grid); r++) {
+    const number = norm(gridCell(grid, r, 1));
+    if (!k.idRe.test(number)) continue;
+    // First of the named headers this UDQ carries (IR and DTR name a few differently).
+    const S = (...names) => {
+      for (const n of names) { const c = H[normWs(n)]; if (c) return norm(gridCell(grid, r, c)); }
+      return "";
+    };
+    records.push({
+      number,
+      status: S("Status"),
+      title: S("Event Title", "Project Title"),
+      pls: S("Associated PLS Number"),
+      program: S("CT Funding Program"),
+      country: S("Destination Country", "Funding Country"),
+      city: S("Destination City"),
+      submitted: S("Date Submitted"),
+      start: S("Start Date"),
+      end: S("End Date"),
+      due: S("Due Date/Time"),
+      completed: S("Completed Date"),
+      cost: toFloat(S("Total Cost in USD")),
+      red_flag: /^true$/i.test(S("Red Flag", "RedFlag")),
+    });
+  }
+  return { type, records };
 }
 
 /* ---- Party + LineItem factories ---- */
@@ -1157,160 +1205,18 @@ function analyzeConsolidation(grid) {
   return result;
 }
 
-/* =========================================================================
-   UDQ PARSE DIAGNOSTICS (Feature #5)
-
-   When a file doesn't parse, or detects as the "wrong" type, the diagnostics
-   report shows which layout signals, sections, and inventory columns were found
-   vs. missing — so a user can see *why* and fix the export (or spot that it was
-   edited/renamed). This is descriptive only; it never changes parsing.
-
-   The column specs below mirror the resolvers in readUdq / readPropertyUdq.
-   Keep them in sync if those readers change.
-   ========================================================================= */
-
-/* SRF inventory columns (names exactly as resolved in readUdq). */
-const SRF_REQUIRED_INV_COLS = [
-  "Serial #", "Quantity", "Description", "Model/Catalog Number",
-  "Schedule B/HTS Code", "ECCN/USML", "BIS/DDTC Authorization or Exception",
-  "Material/Equipment Manufacture Country of Origin", "Value(USD)",
-  "Final Weight(lbs)", "Final Weight(kg)", "Final Dimentions (L x W x H)",
-];
-const SRF_OPTIONAL_INV_COLS = [
-  "Unit Of Issue", "Unit Of Measure", "UN Code",
-  "HAZMAT/Dangerous Goods Classification",
-  "Specific Temperature Control Requirements",
-  "Shelf Life/Expiration Date For Perishable Items",
-  "Purchase Order", "Vendor", "Manufacturer", "Ship Group #", "Qty Received",
-];
-/* Property inventory columns — each entry is an alias group (first present wins,
-   matching _propInvColFirst). required flags those readPropertyUdq throws on. */
-const PROP_INV_COL_GROUPS = [
-  { label: "Description", required: true, aliases: ["Description"] },
-  { label: "Quantity", required: true, aliases: ["Quantity Ordered", "Quantity Received", "Quantity Requested", "Qty Received", "Quantity"] },
-  { label: "Value (USD)", required: true, aliases: ["Value(USD)", "Value (USD)"] },
-  { label: "Model / Catalog", required: false, aliases: ["Model/Catalog Number", "Model / Catalog No"] },
-  { label: "Manufacturer", required: false, aliases: ["Actual Manufacturer", "Recommended Manufacturer", "Manufacturer", "Original Equipment Manufacturer"] },
-  { label: "Serial #", required: false, aliases: ["Serial #"] },
-  { label: "Unit of measure", required: false, aliases: ["Unit Of Measure Ordered", "Unit Of Measure Requested", "Unit Of Issue", "Unit Of Measure", "U/M"] },
-  { label: "Qty requested", required: false, aliases: ["Quantity Requested", "Quantity Ordered", "Quantity"] },
-  { label: "Qty received", required: false, aliases: ["Quantity Received", "Qty Received"] },
-];
-
-/** Build a diagnostics report for a grid. Never throws. */
-function udqDiagnose(grid) {
-  const report = {
-    detectedType: "unknown",
-    signals: [],
-    sections: [],
-    shipment: { headerCount: 0, keyHeaders: [], partyBlocks: [] },
-    inventory: null,
-    parseError: "",
-  };
-  if (!grid || !grid.length) {
-    report.parseError = "No worksheet rows were read from the file.";
-    return report;
-  }
-  try {
-    report.detectedType = detectUdqType(grid);
-
-    /* ---- type-detection signals ---- */
-    const row1 = [];
-    for (let c = 1; c <= gridMaxCol(grid); c++) row1.push(normWs(gridCell(grid, 1, c)));
-    const a2 = normWs(gridCell(grid, 2, 1));
-    let wmtrCount = 0;
-    const limR = Math.min(gridMaxRow(grid), 300);
-    for (let r = 1; r <= limR; r++) {
-      const v = normWs(gridCell(grid, r, 1)).toUpperCase();
-      if (v.startsWith("WMTR-") && v.endsWith("-SRF")) wmtrCount++;
-    }
-    const propHeaders = ["Purchasing Instructions", "Recommended Vendor", "Recommended Manufacturer"];
-    const propHdrRow = inventoryHeaderRow(grid);
-    let propHit = "";
-    for (let c = 1; c <= Math.min(gridMaxCol(grid), 30); c++) {
-      const h = normWs(gridCell(grid, propHdrRow, c));
-      if (propHeaders.includes(h)) { propHit = h; break; }
-    }
-    const invTitleRow = findSectionTitleRow(grid, "Inventory List");
-
-    const sig = (label, found, detail) => report.signals.push({ label, found: !!found, detail: detail || "" });
-    sig('Column A has 2+ "WMTR-…-SRF" values (Metrics)', wmtrCount >= 2, `${wmtrCount} found`);
-    sig('Inventory-list Property header present', !!propHit, propHit ? `matched "${propHit}" on row ${propHdrRow}` : "none of: " + propHeaders.join(", "));
-    sig('"WMTR Number" header in row 1 (SRF)', row1.includes("WMTR Number"), "");
-    sig('Cell A2 begins with "WMTR-" (SRF)', a2.toUpperCase().startsWith("WMTR-"), a2 ? `A2 = "${a2}"` : "A2 empty");
-    sig('"Inventory List" section title present', invTitleRow > 0, invTitleRow > 0 ? `row ${invTitleRow}` : "not found in first 300 rows");
-
-    /* ---- section titles ---- */
-    const sects = ["Inventory List"].concat(SECTION_STOP_TITLES);
-    for (const t of sects) {
-      const row = findSectionTitleRow(grid, t);
-      report.sections.push({ title: t, found: row > 0, row: row || null });
-    }
-
-    /* ---- shipment header row ---- */
-    const shipMap = buildHeaderMap(grid, SHIP_HDR_ROW);
-    report.shipment.headerCount = Object.keys(shipMap).length;
-    const keyHeaders = ["WMTR Number", "Final Total Cgo Weight", "Value of Cargo (USD)", "Country of Destination"];
-    report.shipment.keyHeaders = keyHeaders.map((h) => ({ name: h, found: !!shipMap[normWs(h)] }));
-    const partyPrefixes = [
-      "Shipment Origin Organization", "Ultimate Consignee Organization",
-      "End-User Organization", "Delivery Destination Organization",
-      "Pickup Location Organization", "Intermediate Consignee Organization",
-    ];
-    report.shipment.partyBlocks = partyPrefixes.map((p) => ({
-      name: p.replace(" Organization", ""),
-      // a party block "exists" if its Organization header OR its Country header is present
-      found: !!(shipMap[normWs(p)] || shipMap[normWs(p + " Country")]),
-    }));
-
-    /* ---- inventory columns (per detected/attempted layout) ---- */
-    const treatAsProperty = report.detectedType === "property";
-    const invHdrRow = inventoryHeaderRow(grid);
-    const invMap = buildHeaderMap(grid, invHdrRow);
-    const cols = [];
-    if (treatAsProperty) {
-      for (const g of PROP_INV_COL_GROUPS) {
-        let matched = "", col = 0;
-        for (const a of g.aliases) { if (invMap[normWs(a)]) { matched = a; col = invMap[normWs(a)]; break; } }
-        cols.push({ label: g.label, required: g.required, found: !!col, col: col || null, matched, aliases: g.aliases });
-      }
-    } else {
-      for (const name of SRF_REQUIRED_INV_COLS) cols.push({ label: name, required: true, found: !!invMap[normWs(name)], col: invMap[normWs(name)] || null });
-      for (const name of SRF_OPTIONAL_INV_COLS) cols.push({ label: name, required: false, found: !!invMap[normWs(name)], col: invMap[normWs(name)] || null });
-    }
-    report.inventory = {
-      layout: treatAsProperty ? "property" : "srf",
-      headerRow: invHdrRow || null,
-      columnCount: Object.keys(invMap).length,
-      columns: cols,
-      missingRequired: cols.filter((c) => c.required && !c.found).map((c) => c.label),
-    };
-
-    /* ---- attempt the real parse to capture any throw ---- */
-    try {
-      if (report.detectedType === "srf") readUdq(grid);
-      else if (report.detectedType === "property") readPropertyUdq(grid);
-    } catch (e) {
-      report.parseError = String((e && e.message) || e);
-    }
-  } catch (e) {
-    report.parseError = report.parseError || String((e && e.message) || e);
-  }
-  return report;
-}
-
 /* Node test support */
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     gridCell, buildHeaderMap, findSectionTitleRow,
     inventoryHeaderRow, inventoryStartRow, inventoryEndRow,
     shipValue, sectionTableValue, detectUdqType, readUdq, readPropertyUdq,
+    REQUEST_UDQ, readRequestUdq,
     cleanCountry, makeParty, makeLineItem,
     readLinkedRequestSections, readLinkedRequests, readConsolGroups,
     readInventorySections,
     analyzeConsolidation, _consolKey,
     LINKED_REQUEST_TITLE, LINKED_REQUEST_FIELD_MAP,
-    udqDiagnose, SRF_REQUIRED_INV_COLS, SRF_OPTIONAL_INV_COLS, PROP_INV_COL_GROUPS,
   };
   // Pull util fns into scope for Node
   const u = require("./util.js");

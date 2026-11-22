@@ -26,11 +26,12 @@
      Christmas Tree already makes come from its own engine (xtBuildRow /
      xtRowIssues) and its acknowledgement list is shared.
 
-   OPS TRACKER
-     RFQ Sent, Date Packed, AES Class, ITN / NOEEI Citation, Estimated Export
-     Date and the MARAD dates aren't in ATLAS yet, so they're read from the Ops
-     Tracker workbook ("Active MTR" tab). Drop it on the COP (or the main drop
-     zone) whenever it's updated; the last one loaded is kept in this browser.
+   NO MORE OPS TRACKER (2.9.0)
+     Date Packed, RFQ Sent Date, ITN / NOEEI Citation, MARAD Submitted Date, the
+     invoice-received dates, Monitor this RDD, Shipping Team Notes and Original
+     RDD are ATLAS fields now, so nothing is loaded separately. Every check
+     reads them, and the Tracker view lays them out the way the Ops Tracker
+     did. Shipments delivered before 1 Oct 2026 stay on the archived tracker.
    ========================================================================= */
 
 /* -------------------------------------------------------------------------
@@ -117,7 +118,8 @@ const COP_MARAD_WORKDAYS_US = 20;
 const COP_MARAD_WORKDAYS_FOREIGN = 30;
 
 const COP_PREFS_KEY = "atlas.cop.prefs";
-const COP_TRACKER_KEY = "atlas.cop.tracker";
+// The Ops Tracker copy older versions kept in this browser is no longer used — clear it.
+try { localStorage.removeItem("atlas.cop.tracker"); } catch (e) { /* storage off */ }
 
 /* Attachment types (ATLAS "Type" column) per document. */
 const COP_DOC_TYPES = {
@@ -145,7 +147,7 @@ const COP_DOC_TYPES = {
    registered so the Tree's "Ignored" box names them properly. */
 const COP_ACK_LABELS = {
   "cop.status": "COP: problem status", "cop.redflag": "COP: Red Flag", "cop.stuck": "COP: time in lane",
-  "cop.rdd": "COP: RDD", "cop.tracker": "COP: on Ops Tracker",
+  "cop.rdd": "COP: RDD",
   "cop.parties": "COP: addresses & POCs", "cop.invbasic": "COP: inventory basics", "cop.eccn": "COP: ECCN/USML",
   "cop.hts": "COP: Schedule B/HTS", "cop.coo": "COP: country of origin", "cop.shipfields": "COP: shipment fields",
   "cop.value": "COP: line values", "cop.wtdims": "COP: weights/dims", "cop.temphaz": "COP: temp/HAZMAT",
@@ -182,7 +184,10 @@ const COP_STATES = {
    STATE
    ------------------------------------------------------------------------- */
 const CopUi = {
-  view: "active",       // "active" | "closed"
+  view: "active",       // "active" (In progress) | "tracker" | "closed"
+  trkScope: "all",      // Tracker view: "all" | "active" | "delivered"
+  trkPick: "",          // Tracker view: tile filter (COP_TRK_PICK key)
+  trkSort: null,        // Tracker view: { id, dir }
   poc: "",              // TTI POC filter ("" = all; "My shipments only" lives in prefs)
   atRisk: false,        // only shipments with a red/amber item
   rddDays: 0,           // only RDD within N calendar days (0 = any)
@@ -367,7 +372,7 @@ function copParseGrid(grid) {
 
   // dpsSince / estSince: the earliest date each newer ATLAS field appears in this
   // export. Records that went through that step before then can't be held to it.
-  const ds = { hasCostList: false, hasEstimateList: false, hasWfl: false, hasDaily: false, dpsSince: null, estSince: null };
+  const ds = { hasCostList: false, hasEstimateList: false, hasWfl: false, hasDaily: false, hasMilestones: false, dpsSince: null, estSince: null };
   const earliest = (cur, d) => (d && (!cur || d.getTime() < cur.getTime()) ? d : cur);
   const records = [];
   for (let i = 0; i < recRows.length; i++) {
@@ -388,6 +393,8 @@ function copParseGrid(grid) {
     if (est.present) ds.hasEstimateList = true;
     if (wfl.length) ds.hasWfl = true;
     if (daily.length) ds.hasDaily = true;
+    const shipAct = copReadShipping(grid, rr, rEnd, maxCol);
+    if (COP_SHIP_FIELDS.rfq in shipAct || COP_SHIP_FIELDS.packed in shipAct) ds.hasMilestones = true;
 
     const fields = {};
     for (const h of Object.keys(hmap)) fields[h.toLowerCase()] = S(h);
@@ -408,7 +415,7 @@ function copParseGrid(grid) {
       costAttachTypes: cost.attachTypes,
       linked: linked.rows,
       est: est.rows,
-      ship: copReadShipping(grid, rr, rEnd, maxCol),
+      ship: shipAct,
       wfl,
       daily,
     });
@@ -430,137 +437,66 @@ function copData() {
 }
 
 /* -------------------------------------------------------------------------
-   OPS TRACKER — read the "Active MTR" tab (and the Closed tab's WMTR list).
-   Dates are stored as ISO strings; anything else (N/A, "Low value") as text.
+   SHIPMENT MILESTONES — what the Ops Tracker used to hold is in ATLAS now
+   (fields added Nov 2026): on Shipping Activity & History — Date Packed, RFQ
+   Sent Date, ITN / NOEEI Citation, MARAD Submitted Date, Warehouse Invoice
+   Received, Final Shipping Invoice Received, Monitor this RDD, Shipping Team
+   Notes — and "Original RDD" on the request. Every check reads those fields.
+   Shipments delivered before COP_FIELDS_FROM_ISO (start of FY27) were tracked
+   on the Ops Tracker, which is archived: they aren't held to these fields.
    ------------------------------------------------------------------------- */
-const COP_TRACKER_COLS = {
-  packed: ["date packed"],
-  rfq: ["rfq sent"],
-  etd: ["estimated export date/time", "estimated export date"],
-  aesClass: ["aes class"],
-  itn: ["itn / noeei citation", "itn/noeei citation", "itn"],
-  maradDue: ["marad due date"],
-  maradSub: ["marad submitted"],
+const COP_FIELDS_FROM_ISO = "2026-10-01";
+const COP_SHIP_FIELDS = {
+  packed: "date packed", rfq: "rfq sent date", itn: "itn / noeei citation", maradSub: "marad submitted date",
+  whInv: "warehouse invoice received", shipInv: "final shipping invoice received",
+  monitor: "monitor this rdd", notes: "shipping team notes",
 };
-function copSerialToIso(n) {
-  const d = new Date(Math.round((n - 25569) * 86400000));
-  const p = (x) => String(x).padStart(2, "0");
-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+const COP_PRE_FIELDS_TEXT = "Delivered before 1 Oct 2026 — tracked on the archived Ops Tracker, not in ATLAS.";
+const COP_NO_FIELDS_TEXT = "This UDQ doesn't include the new Shipping Activity fields (Date Packed, RFQ Sent Date, ITN…) — pull or export a fresh one.";
+/** Does this record's export carry the milestone columns at all? (older exports don't) */
+function copHasMilestones(rec) { return !!rec.ship && (COP_SHIP_FIELDS.rfq in rec.ship || COP_SHIP_FIELDS.packed in rec.ship); }
+/** Delivered (or closed out) before the fields existed. */
+function copPreFields(rec) {
+  const d = xtParseDate(rec.f["delivery date"])
+    || (copIsClosedStatus(copLow(rec.f["status"])) ? xtParseDate(rec.f["date completed"]) : null);
+  return !!d && xtIso(d) < COP_FIELDS_FROM_ISO;
 }
-/** Cell -> ISO date when it is one (serial or date text), else trimmed text. */
-function copTrackerCell(v, isDate) {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "number" && isDate && v > 20000 && v < 80000) return copSerialToIso(v);
-  if (v instanceof Date) return xtIso(v);
-  const s = norm(String(v));
-  if (isDate) { const d = xtParseDate(s); if (d) return xtIso(d); }
-  return s;
+/** The milestone fields of one record, as entered in ATLAS (text). */
+function copMilestones(rec) {
+  const o = {};
+  for (const k of Object.keys(COP_SHIP_FIELDS)) o[k] = norm(rec.ship[COP_SHIP_FIELDS[k]] || "");
+  return o;
 }
-function copSheetRows(wb, name) {
-  return XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+/** What the checks read: the milestones, or null when this record isn't held to
+    them (older export, or delivered before 1 Oct 2026 — see `why`). */
+function copMsFor(rec, ds) {
+  if (!ds || !ds.hasMilestones) return { trk: null, why: COP_NO_FIELDS_TEXT, na: false };
+  if (copPreFields(rec)) return { trk: null, why: COP_PRE_FIELDS_TEXT, na: true };
+  return { trk: copMilestones(rec), why: "", na: false };
 }
-function copHeaderIndex(rows, need) {
-  for (let r = 0; r < Math.min(rows.length, 10); r++) {
-    const keys = (rows[r] || []).map((v) => copLow(v));
-    if (need.every((n) => keys.includes(n))) return { r, keys };
-  }
-  return null;
-}
-/** Returns a tracker object, or null when the workbook isn't an Ops Tracker. */
-function copParseTrackerWorkbook(buf, fileName) {
-  const wb = XLSX.read(buf, { type: "array" });
-  let active = null;
-  for (const name of wb.SheetNames) {
-    if (/closed/i.test(name)) continue;
-    const rows = copSheetRows(wb, name);
-    const h = copHeaderIndex(rows, ["mtr", "rfq sent"]);
-    if (h) { active = { name, rows, h }; break; }
-  }
-  if (!active) return null;
-  // ITN too: the Closed tab records the date the ITN was filed instead of the number.
-  const dateKeys = new Set(["packed", "rfq", "etd", "maradDue", "maradSub", "itn"]);
-  /** One tracker tab -> { rows: {request#: {...}}, cols: [found keys] }. */
-  const readTab = (rows, h) => {
-    const col = (alts) => { for (const a of alts) { const i = h.keys.indexOf(a); if (i !== -1) return i; } return -1; };
-    const cMtr = h.keys.indexOf("mtr");
-    const cols = {};
-    for (const k of Object.keys(COP_TRACKER_COLS)) cols[k] = col(COP_TRACKER_COLS[k]);
-    const out = {};
-    for (let r = h.r + 1; r < rows.length; r++) {
-      const row = rows[r] || [];
-      const mtr = norm(row[cMtr]);
-      if (!/^WMTR-/i.test(mtr)) continue;               // skip divider rows ("New MTRs as of…")
-      const o = { mtr };
-      for (const k of Object.keys(cols)) o[k] = cols[k] === -1 ? "" : copTrackerCell(row[cols[k]], dateKeys.has(k));
-      out[String(xtWmtrNumber(mtr))] = o;
-    }
-    return { rows: out, cols: Object.keys(cols).filter((k) => cols[k] !== -1) };
-  };
-  const act = readTab(active.rows, active.h);
+function copIsYes(v) { return /^(true|yes|y|1)$/i.test(norm(v || "")); }
 
-  // Closed tab(s): their WMTRs explain "not on the Active tab", and a Closed MTR
-  // Tracker tab (same columns) supplies RFQ / pack / ITN / MARAD dates to the
-  // COP's Closed view.
-  const closed = [];
-  let closedRows = {};
-  for (const name of wb.SheetNames) {
-    if (!/closed/i.test(name)) continue;
-    const cr = copSheetRows(wb, name);
-    for (const row of cr) for (const v of (row || []).slice(0, 2)) {
-      const s = norm(v);
-      if (/^WMTR-/i.test(s)) { closed.push(String(xtWmtrNumber(s))); break; }
-    }
-    const h = copHeaderIndex(cr, ["mtr"]);
-    if (h) closedRows = Object.assign(closedRows, readTab(cr, h).rows);
-  }
+/** Key dates of one request, start to finish — the Ops Tracker's date columns,
+    read from the Workflow Logs (oldest stamp of each status), the milestone
+    fields and Shipping Activity. Missing = null. */
+function copTimeline(rec) {
+  const oldest = (re) => { let d = null; for (const e of rec.wfl) if (e.dt && re.test(copLow(e.status))) d = e.dt; return d; };
+  const ms = (k) => xtParseDate(rec.ship[COP_SHIP_FIELDS[k]] || "");
+  const ship = (h) => xtParseDate(rec.ship[h] || "");
   return {
-    fileName: fileName || "", loadedAt: new Date().toISOString(), sheet: active.name,
-    rows: act.rows, closedRows, closed: Array.from(new Set(closed)),
-    hasCols: act.cols,
+    submitted: xtParseDate(rec.f["date submitted"]) || oldest(/^(?!draft)./),   // else the first stamp after Draft
+    toDtra: oldest(/^dtra program review$/),
+    compliance: oldest(/^dtra compliance review \(approved\)$/),
+    packed: ms("packed"),
+    rfq: ms("rfq"),
+    quoteSub: oldest(/^dtra estimate review$/),
+    quoteAppr: oldest(/^dtra estimate review \(approved\)$/) || oldest(/^dtra approved$/),
+    etd: ship("departure from origin est. date"),
+    departed: ship("departure from origin act. date"),
+    delivered: xtParseDate(rec.f["delivery date"]),
+    origRdd: xtParseDate(rec.f["original rdd"]),
+    rdd: xtParseDate(rec.f["nlt completion date"]),
   };
-}
-function copGetTracker() {
-  try { const t = JSON.parse(localStorage.getItem(COP_TRACKER_KEY) || "null"); return (t && t.rows) ? t : null; }
-  catch (e) { return null; }
-}
-function copSetTracker(t) {
-  try {
-    if (t) localStorage.setItem(COP_TRACKER_KEY, JSON.stringify(t));
-    else localStorage.removeItem(COP_TRACKER_KEY);
-  } catch (e) { /* storage off */ }
-}
-/** Load a dropped/browsed Ops Tracker file. Returns the tracker or throws. */
-async function copLoadTrackerFile(file) {
-  const buf = await file.arrayBuffer();
-  const t = copParseTrackerWorkbook(buf, file.name);
-  if (!t) throw new Error(`${file.name} doesn't look like the Ops Tracker (no tab with "MTR" and "RFQ Sent" headers).`);
-  copSetTracker(t);
-  return t;
-}
-/** Hook for the main drop zone (app.js loadFile): an Ops Tracker dropped
-    there is taken by the COP instead of replacing the loaded UDQ. Cheap check
-    first (sheet names only). Returns true when the file was handled. */
-async function copMaybeTrackerFile(file) {
-  if (!file || !/\.xls[xm]$/i.test(file.name || "")) return false;
-  let names = [];
-  try { names = XLSX.read(await file.arrayBuffer(), { type: "array", bookSheets: true }).SheetNames || []; }
-  catch (e) { return false; }
-  if (!names.some((n) => /^\s*active mtr\s*$/i.test(n))) return false;
-  const status = document.getElementById("loadStatus");
-  try {
-    const t = await copLoadTrackerFile(file);
-    if (status) {
-      status.classList.remove("err");
-      status.textContent = `Loaded Ops Tracker ${file.name} — ${Object.keys(t.rows).length} active MTRs. ` +
-        (AppState.udqType === "metrics" ? "The COP now uses its RFQ, pack, AES/ITN and MARAD dates."
-                                        : "Load or fetch a Metrics UDQ to see the COP.");
-    }
-  } catch (e) {
-    if (status) { status.textContent = e.message; status.classList.add("err"); }
-    return true;
-  }
-  if (AppState.activeTool === "cop") renderWorkspace();
-  return true;
 }
 
 /* -------------------------------------------------------------------------
@@ -668,7 +604,7 @@ function copDailyGaps(dates, start, end) {
 
 /**
  * Build the COP view of one record.
- * ctx = { today, tracker, prefs, ds, ignores }
+ * ctx = { today, prefs, ds, ignores }
  */
 function copEvaluate(rec, ctx) {
   const li = copLaneInfo(rec);
@@ -679,9 +615,9 @@ function copEvaluate(rec, ctx) {
     : li.closed ? COP_CLOSED_IDX : (li.lane ? COP_LANE_IDX[li.lane] : -1);
   const types = rec.att.map((a) => a.type);
   const hasDoc = (k) => copHasType(types, COP_DOC_TYPES[k]);
-  // Tracker row: the Active tab; a closed request may only be on the Closed tab.
-  const trk = ctx.tracker ? (ctx.tracker.rows[String(rec.num)]
-    || ((li.closed && ctx.tracker.closedRows) ? ctx.tracker.closedRows[String(rec.num)] : null) || null) : null;
+  // Milestone fields (ATLAS): null when this record isn't held to them — `ms.why` says why.
+  const ms = copMsFor(rec, ctx.ds);
+  const trk = ms.trk;
   const ig = ctx.ignores[rec.reqNo] || [];
   const isAcked = (keys) => ig.indexOf("*") !== -1 || keys.some((k) => ig.indexOf(k) !== -1);
   const delivered = xtParseDate(f["delivery date"]);
@@ -824,9 +760,7 @@ function copEvaluate(rec, ctx) {
     { state: "fail", detail: h.label + (xrow.reject_reason ? ` — reason: ${xrow.reject_reason}` : "") }, ["rejected"]);
   for (const h of xHit("manual")) add("manual", "general", "req", "Manually-entered metric flag", { state: "fail", detail: h.label }, ["manual"]);
   for (const m of ["variance_est", "variance_rev"]) for (const h of xHit(m)) {
-    // Undelivered: only once more than 10% over (delivered = the ≥10% estimate-vs-actual metric).
-    const appr = xrow.governing_amount, cur = xrow.current_total_cost;
-    if (!delivered && !(typeof appr === "number" && typeof cur === "number" && appr > 0 && cur > appr * 1.10)) continue;
+    // xtRowIssues only raises this when the actual is more than 10% over the approved amount (xtCostOver).
     add("cost", "general", "req", "Cost vs. DTRA-approved amount",
       { state: li.closed || delivered ? "warn" : "fail",
         detail: `${h.label} (approved ${copMoney(xrow.governing_amount) || "—"}, current ${copMoney(xrow.current_total_cost) || "—"}).` }, [m]);
@@ -834,13 +768,6 @@ function copEvaluate(rec, ctx) {
   if (li.closed) {
     for (const m of ["rti", "invoiced"]) for (const h of xHit(m))
       add(m, "general", "req", m === "rti" ? "Ready to Invoice" : "Invoiced", { state: h.kind === "due" ? "due" : "warn", detail: h.label }, [m]);
-  }
-
-  // Ops Tracker presence (while it still supplies RFQ / pack / ITN / MARAD dates).
-  if (ctx.tracker && !li.closed && laneIdx >= COP_LANE_IDX.qr && !trk) {
-    const onClosed = (ctx.tracker.closed || []).indexOf(String(rec.num)) !== -1;
-    add("tracker", "general", "rec", "On the Ops Tracker", { state: "warn",
-      detail: onClosed ? "Active in ATLAS, but the tracker has it on its Closed tab." : "Active in ATLAS, but not on the tracker's Active MTR tab." });
   }
 
   /* Closed = post-shipment audit: metric hits only. The step-by-step quality
@@ -857,19 +784,18 @@ function copEvaluate(rec, ctx) {
         : { state: laneIdx < 0 ? "na" : "later", detail: "Clock starts when Compliance Review is approved." });
       return;
     }
-    if (!ctx.tracker) { add("rfq", "estimate", "req", label, { met: null, detail: "Load the Ops Tracker to check the RFQ Sent and Date Packed dates." }); return; }
-    if (!trk) { add("rfq", "estimate", "req", label, { met: null, detail: "Not on the Ops Tracker." }); return; }
+    if (!trk) { add("rfq", "estimate", "req", label, { met: ms.na ? "na" : null, detail: ms.why }); return; }
     const packed = copIsoToDate(trk.packed);
     const due = xtWorkday(packed && packed.getTime() > compApproved.getTime() ? packed : compApproved, 1, true);
     const sent = copIsoToDate(trk.rfq);
     // Text instead of a date ("Hand Carry", "FEDEX", "N/A") = no RFQ for this one.
-    if (!sent && norm(trk.rfq)) { add("rfq", "estimate", "req", label, { met: "na", detail: `Tracker shows "${trk.rfq}" — no RFQ needed.` }); return; }
+    if (!sent && norm(trk.rfq)) { add("rfq", "estimate", "req", label, { met: "na", detail: `RFQ Sent Date shows "${trk.rfq}" — no RFQ needed.` }); return; }
     if (sent) {
       add("rfq", "estimate", "req", label, sent.getTime() <= due.getTime()
         ? { state: "ok", detail: `Sent ${copFmt(sent)} (due ${copFmt(due)}).` }
         : { state: "fail", detail: `Sent ${copFmt(sent)}, after the ${copFmt(due)} due date.` });
     } else if (today.getTime() > due.getTime()) {
-      add("rfq", "estimate", "req", label, { state: "fail", detail: `No RFQ Sent date on the tracker; it was due ${copFmt(due)}.` });
+      add("rfq", "estimate", "req", label, { state: "fail", detail: `No RFQ Sent Date in ATLAS; it was due ${copFmt(due)}.` });
     } else {
       add("rfq", "estimate", "req", label, { state: "due", detail: `Due ${copFmt(due)}.` });
     }
@@ -912,14 +838,14 @@ function copEvaluate(rec, ctx) {
   // hand carry excepted — decided from the ATLAS route, not a tracker class.
   // The export date is ATLAS "Departure from Origin Est. Date"; once the
   // shipment has actually departed (Act. Date, or status Picked Up or later)
-  // without an ITN it's a hard red. The ITN / NOEEI citation itself isn't in
-  // ATLAS yet, so it's read from the Ops Tracker until that field exists.
+  // without an ITN it's a hard red. The ITN / NOEEI citation is the ATLAS
+  // Shipping Activity field of that name.
   (function () {
     const label = "AES filed / ITN before departure";
     if (!exportUs) return;
     if (sc.handCarry) { add("itn", "ready", "req", label, { met: "na", detail: "Hand carry — AES not checked." }); return; }
     const depAct = xtParseDate(rec.ship["departure from origin act. date"]);
-    const etd = xtParseDate(rec.ship["departure from origin est. date"]) || (trk ? copIsoToDate(trk.etd) : null);
+    const etd = xtParseDate(rec.ship["departure from origin est. date"]);
     const left = !!depAct || laneIdx >= COP_LANE_IDX.transit;
     const notYet = laneIdx < COP_LANE_IDX.ready;
     const itn = trk ? norm(trk.itn) : "";
@@ -928,12 +854,8 @@ function copEvaluate(rec, ctx) {
       add("itn", "ready", "req", label, { state: "ok", detail: filed ? `ITN filed ${copFmt(filed)}.` : `${/^x\d/i.test(itn) ? "ITN" : "Exemption / citation"}: ${itn}.` });
       return;
     }
-    if (!ctx.tracker || !trk) {
-      const why = !ctx.tracker ? "Load the Ops Tracker to check the ITN" : "Not on the Ops Tracker, so the ITN can't be checked";
-      add("itn", "ready", "req", label, { met: null, detail: `US export — AES required. ${why}${etd ? ` (departs ${copFmt(etd)})` : ""}.` });
-      return;
-    }
-    if (left) { add("itn", "ready", "req", label, { state: "fail", detail: `Departed without an ITN — ${depAct ? `left origin ${copFmt(depAct)}` : `status is "${li.status}"`} and the tracker has no ITN or exemption citation.` }); return; }
+    if (!trk) { add("itn", "ready", "req", label, { met: ms.na ? "na" : null, detail: `US export — AES required. ${ms.why}` }); return; }
+    if (left) { add("itn", "ready", "req", label, { state: "fail", detail: `Departed without an ITN — ${depAct ? `left origin ${copFmt(depAct)}` : `status is "${li.status}"`} and ATLAS has no ITN / NOEEI citation.` }); return; }
     if (!etd) { add("itn", "ready", "req", label, notYet ? { state: "open", detail: "US export — AES required; ITN and departure date still to come." } : { state: "warn", detail: "US export, no ITN yet, and no \"Departure from Origin Est. Date\" in ATLAS." }); return; }
     const d = copCalDays(today, etd);
     if (d < 0) add("itn", "ready", "req", label, { state: "fail", detail: `Estimated export date ${copFmt(etd)} has passed with no ITN.` });
@@ -961,7 +883,7 @@ function copEvaluate(rec, ctx) {
   // MARAD (sealift only). Due date is calculated from ATLAS "Departure from
   // Origin Act. Date" (= loading): COP_MARAD_WORKDAYS_US working days for
   // US-origin cargo, COP_MARAD_WORKDAYS_FOREIGN otherwise (46 CFR 381.3). The
-  // submitted date isn't in ATLAS yet — read from the Ops Tracker until it is.
+  // submitted date is the ATLAS field "MARAD Submitted Date".
   if (sc.ocean) {
     const label = "MARAD report (sealift)";
     const loaded = xtParseDate(rec.ship["departure from origin act. date"]);
@@ -970,10 +892,10 @@ function copEvaluate(rec, ctx) {
     const rule = `${days} working days after departure from origin`;
     const sub = trk ? copIsoToDate(trk.maradSub) : null;
     if (sub) add("marad", "transit", "req", label, { state: "ok", detail: `Submitted ${copFmt(sub)}${due ? ` (due ${copFmt(due)})` : ""}.` });
-    else if (trk && (/^n\/?a$/i.test(norm(trk.maradDue)) || /^n\/?a$/i.test(norm(trk.maradSub)))) add("marad", "transit", "req", label, { state: "na", detail: "Ops Tracker shows N/A (e.g. waiver)." });
+    else if (trk && /^n\/?a$/i.test(trk.maradSub)) add("marad", "transit", "req", label, { state: "na", detail: "MARAD Submitted Date shows N/A (e.g. waiver)." });
     else if (!loaded && li.closed) add("marad", "transit", "req", label, { met: null, detail: `No "Departure from Origin Act. Date" in ATLAS, so the due date (${rule}) can't be worked out.` });
     else if (!loaded) add("marad", "transit", "req", label, { state: laneIdx < COP_LANE_IDX.transit ? "later" : "open", detail: `Due ${rule}; no "Departure from Origin Act. Date" in ATLAS yet.` });
-    else if (!ctx.tracker || !trk) add("marad", "transit", "req", label, { met: null, detail: `Due ${copFmt(due)} (${rule}). ${!ctx.tracker ? "Load the Ops Tracker" : "Not on the Ops Tracker"} to check whether it was submitted.` });
+    else if (!trk) add("marad", "transit", "req", label, { met: ms.na ? "na" : null, detail: `Due ${copFmt(due)} (${rule}). ${ms.why}` });
     else {
       const d = copCalDays(today, due);
       add("marad", "transit", "req", label, d < 0 ? { state: "fail", detail: `Was due ${copFmt(due)} (${rule}); not submitted.` }
@@ -1031,7 +953,7 @@ function copEvaluate(rec, ctx) {
     dest: copShortCountry(f["country of destination"] || ""), origin: copShortCountry(f["country of origin"] || ""),
     mode: sc.as || f["requested mode of transit"] || "",
     latest, daily: rec.daily, carrier: xrow.tracking_carrier, awb: xrow.tracking_awb, tracklink: xrow.tracking_link,
-    consol, checks, counts, stageWorst, onTracker: !!trk, trk, requestor: f["requestor name"] || "",
+    consol, checks, counts, stageWorst, trk, requestor: f["requestor name"] || "",
   };
 }
 
@@ -1192,7 +1114,8 @@ function copActiveEvaluate(rec, ctx) {
   const moving = si.step === "exec" && phaseIdx >= COP_PHASE_IDX.transit;   // departed origin
   const types = rec.att.map((a) => a.type);
   const hasType = (list) => copHasType(types, list);
-  const trk = ctx.tracker ? (ctx.tracker.rows[String(rec.num)] || null) : null;
+  const ms = copMsFor(rec, ctx.ds);
+  const trk = ms.trk;                                  // ATLAS milestone fields (null: see ms.why)
   const ig = ctx.ignores[rec.reqNo] || [];
   const isAcked = (keys) => ig.indexOf("*") !== -1 || keys.some((k) => ig.indexOf(k) !== -1);
   const delivered = xtParseDate(f["delivery date"]);
@@ -1257,7 +1180,7 @@ function copActiveEvaluate(rec, ctx) {
   // with a firm date (training event, travellers) is switched to RDD
   // monitoring in its details — then it's amber 5 business days out and red
   // once passed, at any step.
-  const rddWatch = !!(ctx.prefs.rddWatch && ctx.prefs.rddWatch[rec.reqNo]);
+  const rddWatch = !!(ctx.prefs.rddWatch && ctx.prefs.rddWatch[rec.reqNo]) || copIsYes(rec.ship[COP_SHIP_FIELDS.monitor]);
   if (rddWatch && !delivered && si.low !== "delivered - pending pod") {
     const tag = "Monitored RDD";
     if (!rdd) add("rdd", "general", tag, "unknown", "No NLT Completion Date (RDD) on the request.");
@@ -1288,7 +1211,7 @@ function copActiveEvaluate(rec, ctx) {
   }
   if (lim && waitingPack) {
     add("stuck", "general", "Time in this step", "todo",
-      `Waiting on the pack date${!ctx.tracker ? " (load the Ops Tracker)" : ""} — the Estimate Preparation clock starts once the cargo is packed.`);
+      "Waiting on the pack date — the Estimate Preparation clock starts once the cargo is packed.");
   } else if (lim) {
     if (!stuckSince) add("stuck", "general", "Time in this step", "unknown", "No Workflow Logs entry shows when it got here.");
     else {
@@ -1304,7 +1227,7 @@ function copActiveEvaluate(rec, ctx) {
   // 10% over (Christmas Tree rule + the 10% tolerance).
   for (const m of ["variance_est", "variance_rev"]) for (const h of xHit(m)) {
     const appr = xrow.governing_amount, cur = xrow.current_total_cost;
-    if (!(typeof appr === "number" && typeof cur === "number" && appr > 0 && cur > appr * 1.10)) continue;
+    if (!xtCostOver(xrow)) continue;
     add("cost", "general", "Cost vs. DTRA-approved amount", "warn",
       `Cost is ${Math.round((cur / appr - 1) * 100)}% over the DTRA-approved amount (approved ${copMoney(appr)}, current ${copMoney(cur)}).`, [m], "Cost is over the DTRA-approved amount by more than 10%");
   }
@@ -1384,9 +1307,9 @@ function copActiveEvaluate(rec, ctx) {
     const label = "RFQ sent within 1 business day";
     const rule = "1 business day after both Compliance approval and the pack date";
     if (!compApproved) { add("rfq", "estimate", label, stepIdx < COP_STEP_IDX.estimate ? "later" : "unknown", `Due ${rule}.`); return; }
-    if (!ctx.tracker || !trk) { add("rfq", "estimate", label, "unknown", `${!ctx.tracker ? "Load the Ops Tracker" : "Not on the Ops Tracker"} — RFQ Sent and Date Packed come from it.`); return; }
+    if (!trk) { add("rfq", "estimate", label, ms.na ? "na" : "unknown", ms.why); return; }
     const sent = copIsoToDate(trk.rfq);
-    if (!sent && norm(trk.rfq)) { add("rfq", "estimate", label, "na", `Tracker shows "${trk.rfq}" — no RFQ needed.`); return; }
+    if (!sent && norm(trk.rfq)) { add("rfq", "estimate", label, "na", `RFQ Sent Date shows "${trk.rfq}" — no RFQ needed.`); return; }
     const packed = copIsoToDate(trk.packed);
     const start = packed && packed.getTime() > compApproved.getTime() ? packed : compApproved;
     const due = packed ? xtWorkday(start, 1, true) : null;
@@ -1394,7 +1317,7 @@ function copActiveEvaluate(rec, ctx) {
       add("rfq", "estimate", label, due && sent.getTime() > due.getTime() ? "late" : "ok",
         due && sent.getTime() > due.getTime() ? `Sent ${copFmt(sent)}, after the ${copFmt(due)} due date.` : `Sent ${copFmt(sent)}.`);
     } else if (stepIdx > COP_STEP_IDX.estimate) {
-      add("rfq", "estimate", label, "unknown", "No RFQ Sent date on the Ops Tracker.");
+      add("rfq", "estimate", label, "unknown", "No RFQ Sent Date in ATLAS.");
     } else if (!packed) {
       add("rfq", "estimate", label, stepIdx === COP_STEP_IDX.estimate ? "todo" : "later", `Waiting on the pack date (weights/dims from the warehouse). Due ${rule}.`);
     } else if (today.getTime() > due.getTime()) {
@@ -1428,12 +1351,12 @@ function copActiveEvaluate(rec, ctx) {
   // (15 CFR 30.4): sealift 24 hours before the cargo is loaded; air 2 hours
   // before departure (8 for USML items); truck 1 hour before reaching the
   // border. At day level: sealift = the day before "Departure from Origin Est.
-  // Date", everything else = that date. The ITN itself still comes from the
-  // Ops Tracker until ATLAS has a field for it.
+  // Date", everything else = that date. The ITN is the ATLAS field
+  // "ITN / NOEEI Citation" (Shipping Activity).
   if (sc.category === "EXPORT" && !sc.handCarry) (function () {
     const label = "AES filed (ITN)";
     const depAct = xtParseDate(rec.ship["departure from origin act. date"]);
-    const etd = xtParseDate(rec.ship["departure from origin est. date"]) || (trk ? copIsoToDate(trk.etd) : null);
+    const etd = xtParseDate(rec.ship["departure from origin est. date"]);
     const left = !!depAct || moving;
     // USML lines: "USML …", "Cat XI(a)", "XI(a)(3)" in the ECCN/USML field.
     const usml = items.some((r) => /usml|^\s*(cat(egory)?\.?\s*)?[ivx]+\s*\(/i.test(copInv(r, /^eccn/)));
@@ -1445,7 +1368,7 @@ function copActiveEvaluate(rec, ctx) {
       const filed = /^\d{4}-\d{2}-\d{2}$/.test(itn) ? copIsoToDate(itn) : null;
       add("itn", "exec", label, "ok", filed ? `ITN filed ${copFmt(filed)}.` : `${/^x\d/i.test(itn) ? "ITN" : "Exemption / citation"}: ${itn}.`); return;
     }
-    if (!ctx.tracker || !trk) { add("itn", "exec", label, inExec ? "unknown" : "later", `US export — AES must be filed ${rule}. ${!ctx.tracker ? "Load the Ops Tracker" : "Not on the Ops Tracker"} to check the ITN${deadline ? ` (file by ${copFmt(deadline)})` : ""}.`); return; }
+    if (!trk) { add("itn", "exec", label, ms.na ? "na" : inExec ? "unknown" : "later", `US export — AES must be filed ${rule}. ${ms.why}`); return; }
     if (left) { add("itn", "exec", label, "fail", `Departed without an ITN${depAct ? ` (left origin ${copFmt(depAct)})` : ""}.`, null, "Departed without an ITN"); return; }
     if (!inExec) { add("itn", "exec", label, "later", `US export — AES must be filed ${rule}.`); return; }
     if (!deadline) { add("itn", "exec", label, "todo", `US export — AES must be filed ${rule}; no "Departure from Origin Est. Date" yet.`); return; }
@@ -1462,9 +1385,9 @@ function copActiveEvaluate(rec, ctx) {
     const due = loaded ? xtWorkday(loaded, days, true) : null;
     const sub = trk ? copIsoToDate(trk.maradSub) : null;
     if (sub) { add("marad", "exec", label, "ok", `Submitted ${copFmt(sub)}.`); return; }
-    if (trk && (/^n\/?a$/i.test(norm(trk.maradDue)) || /^n\/?a$/i.test(norm(trk.maradSub)))) { add("marad", "exec", label, "na", "Ops Tracker shows N/A."); return; }
+    if (trk && /^n\/?a$/i.test(trk.maradSub)) { add("marad", "exec", label, "na", "MARAD Submitted Date shows N/A."); return; }
     if (!loaded) { add("marad", "exec", label, "later", `Due ${days} working days after departure from origin.`); return; }
-    if (!ctx.tracker || !trk) { add("marad", "exec", label, "unknown", `Due ${copFmt(due)}. ${!ctx.tracker ? "Load the Ops Tracker" : "Not on the Ops Tracker"} to see if it was submitted.`); return; }
+    if (!trk) { add("marad", "exec", label, ms.na ? "na" : "unknown", `Due ${copFmt(due)}. ${ms.why}`); return; }
     const d = copCalDays(today, due);
     add("marad", "exec", label, d < 0 ? "fail" : d <= COP_DUE_SOON_DAYS ? "warn" : "todo",
       d < 0 ? `Was due ${copFmt(due)}; not submitted.` : `Due ${copFmt(due)} (${days} working days after departure).`,
@@ -1502,7 +1425,7 @@ function copBuildAll() {
   // Pending daily updates entered on the COP (mockup / preview only).
   const drafts = copLocalUpdates() ? copPruneDrafts(data.records) : {};
   const ctx = {
-    today: copToday(), tracker: copGetTracker(), prefs: copGetPrefs(), ds: data.ds,
+    today: copToday(), prefs: copGetPrefs(), ds: data.ds,
     ignores: typeof xtGetIgnores === "function" ? xtGetIgnores() : {}, drafts,
   };
   const active = [], closed = [];
@@ -1526,7 +1449,7 @@ function copBuildAll() {
 /* -------------------------------------------------------------------------
    FILTERS
    ------------------------------------------------------------------------- */
-/* "Today" strip quick filters (Active view). */
+/* KPI-tile quick filters (In progress view). */
 const COP_QUICK_DAYS = 7;                 // "departing" window
 function copDepartingSoon(r) {
   if (r.step !== "exec" || COP_PHASE_IDX[r.phase] >= COP_PHASE_IDX.transit) return false;
@@ -1539,19 +1462,24 @@ const COP_QUICK = {
   due: (r) => r.daily && r.daily.dueToday,
   missed: (r) => r.daily && r.daily.missed && r.daily.missed.length > 0,
   departing: copDepartingSoon,
+  // RFQ can go out now (packed + Compliance approved) or is overdue.
+  rfq: (r) => r.checks.some((c) => c.id === "rfq" && (c.state === "fail" || (c.state === "todo" && /^Due /.test(c.detail)))),
+  // US export in Execution with no ITN / NOEEI citation yet.
+  eei: (r) => r.step === "exec" && r.checks.some((c) => c.id === "itn" && (c.state === "fail" || c.state === "warn" || c.state === "todo")),
 };
 function copTodayStrip(base) {
   const n = (f) => base.filter(f).length;
   const att = n((r) => r.counts.red || r.counts.amber);
-  const chip = (key, cls, count, text, on) => `<button type="button" class="${cls} ${on ? "on" : ""}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}"><b>${count}</b>${esc(text)}</button>`;
-  const due = n(COP_QUICK.due);
-  return el(`<div class="copx-today" role="group" aria-label="Today">
-    <span class="lbl">Today</span>
-    ${chip("", "", base.length, " active", !CopUi.quick && !CopUi.atRisk)}
-    ${chip("due", "p", due, due === 1 ? " update due today" : " updates due today", CopUi.quick === "due")}
-    ${chip("missed", "r", n(COP_QUICK.missed), " with missed updates", CopUi.quick === "missed")}
-    ${chip("attention", "a", att, att === 1 ? " needs attention" : " need attention", CopUi.atRisk)}
-    ${chip("departing", "n", n(COP_QUICK.departing), ` departing within ${COP_QUICK_DAYS} days`, CopUi.quick === "departing")}
+  const tile = (key, tone, count, label, hint, on) => `<button type="button" class="copx-kpi ${tone} ${on ? "on" : ""} ${count ? "" : "zero"}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}" title="${esc(hint)}">
+      <span class="n">${count}</span><span class="l">${esc(label)}</span><span class="h">${esc(hint)}</span></button>`;
+  return el(`<div class="copx-kpis copx-today" role="group" aria-label="Today — click a tile to filter">
+    ${tile("", "", base.length, "In progress", "Every active shipment", !CopUi.quick && !CopUi.atRisk)}
+    ${tile("attention", "a", att, "Need attention", "Something is missed or needs action", CopUi.atRisk)}
+    ${tile("due", "p", n(COP_QUICK.due), "Updates due today", "Today's daily update isn't in yet", CopUi.quick === "due")}
+    ${tile("missed", "r", n(COP_QUICK.missed), "Missed updates", "A business day with no daily update", CopUi.quick === "missed")}
+    ${tile("rfq", "b", n(COP_QUICK.rfq), "RFQs to send", "Compliance approved and packed — RFQ due within 1 business day", CopUi.quick === "rfq")}
+    ${tile("eei", "t", n(COP_QUICK.eei), "EEI to file", "US exports in Execution with no ITN / NOEEI citation yet", CopUi.quick === "eei")}
+    ${tile("departing", "n", n(COP_QUICK.departing), `Departing ≤ ${COP_QUICK_DAYS} days`, "Estimated departure within the week", CopUi.quick === "departing")}
   </div>`);
 }
 
@@ -1698,15 +1626,7 @@ body.theme-dark .copx{--ax-ink:#e6ebf2;--ax-ink2:#c4ccd8;--ax-muted:#9aa7b8;--ax
 .copx-pill{display:inline-block;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap;margin:0 3px 2px 0}
 .copx-pill.r{background:var(--ax-red-soft);color:var(--ax-red)} .copx-pill.a{background:var(--ax-amber-soft);color:var(--ax-amber)}
 .copx-pill.g{background:var(--ax-green-soft);color:var(--ax-green)} .copx-pill.p{background:var(--ax-purple-soft);color:var(--ax-purple)} .copx-pill.t{background:transparent;border:1px solid var(--ax-teal);color:var(--ax-teal)}
-/* Today strip */
-.copx-today{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 14px;font-size:12.5px}
-.copx-today .lbl{font-weight:600;color:var(--ax-ink2);margin-right:4px}
-.copx-today button{font:inherit;font-size:12.5px;border:1px solid var(--ax-line);background:var(--ax-card);color:var(--ax-ink);border-radius:16px;padding:4px 12px;cursor:pointer}
-.copx-today button b{font-weight:700;margin-right:3px}
-.copx-today button:hover{border-color:var(--ax-blue)}
-.copx-today button.p b{color:var(--ax-purple)} .copx-today button.r b{color:var(--ax-red)} .copx-today button.a b{color:var(--ax-amber)} .copx-today button.n b{color:var(--ax-blue)}
-.copx-today button.on{background:var(--ax-navy);border-color:var(--ax-navy);color:#fff} .copx-today button.on b{color:#fff}
-.copx-today button:disabled{opacity:.5;cursor:default} .copx-pill.b{background:var(--ax-blue-soft);color:var(--ax-blue)}
+.copx-pill.b{background:var(--ax-blue-soft);color:var(--ax-blue)}
 .copx-red{color:var(--ax-red);font-weight:600} .copx-amber{color:var(--ax-amber);font-weight:600}
 /* detail */
 tr.copx-det td{background:var(--ax-acc2);padding:14px 16px 18px}
@@ -1784,6 +1704,136 @@ a.copx-open:hover{text-decoration:underline}
 #copHover .bad{color:#c62828;font-weight:600} #copHover .ok{color:#2e7d32;font-weight:600}
 #copHover ul{margin:3px 0 0;padding-left:16px}
 #copHover li.r{color:#c62828} #copHover li.a{color:#c65d00}
+/* ===== 2.9.0 look — calm white cards, hairline borders, light table headers, KPI tiles.
+   Colour is kept for exceptions only. Pilot for the rest of the Utility: these rules
+   restyle the classes above, so the new look lives in one block. ===== */
+.copx{--ax-radius:14px;--ax-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.07);--ax-th-bg:#f5f7fa;--ax-line:#e1e6ed;--ax-line2:#edf0f5;--ax-soft:#f7f9fc;--ax-ink:#17233a;--ax-muted:#637083;--ax-neutral:#c3ccd8;
+  font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;gap:18px;font-variant-numeric:tabular-nums}
+body.theme-dark .copx{--ax-th-bg:#1b2632;--ax-shadow:none;--ax-navy:#3d5a8c}
+/* page header */
+.copx-top{display:flex;align-items:center;gap:14px 24px;flex-wrap:wrap}
+.copx-top h1{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em;color:var(--ax-ink);line-height:1.2}
+.copx-top .fr{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.copx-top .acts{margin-left:auto;display:flex;gap:8px}
+.copx-top .copx-role{margin-left:0;padding:0}
+.copx-fresh{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--ax-ink2);background:var(--ax-card);border:1px solid var(--ax-line);border-radius:999px;padding:3px 11px 3px 9px}
+.copx-fresh i{width:8px;height:8px;border-radius:50%;background:var(--ax-neutral);flex:none}
+.copx-fresh.ok i{background:var(--ax-green);box-shadow:0 0 0 3px var(--ax-green-soft)}
+.copx-fresh.file i{background:var(--ax-blue)}
+.copx-fresh.err{color:var(--ax-red);border-color:var(--ax-red)} .copx-fresh.err i{background:var(--ax-red)}
+.copx-fresh.busy i{background:var(--ax-amber);animation:copxPulse 1s ease-in-out infinite}
+@keyframes copxPulse{50%{opacity:.25}}
+@keyframes copxSpin{to{transform:rotate(360deg)}}
+/* view switch */
+.copx-tabs{display:inline-flex;gap:2px;border:0;margin:0;background:var(--ax-line2);border-radius:11px;padding:3px;align-items:center}
+.copx-tabs button{border:0;border-radius:8px;margin:0;padding:7px 14px;font-size:13px;font-weight:600;color:var(--ax-muted);background:transparent;display:inline-flex;align-items:center;gap:7px}
+.copx-tabs button.on{background:var(--ax-card);color:var(--ax-ink);box-shadow:var(--ax-shadow)}
+.copx-tabs button .c,.copx-seg button .c{font-size:11px;font-weight:600;background:var(--ax-line);color:var(--ax-ink2);border-radius:999px;padding:0 7px;line-height:18px}
+.copx-tabs button.on .c{background:var(--ax-blue-soft);color:var(--ax-blue)}
+/* buttons */
+.copx-ibtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ax-line);background:var(--ax-card);color:var(--ax-ink);border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
+.copx-ibtn:hover:not(:disabled){border-color:var(--ax-blue);color:var(--ax-blue)} .copx-ibtn:disabled{opacity:.5;cursor:default}
+.copx-btn{border-radius:9px;padding:7px 14px;min-height:34px;font-size:12.5px;background:var(--ax-card);color:var(--ax-ink);border:1px solid var(--ax-line)}
+.copx-btn.blue{background:var(--ax-navy);border-color:var(--ax-navy);color:#fff}
+.copx-btn.green{background:var(--ax-go);border-color:var(--ax-go);color:#fff}
+.copx-btn.addb{background:var(--ax-blue);border-color:var(--ax-blue);color:#fff}
+.copx-btn.ghost{border:1px solid var(--ax-line);color:var(--ax-ink2)}
+.copx-btn:hover{filter:none;border-color:var(--ax-blue)}
+/* cards */
+.copx-card{border-radius:var(--ax-radius);box-shadow:var(--ax-shadow);border:1px solid var(--ax-line);padding:18px 20px 20px}
+.copx-hd{margin-bottom:14px;align-items:baseline}
+.copx-hd h2{font-size:15px;font-weight:650}
+.copx-rule{display:none}
+.copx-banner{background:var(--ax-amber-soft);color:var(--ax-amber);border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:500;margin-bottom:14px}
+.copx-wait{text-align:center;padding:56px 24px}
+.copx-wait h2{margin:0 0 6px;font-size:17px;font-weight:650}
+.copx-wait .copx-msg{max-width:540px;margin:0 auto 16px}
+.copx-spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--ax-line);border-top-color:var(--ax-blue);margin:0 auto 16px;animation:copxSpin .8s linear infinite}
+@media (prefers-reduced-motion:reduce){.copx-spin,.copx-fresh.busy i{animation:none}}
+/* KPI tiles (each one is a filter) */
+.copx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.copx-kpi{position:relative;text-align:left;border:1px solid var(--ax-line);background:var(--ax-card);border-radius:12px;padding:12px 14px 11px 16px;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:0;color:var(--ax-ink);font:inherit;transition:border-color .12s,box-shadow .12s,transform .12s}
+.copx-kpi::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--ax-neutral)}
+.copx-kpi .n{font-size:26px;font-weight:650;line-height:1.1;letter-spacing:-.02em}
+.copx-kpi .l{font-size:12.5px;font-weight:600}
+.copx-kpi .h{font-size:11px;color:var(--ax-muted);line-height:1.35}
+.copx-kpi.r::before{background:var(--ax-red)} .copx-kpi.r .n{color:var(--ax-red)}
+.copx-kpi.a::before{background:var(--ax-amber)} .copx-kpi.a .n{color:var(--ax-amber)}
+.copx-kpi.p::before{background:var(--ax-purple)} .copx-kpi.p .n{color:var(--ax-purple)}
+.copx-kpi.b::before,.copx-kpi.n::before{background:var(--ax-blue)} .copx-kpi.b .n,.copx-kpi.n .n{color:var(--ax-blue)}
+.copx-kpi.t::before{background:var(--ax-teal)} .copx-kpi.t .n{color:var(--ax-teal)}
+.copx-kpi.g::before{background:var(--ax-green)} .copx-kpi.g .n{color:var(--ax-green)}
+.copx-kpi.zero::before{background:var(--ax-line)} .copx-kpi.zero .n{color:var(--ax-neutral)}
+.copx-kpi:hover:not(:disabled){border-color:var(--ax-blue);box-shadow:var(--ax-shadow);transform:translateY(-1px)}
+.copx-kpi.on{border-color:var(--ax-blue);box-shadow:0 0 0 2px var(--ax-blue-soft);background:var(--ax-acc2)}
+.copx-kpi:disabled{cursor:default}
+/* filters */
+.copx-filters{margin-bottom:14px}
+.copx-filters .copx-frow,.copx-frow.trk{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;margin-bottom:8px}
+.copx-frow.trk{margin-bottom:14px}
+.copx-filters .copx-frow .copx-f,.copx-frow.trk .copx-f{flex:1 1 180px;max-width:300px}
+.copx-filters .copx-frow .copx-f:first-child,.copx-frow.trk .copx-f:first-child{flex:2 1 240px;max-width:420px}
+.copx-frow.trk .copx-f:nth-child(3){flex:0 0 auto;max-width:none}
+.copx-filters .copx-fbtns,.copx-frow.trk .copx-fbtns{margin-left:auto}
+.copx-f label{font-size:11px;font-weight:600;color:var(--ax-muted);text-transform:uppercase;letter-spacing:.04em}
+.copx-f select,.copx-f input[type=search]{border-color:var(--ax-line);border-radius:9px;min-height:36px}
+.copx-f select:focus,.copx-f input[type=search]:focus{outline:2px solid var(--ax-blue-soft);border-color:var(--ax-blue)}
+.copx-chk{min-height:36px}
+.copx-filter{background:transparent;margin-bottom:0}
+.copx-filter>summary{padding:2px 0;font-size:12px;display:inline-flex}
+.copx-filter .fbody{background:var(--ax-soft);border:1px solid var(--ax-line);border-radius:10px;padding:12px 14px;margin-top:6px}
+.copx-sub{border-top-color:var(--ax-line)}
+.copx-seg{border-color:var(--ax-line);border-radius:9px}
+.copx-seg button{display:inline-flex;align-items:center;gap:6px;min-height:34px;white-space:nowrap}
+.copx-seg button.on .c{background:rgba(255,255,255,.22);color:#fff}
+/* board */
+.copx-board{gap:12px}
+.copx-col{border-radius:12px;border-color:var(--ax-line);overflow:hidden}
+.copx-col .ch{background:var(--ax-card);color:var(--ax-ink);border-radius:0;border-bottom:1px solid var(--ax-line);padding:12px 58px 10px 14px;min-height:58px;box-shadow:inset 0 3px 0 #9db4d3}
+.copx-col.review .ch{box-shadow:inset 0 3px 0 #6d9ad0} .copx-col.estimate .ch{box-shadow:inset 0 3px 0 var(--ax-blue)} .copx-col.exec .ch{box-shadow:inset 0 3px 0 var(--ax-navy)}
+.copx-col .ch .t{font-size:13px;font-weight:650}
+.copx-col .ch .s{color:var(--ax-muted);opacity:1}
+.copx-col .ch .cnt{width:34px;height:34px;right:12px;background:var(--ax-soft);border:1px solid var(--ax-line);color:var(--ax-ink);font-size:15px;font-weight:650;box-shadow:none}
+.copx-col .tally{background:transparent;border-bottom:0;padding:9px 14px 0;font-size:11px}
+.copx-ph{border-radius:10px;border-color:var(--ax-line)}
+.copx-bub{border-width:1.5px;height:27px}
+.copx-legend{margin-top:14px;padding-top:12px;border-top:1px solid var(--ax-line2);color:var(--ax-muted)}
+.copx-legend .tip{margin-left:auto}
+/* tables */
+.copx-tbl{border:1px solid var(--ax-line);border-radius:12px}
+.copx-tbl th{background:var(--ax-th-bg);color:var(--ax-muted);font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.045em;padding:10px 12px;border-right:0;border-bottom:1px solid var(--ax-line)}
+.copx-tbl th.srt:hover,.copx-tbl th.srt.on{background:var(--ax-th-bg);color:var(--ax-blue)}
+.copx-tbl tr.flt th{background:var(--ax-card);border-right:0;text-transform:none;letter-spacing:0}
+.copx-tbl td{border-bottom-color:var(--ax-line2)}
+.copx-tbl tbody tr:last-child td{border-bottom:0}
+tr.copx-det td{background:var(--ax-soft)}
+.copx-stp{border-radius:10px} .copx-stp h4{background:var(--ax-th-bg)} .copx-stp.cur h4{background:var(--ax-navy)}
+.copx-colpick{border-radius:10px}
+.copx-dc-card{border-radius:12px;background:var(--ax-card)}
+/* tracker view */
+.copx-flow-hd{display:flex;gap:10px;align-items:baseline;margin:4px 0 8px;font-size:12.5px} .copx-flow-hd span{color:var(--ax-muted);font-size:11.5px}
+.copx-flow{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));border:1px solid var(--ax-line);border-radius:12px;overflow:hidden;background:var(--ax-card)}
+@media (max-width:1250px){.copx-flow{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:640px){.copx-flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.copx-flow .fs{padding:11px 12px 10px;border-right:1px solid var(--ax-line2);border-bottom:1px solid var(--ax-line2);margin:0 -1px -1px 0;display:flex;flex-direction:column;gap:1px;min-width:0}
+.copx-flow .k{font-size:10.5px;font-weight:650;color:var(--ax-muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.copx-flow .v{font-size:22px;font-weight:650;letter-spacing:-.02em;line-height:1.25}
+.copx-flow .v i{font-style:normal;font-size:11px;font-weight:500;color:var(--ax-muted);margin-left:4px;letter-spacing:0}
+.copx-flow .m{font-size:11px;color:var(--ax-muted)}
+.copx-flow .lnk{border:0;background:none;padding:0;text-align:left;font:inherit;font-size:11px;font-weight:600;color:var(--ax-link);cursor:pointer}
+.copx-flow .lnk:hover{text-decoration:underline}
+.copx-flow .fs.none .v{color:var(--ax-neutral)} .copx-flow .fs.over .v{color:var(--ax-red)}
+.copx-trk td small{display:block;font-size:10.5px;font-weight:400;color:var(--ax-muted);margin-top:1px}
+.copx-trk .mut{color:var(--ax-muted)}
+.copx-trk td.w small{white-space:normal;max-width:200px}
+.copx-trk .stick{position:sticky;left:0;z-index:1;background:var(--ax-card);box-shadow:1px 0 0 var(--ax-line)}
+.copx-trk th.stick{z-index:3;background:var(--ax-th-bg)}
+.copx-trk tr.row:hover td.stick{background:var(--ax-acc2)}
+.copx-trk .mono{font-family:ui-monospace,Consolas,monospace}
+.copx-trk .up{min-width:260px;max-width:360px}
+.copx-trk .up .x.keep{-webkit-line-clamp:3;margin-bottom:3px}
+.copx-trk .copx-pill{margin-right:0}
+.copx-foot{margin:10px 2px 0;font-size:11.5px;color:var(--ax-muted)}
 `;
 
 /* Display groups for a check's stage (active steps + the audit engine's lanes). */
@@ -1800,21 +1850,29 @@ function copStateMeta(state) { return COP_STATES[state] || COP_STATES.na; }
 
 function renderCopWorkspace(container) {
   const built = copBuildAll();
-  const prefs = copGetPrefs();
   const root = el(`<div class="copx"><style>${COPX_CSS}</style></div>`);
   container.appendChild(root);
 
+  /* Nothing loaded: blank until a pull from ATLAS has finished (never a saved copy). */
   if (!built) {
-    const empty = el(`<section class="copx-card">
-      <div class="copx-hd"><h2>Shipments In Progress</h2></div><div class="copx-rule"></div>
-      <p class="copx-msg">The COP runs on the Metrics UDQ (every shipment). Fetch it from ATLAS, or drop the exported .xlsx on the drop zone.</p>
-      <div class="copx-fbtns"><button class="copx-btn green" id="copFetch" type="button">Fetch Metrics UDQ</button>
-        <button class="copx-btn blue" id="copBrowse" type="button">Browse for the .xlsx…</button></div>
-      <p class="copx-msg" style="margin-top:12px">The Christmas Tree tab works without it — it loads its own SRF / PR / PMCT / WS UDQs.</p>
-    </section>`);
+    const busy = CopPull.busy;
+    const empty = el(busy
+      ? `<section class="copx-card copx-wait" role="status" aria-live="polite">
+          <div class="copx-spin" aria-hidden="true"></div>
+          <h2>Getting the latest from ATLAS…</h2>
+          <p class="copx-msg">Nothing is shown until the pull has finished, so what you see here is always current.</p>
+        </section>`
+      : `<section class="copx-card copx-wait">
+          <h2>No shipment data loaded</h2>
+          <p class="copx-msg">${CopPull.err ? `Couldn't pull from ATLAS — ${esc(CopPull.err)} ` : ""}The Dashboard reads the SRF UDQ (every shipment). Pull it from ATLAS, or drop the exported .xlsx in the box above.</p>
+          <div class="copx-fbtns" style="justify-content:center"><button class="copx-btn green" id="copFetch" type="button">Pull from ATLAS</button>
+            <button class="copx-btn ghost" id="copBrowse" type="button">Browse for the .xlsx…</button></div>
+        </section>`);
     root.appendChild(empty);
-    empty.querySelector("#copFetch").addEventListener("click", () => { if (typeof loadFromAtlasUdq === "function") loadFromAtlasUdq({ dataset: "metrics" }); });
-    empty.querySelector("#copBrowse").addEventListener("click", () => { const fi = document.getElementById("fileInput"); if (fi) fi.click(); });
+    if (!busy) {
+      empty.querySelector("#copFetch").addEventListener("click", () => copAutoFetch(true));
+      empty.querySelector("#copBrowse").addEventListener("click", () => { const fi = document.getElementById("fileInput"); if (fi) fi.click(); });
+    }
     return;
   }
 
@@ -1829,37 +1887,49 @@ function renderCopWorkspace(container) {
   if (!COP_MOCKUP.requestorView) CopUi.role = "tti";
   if (CopUi.role === "requestor") { root.appendChild(roleBar); copRenderRequestor(root, built); return; }
 
-  const isActive = CopUi.view !== "closed";
+  if (["active", "tracker", "closed"].indexOf(CopUi.view) === -1) CopUi.view = "active";
+  const view = CopUi.view;
+  const isActive = view !== "closed";
+
+  /* ---- page header: title, how fresh the data is, the three views, actions ---- */
+  const vbtn = (v, label, n) => `<button type="button" data-v="${v}" class="${view === v ? "on" : ""}" role="tab" aria-selected="${view === v}">${esc(label)}${n === null ? "" : `<span class="c">${n}</span>`}</button>`;
+  const top = el(`<header class="copx-top">
+    <div class="tt"><h1>Shipping Operations</h1><div class="fr">${copFreshChip(built)}</div></div>
+    <div class="copx-tabs" role="tablist" aria-label="Shipment views">
+      ${vbtn("active", "In progress", built.active.length)}${vbtn("tracker", "Tracker", null)}${vbtn("closed", "Closed audit", built.closed.length)}
+    </div>
+    <div class="acts">
+      <button class="copx-ibtn" id="copRefresh" type="button" title="Pull the latest from ATLAS now" ${CopPull.busy ? "disabled" : ""}>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Refresh</button>
+      ${view === "tracker" ? "" : `<button class="copx-ibtn" id="copPrint" type="button">Print</button>`}
+      <button class="copx-ibtn" id="${view === "tracker" ? "copTrkExport" : "copExport"}" type="button">Export</button>
+    </div>
+  </header>`);
+  if (COP_MOCKUP.requestorView) top.appendChild(roleBar);
+  root.appendChild(top);
+
+  if (view === "tracker") { copRenderTracker(root, built); copWireTop(root); return; }
+
   const all = isActive ? built.active : built.closed;
   const { base, rows } = copFilterRows(all);
 
-  /* ---- Active / Closed tabs ---- */
-  const tabs = el(`<div class="copx-tabs" role="tablist">
-    <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active shipments (${built.active.length})</button>
-    <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed · post-shipment audit (${built.closed.length})</button>
-  </div>`);
-  if (COP_MOCKUP.requestorView) tabs.appendChild(roleBar);
-  root.appendChild(tabs);
-
   /* ---- main card ---- */
   const card = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>${isActive ? "Shipments In Progress" : "Closed Shipments"}</h2>
+    <div class="copx-hd"><h2>${isActive ? "Shipments in progress" : "Closed shipments"}</h2>
       <span class="n">${rows.length === base.length ? copPlural(base.length, "shipment") : `${rows.length} of ${base.length} shipments`}</span>
-      <div class="acts"><button class="copx-btn" id="copPrint" type="button">Print</button><button class="copx-btn" id="copExport" type="button">Export</button></div>
     </div>
-    <div class="copx-rule"></div>
   </section>`);
   root.appendChild(card);
+  if (isActive) card.appendChild(copTodayStrip(base));
   card.appendChild(copFilterPanel(built, all));
   if (isActive) {
     // The board shows exactly what's in the table: top filters, search and
     // table column filters all drive it (counts and tallies follow).
-    card.appendChild(copTodayStrip(base));
     card.appendChild(copBoard(rows, rows));
     card.appendChild(el(`<div class="copx-legend">
       <span><i></i>On track</span><span><i class="p"></i>Today's update still due</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
       <span><em>3</em>daily updates missing</span><span>${COP_CONSOL_ICON}Consol</span>
-      <span>Oldest in its status first · hover for the latest update · click for details</span></div>`));
+      <span class="tip">Oldest in its status first · hover for the latest update · click for details</span></div>`));
   }
 
   /* ---- details table ---- */
@@ -1867,11 +1937,10 @@ function renderCopWorkspace(container) {
   const sheet = edit && CopUi.updMode;
   const dc = !isActive && CopUi.docCheck;
   const tcard = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>${sheet ? "Daily Status Updates" : dc ? "Doc Check" : isActive ? "Shipment Details" : "Post-Shipment Audit"}</h2>
+    <div class="copx-hd"><h2>${sheet ? "Daily status updates" : dc ? "Doc check" : isActive ? "Shipment details" : "Post-shipment audit"}</h2>
       <span class="n">${sheet ? "Every shipment in view — type an update and Save it, or Save all at the end" : dc ? "Required shipping documents on closed requests, and how many of each were prepared" : isActive ? "Click a row for its checklist and daily updates · click a header to sort" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing) · click a header to sort"}</span>
       <div class="acts">${!isActive ? `<button class="copx-btn ${dc ? "blue" : "addb"}" id="copDocCheck" type="button" aria-pressed="${!!dc}">${dc ? "Back to audit" : "Doc Check"}</button>` : ""}${sheet || dc ? "" : `<button class="copx-btn ${CopUi.colsOpen ? "blue" : ""}" id="copCols" type="button" aria-expanded="${!!CopUi.colsOpen}">Columns</button>`}
       ${edit ? `<button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button>` : ""}</div></div>
-    <div class="copx-rule"></div>
   </section>`);
   root.appendChild(tcard);
   if (!sheet && !dc && CopUi.colsOpen) tcard.appendChild(copColumnPicker(isActive));
@@ -1880,11 +1949,30 @@ function renderCopWorkspace(container) {
   copWire(root, built, rows, isActive);
 }
 
-/** Filters: the main ones always in view; the collapsible ATLAS "Filter" bar
-    holds the rest (RDD for now) plus the Ops Tracker and Day limits links. */
+/** Where the data on screen came from, and when — always visible, so stale data can't pass as fresh. */
+function copFreshChip(built) {
+  const n = built ? built.active.length + built.closed.length : 0;
+  if (CopPull.busy) return `<span class="copx-fresh busy"><i></i>Refreshing from ATLAS…</span>`;
+  const fromAtlas = /^ATLAS API/i.test(AppState.fileName || "");
+  const err = CopPull.err ? `<span class="copx-fresh err" title="${esc(CopPull.err)}"><i></i>Last refresh didn't go through</span>` : "";
+  if (fromAtlas) return `<span class="copx-fresh ok"><i></i>Live from ATLAS${CopPull.okAt ? ` · pulled ${esc(copClock(CopPull.okAt))}` : ""} · ${copPlural(n, "request")}</span>${err}`;
+  return `<span class="copx-fresh file"><i></i>From a file · ${esc(AppState.fileName || "UDQ export")} · ${copPlural(n, "request")}</span>${err}`;
+}
+
+/** View switch + Refresh (shared by every view). */
+function copWireTop(root) {
+  root.querySelectorAll(".copx-tabs button").forEach((b) => b.addEventListener("click", () => {
+    if (CopUi.view === b.dataset.v) return;
+    CopUi.view = b.dataset.v; CopUi.hit = ""; CopUi.quick = ""; CopUi.focus = ""; copRerender();
+  }));
+  const rf = root.querySelector("#copRefresh");
+  if (rf) rf.addEventListener("click", () => copAutoFetch(true));
+}
+
+/** Filters: search, TTI POC and "needs attention" always in view; the
+    collapsible "More filters" bar holds the rest (RDD, day limits). */
 function copFilterPanel(built, all) {
   const prefs = copGetPrefs();
-  const tracker = copGetTracker();
   // TTI POC choices come from the shipments in this view only.
   const pocs = Array.from(new Set(all.map((r) => r.poc).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   if (CopUi.poc && !pocs.some((p) => copLow(p) === copLow(CopUi.poc))) CopUi.poc = "";
@@ -1903,34 +1991,318 @@ function copFilterPanel(built, all) {
       amber<input type="number" min="1" max="200" data-k="${k}" data-i="0" value="${prefs.stuck[k][0]}">
       red<input type="number" min="1" max="200" data-k="${k}" data-i="1" value="${prefs.stuck[k][1]}"></div>`).join("");
   const more = (CopUi.rddDays ? 1 : 0);
-  return el(`<div>
+  return el(`<div class="copx-filters">
     <div class="copx-frow">
+      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country, status" value="${esc(CopUi.q)}"></div>
       <div class="copx-f"><label for="copPoc">TTI POC</label>
         <select id="copPoc">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select></div>
       ${isActive ? "" : `<div class="copx-f"><label for="copHit">Metric hits</label><select id="copHit">${hitOpts}</select></div>`}
-      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country, status" value="${esc(CopUi.q)}"></div>
       <label class="copx-chk"><input type="checkbox" id="copRisk" ${CopUi.atRisk ? "checked" : ""}> Needs attention only</label>
-      <div class="copx-fbtns"><button class="copx-btn blue" id="copReset" type="button">Reset</button></div>
+      <div class="copx-fbtns"><button class="copx-btn ghost" id="copReset" type="button">Reset</button></div>
     </div>
     <details class="copx-filter"${CopUi.filterOpen ? " open" : ""}>
-      <summary>More filters${more ? ` <span class="copx-pill b" style="margin-left:8px">${more} on</span>` : ""}<span class="chev" aria-hidden="true" style="margin-left:auto">▾</span></summary>
+      <summary>More filters${more ? ` <span class="copx-pill b" style="margin-left:8px">${more} on</span>` : ""}<span class="chev" aria-hidden="true" style="margin-left:6px">▾</span></summary>
       <div class="fbody">
         <div class="copx-f"><label for="copRdd">RDD</label><select id="copRdd">
           ${[[0, "Any"], [-1, "Past RDD"], [7, "Within 7 days"], [14, "Within 14 days"], [30, "Within 30 days"]].map(([v, t]) => opt(v, t, CopUi.rddDays === v)).join("")}</select></div>
         <div class="copx-sub">
-          <span><b>Ops Tracker:</b> ${tracker ? `${esc(tracker.fileName)} · ${Object.keys(tracker.rows).length} active MTRs · loaded ${esc(new Date(tracker.loadedAt).toLocaleDateString())}`
-            : "not loaded — RFQ Sent, Date Packed, ITN and MARAD show “No data”"}</span>
-          <button class="lnk" id="copTrkLoad" type="button">${tracker ? "Load updated tracker" : "Load Ops Tracker"}</button>
-          ${tracker ? `<button class="lnk" id="copTrkClear" type="button">Clear</button>` : ""}
           <button class="lnk" id="copLimits" type="button">${CopUi.settingsOpen ? "Hide day limits" : "Day limits"}</button>
           <span class="copx-msg" id="copMsg">${esc(CopUi.msg)}</span>
-          <input type="file" id="copTrkFile" accept=".xlsx,.xlsm" class="hidden">
         </div>
         ${CopUi.settingsOpen ? `<div class="copx-limits"><label class="copx-chk" style="grid-column:1 / -1"><input type="checkbox" id="copStuckOn" ${prefs.stuckOn ? "checked" : ""}>
           Flag shipments that sit in a step longer than these limits (off by default — only the RFQ timeline is flagged)</label>${prefs.stuckOn ? stuckRows + `<div><button class="lnk" id="copStuckReset" type="button">Reset day limits</button></div>` : ""}</div>` : ""}
       </div>
     </details>
   </div>`);
+}
+
+/* =========================================================================
+   TRACKER VIEW (2.9.0) — the Ops Tracker, straight from ATLAS. One row per
+   shipment that's in progress or was delivered on / after COP_FIELDS_FROM_ISO,
+   with the tracker's columns: every milestone date start to finish (and the
+   business days each step took), Original vs current RDD, RFQ sent within one
+   business day, EEI filed before departure (ITN / NOEEI), MARAD, invoices
+   received, team notes and the latest daily update. The tiles on top are the
+   metrics the tracker was kept for; the strip under them is how long each
+   step takes on average and which shipment took longest.
+   ========================================================================= */
+const COP_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const COP_TL_STEPS = [
+  { id: "qr",   label: "TTI Quality Review",   from: "submitted",  to: "toDtra",     hint: "Submitted → sent to DTRA" },
+  { id: "dtra", label: "DTRA review",          from: "toDtra",     to: "compliance", hint: "With DTRA → Compliance approved" },
+  { id: "pack", label: "Packing",              from: "compliance", to: "packed",     hint: "Compliance approved → Date Packed" },
+  { id: "rfq",  label: "RFQ",                  from: "rfqStart",   to: "rfq",        hint: "Later of Compliance approval and Date Packed → RFQ Sent Date", goal: 1 },
+  { id: "est",  label: "Estimate prep",        from: "rfq",        to: "quoteSub",   hint: "RFQ sent → estimate submitted to DTRA" },
+  { id: "appr", label: "DTRA estimate review", from: "quoteSub",   to: "quoteAppr",  hint: "Estimate submitted → approved" },
+  { id: "book", label: "Booking & pickup",     from: "quoteAppr",  to: "departed",   hint: "Estimate approved → departed origin" },
+  { id: "move", label: "Transit",              from: "departed",   to: "delivered",  hint: "Departed origin → delivered" },
+];
+const COP_NA_RE = /^(|n[\/_ ]?a|none|no|non[- ]?haz(ardous|mat)?|not applicable|not required|tbd|false|ambient|room temp(erature)?|see the inventory list)$/i;
+
+/** One tracker row per shipment in progress or delivered since 1 Oct 2026. */
+function copTrackerRows(built) {
+  const today = built.ctx.today;
+  const mk = (r, active) => {
+    const rec = r.rec, tl = copTimeline(rec), sc = copShipClass(rec), m = copMilestones(rec);
+    tl.rfqStart = tl.compliance && tl.packed && tl.packed.getTime() > tl.compliance.getTime() ? tl.packed : tl.compliance;
+    // RFQ: due one business day after the later of Compliance approval and Date Packed.
+    let rfq = { st: "none", due: null };
+    if (!tl.rfq && m.rfq) rfq = { st: "na", due: null };                    // text, not a date: no RFQ needed
+    else if (tl.rfqStart) {
+      const due = xtWorkday(tl.rfqStart, 1, true);
+      if (tl.rfq) rfq = { st: tl.rfq.getTime() <= due.getTime() ? "ontime" : "late", due };
+      else if (!active || r.stepIdx > COP_STEP_IDX.estimate) rfq = { st: "missing", due };   // past Estimate Preparation: it went out, the date just isn't in ATLAS
+      else if (!tl.packed) rfq = { st: "wait", due: null };
+      else rfq = { st: today.getTime() > due.getTime() ? "overdue" : "due", due };
+    } else if (tl.rfq) rfq = { st: "sent", due: null };
+    // EEI: every US export except hand carry needs an ITN / NOEEI citation before it leaves.
+    let eei = "na";
+    if (sc.category === "EXPORT" && !sc.handCarry) {
+      const left = !!tl.departed || !active || (r.step === "exec" && COP_PHASE_IDX[r.phase] >= COP_PHASE_IDX.transit);
+      eei = m.itn ? "filed" : left ? "missed" : r.step === "exec" ? "hold" : "later";   // "later": not in Execution yet
+    }
+    // MARAD (sealift): due N working days after departure from origin.
+    let marad = { st: "na", due: null, sub: null };
+    if (sc.ocean) {
+      const due = tl.departed ? xtWorkday(tl.departed, sc.originUs ? COP_MARAD_WORKDAYS_US : COP_MARAD_WORKDAYS_FOREIGN, true) : null;
+      const sub = xtParseDate(m.maradSub);
+      marad = { due, sub, st: sub ? "done" : /^n\/?a$/i.test(m.maradSub) ? "na" : !due ? "later" : today.getTime() > due.getTime() ? "overdue" : "due" };
+    }
+    const changed = !!(tl.origRdd && tl.rdd && xtIso(tl.origRdd) !== xtIso(tl.rdd));
+    const { items } = copInvLines(rec);
+    // DG: a real UN number, or a hazard class with a digit in it ("9", "Class 2.1").
+    const haz = items.some((x) => /(^|\b)(un\s*)?\d{4}\b/i.test(norm(copInv(x, /^un code/)))
+      || (/\d/.test(norm(copInv(x, /^hazmat/))) && !COP_NA_RE.test(norm(copInv(x, /^hazmat/)))));
+    const temp = !COP_NA_RE.test(norm(rec.f["temperature-control requirements"] || ""));
+    const note = rec.daily.length ? rec.daily.slice().sort((a, b) => b.date - a.date)[0] : null;
+    return { r, active, tl, sc, m, rfq, eei, marad, changed, slip: changed ? copCalDays(tl.origRdd, tl.rdd) : 0, haz, temp, note,
+      whInv: xtParseDate(m.whInv), shipInv: xtParseDate(m.shipInv) };
+  };
+  // Furthest along first (like the details table), then the delivered ones, newest first.
+  const act = built.active.map((r) => mk(r, true)).sort((a, b) => (b.r.stepIdx - a.r.stepIdx)
+    || ((COP_PHASE_IDX[b.r.phase] || 0) - (COP_PHASE_IDX[a.r.phase] || 0)) || a.r.num - b.r.num);
+  const del = built.closed.filter((r) => !copPreFields(r.rec) && !/^(cancel|shipment cancel)/.test(copLow(r.status)))
+    .map((r) => mk(r, false)).sort((a, b) => copCmp(b.tl.delivered ? b.tl.delivered.getTime() : null, a.tl.delivered ? a.tl.delivered.getTime() : null) || b.r.num - a.r.num);
+  return act.concat(del);
+}
+/* Tracker tiles double as filters. */
+const COP_TRK_PICK = {
+  rfq: (x) => x.rfq.st === "late" || x.rfq.st === "overdue",
+  eei: (x) => x.eei === "hold" || x.eei === "missed",
+  rdd: (x) => x.changed,
+  inv: (x) => !x.active && !x.shipInv,
+  marad: (x) => x.marad.st === "overdue" || x.marad.st === "due",
+};
+/** Average business days per step, and the shipment that took longest. */
+function copStepTimes(xs) {
+  return COP_TL_STEPS.map((s) => {
+    const ds = [];
+    for (const x of xs) {
+      const a = x.tl[s.from], b = x.tl[s.to];
+      if (!a || !b || b.getTime() < a.getTime()) continue;
+      ds.push({ n: copBizDaysBetween(a, b), x });
+    }
+    ds.sort((p, q) => q.n - p.n);
+    return { s, n: ds.length, avg: ds.length ? ds.reduce((t, d) => t + d.n, 0) / ds.length : null, max: ds[0] || null };
+  });
+}
+function copTrkCols(today) {
+  const yr = today.getFullYear();
+  const sd = (d) => d ? `${d.getDate()} ${COP_MON[d.getMonth()]}${d.getFullYear() !== yr ? " ’" + String(d.getFullYear()).slice(2) : ""}` : "";
+  const dash = `<span class="mut">—</span>`;
+  const gap = (a, b) => (a && b && b.getTime() >= a.getTime()) ? `<small>+${copBizDaysBetween(a, b)}d</small>` : "";
+  const dcol = (id, label, key, prev, title) => ({ id, label, title,
+    sort: (x) => x.tl[key] ? x.tl[key].getTime() : null, ex: (x) => copFmt(x.tl[key]),
+    td: (x) => `<td class="nw">${x.tl[key] ? esc(sd(x.tl[key])) + gap(prev && x.tl[prev], x.tl[key]) : dash}</td>` });
+  const RFQ = { ontime: ["g", "On time"], late: ["r", "Late"], overdue: ["r", "Overdue"], due: ["b", "Due"], wait: ["", "Waiting on pack date"], missing: ["", "Not recorded"], na: ["", "No RFQ needed"], sent: ["", ""], none: ["", ""] };
+  const rfqWord = (x) => { const w = RFQ[x.rfq.st][1]; return w + (x.rfq.due && /late|overdue|due/.test(x.rfq.st) ? ` · due ${sd(x.rfq.due)}` : ""); };
+  const EEI = { filed: ["g", "Released"], hold: ["a", "Hold · ITN needed"], missed: ["r", "Departed without ITN"], later: ["", "Needed before departure"], na: ["", "Not a US export"] };
+  const MAR = { done: ["g", "Submitted"], overdue: ["r", "Overdue"], due: ["b", "Due"], later: ["", "After departure"], na: ["", ""] };
+  const pill = (cls, text) => !text ? "" : cls ? `<span class="copx-pill ${cls}">${esc(text)}</span>` : `<span class="mut">${esc(text)}</span>`;
+  return [
+    { id: "wmtr", label: "WMTR", sort: (x) => x.r.num, ex: (x) => x.r.wmtr,
+      td: (x) => `<td class="w stick">${copWmtrLink(x.r, x.r.last5)}${x.haz ? ` <span class="copx-pill a" title="HAZMAT / dangerous goods on the inventory">DG</span>` : ""}${x.temp ? ` <span class="copx-pill b" title="Temperature control: ${esc(x.r.rec.f["temperature-control requirements"] || "")}">Temp</span>` : ""}
+        <small>${x.active ? esc(x.r.status) : `<span class="copx-pill g">Delivered</span> ${esc(x.r.status)}`}</small></td>` },
+    { id: "route", label: "Route · Program", sort: (x) => copLow(x.r.dest) || null, ex: (x) => `${x.r.origin} → ${x.r.dest}`,
+      td: (x) => `<td class="nw">${esc(x.r.origin || "?")} → ${esc(x.r.dest || "?")}<small>${esc([x.r.program, x.r.mode].filter(Boolean).join(" · "))}</small></td>` },
+    { id: "poc", label: "TTI POC", sort: (x) => copLow(x.r.poc) || null, ex: (x) => x.r.poc, td: (x) => `<td class="nw">${esc(x.r.poc || "—")}</td>` },
+    dcol("submitted", "Submitted", "submitted", null, "First Workflow Logs stamp after Draft"),
+    dcol("toDtra", "To DTRA", "toDtra", "submitted", "First DTRA Program Review stamp"),
+    dcol("compliance", "Compliance", "compliance", "toDtra", "DTRA Compliance Review approved"),
+    dcol("packed", "Packed", "packed", "compliance", "ATLAS field: Date Packed"),
+    { id: "rfq", label: "RFQ sent", title: "ATLAS field: RFQ Sent Date — due 1 business day after the later of Compliance approval and Date Packed",
+      sort: (x) => x.tl.rfq ? x.tl.rfq.getTime() : null, ex: (x) => copFmt(x.tl.rfq), exx: rfqWord,
+      td: (x) => `<td class="nw">${x.tl.rfq ? esc(sd(x.tl.rfq)) : ""} ${pill(RFQ[x.rfq.st][0], rfqWord(x)) || (x.tl.rfq ? "" : dash)}</td>` },
+    dcol("quoteSub", "Quote sub.", "quoteSub", "rfq", "Estimate submitted to DTRA (first DTRA Estimate Review stamp)"),
+    dcol("quoteAppr", "Quote appr.", "quoteAppr", "quoteSub", "DTRA Estimate Review approved"),
+    { id: "origRdd", label: "Original RDD", title: "ATLAS field: Original RDD", sort: (x) => x.tl.origRdd ? x.tl.origRdd.getTime() : null, ex: (x) => copFmt(x.tl.origRdd),
+      td: (x) => `<td class="nw">${x.tl.origRdd ? esc(sd(x.tl.origRdd)) : dash}</td>` },
+    { id: "rdd", label: "Current RDD", title: "ATLAS field: NLT Completion Date", sort: (x) => x.tl.rdd ? x.tl.rdd.getTime() : null, ex: (x) => copFmt(x.tl.rdd),
+      exx: (x) => x.changed ? `${x.slip > 0 ? "+" : ""}${x.slip} days` : "",
+      td: (x) => `<td class="nw">${x.tl.rdd ? esc(sd(x.tl.rdd)) : dash}${x.changed ? ` <span class="copx-pill ${x.slip > 0 ? "a" : "b"}" title="Changed from ${esc(copFmt(x.tl.origRdd))}">${x.slip > 0 ? "+" : "−"}${Math.abs(x.slip)}d</span>` : ""}</td>` },
+    { id: "dep", label: "Departure", title: "Departure from Origin — actual date, or the estimate until it leaves",
+      sort: (x) => (x.tl.departed || x.tl.etd) ? (x.tl.departed || x.tl.etd).getTime() : null, ex: (x) => copFmt(x.tl.departed || x.tl.etd), exx: (x) => x.tl.departed ? "Actual" : x.tl.etd ? "Estimate" : "",
+      td: (x) => `<td class="nw">${x.tl.departed ? esc(sd(x.tl.departed)) + gap(x.tl.quoteAppr, x.tl.departed) : x.tl.etd ? `${esc(sd(x.tl.etd))}<small>estimate</small>` : dash}</td>` },
+    { id: "eei", label: "EEI · ITN / NOEEI", title: "ATLAS field: ITN / NOEEI Citation — must be in before a US export departs",
+      sort: (x) => ({ missed: 0, hold: 1, later: 2, filed: 3, na: 4 })[x.eei], ex: (x) => x.m.itn, exx: (x) => EEI[x.eei][1],
+      td: (x) => `<td class="nw">${pill(EEI[x.eei][0], EEI[x.eei][1])}${x.m.itn ? `<small class="mono">${esc(x.m.itn)}</small>` : ""}</td>` },
+    { id: "marad", label: "MARAD", title: "Sealift only — due 20 working days after departure (30 from abroad); ATLAS field: MARAD Submitted Date",
+      sort: (x) => ({ overdue: 0, due: 1, later: 2, done: 3, na: 4 })[x.marad.st], ex: (x) => copFmt(x.marad.sub), exx: (x) => MAR[x.marad.st][1] + (x.marad.due && !x.marad.sub ? ` · due ${copFmt(x.marad.due)}` : ""),
+      td: (x) => `<td class="nw">${x.marad.st === "na" ? dash : pill(MAR[x.marad.st][0], MAR[x.marad.st][1] + (x.marad.sub ? ` ${sd(x.marad.sub)}` : x.marad.due ? ` ${sd(x.marad.due)}` : ""))}</td>` },
+    dcol("delivered", "Delivered", "delivered", "departed", "ATLAS field: Delivery Date"),
+    { id: "inv", label: "Invoices rec’d", title: "ATLAS fields: Warehouse Invoice Received · Final Shipping Invoice Received",
+      sort: (x) => (x.whInv ? 1 : 0) + (x.shipInv ? 2 : 0), ex: (x) => copFmt(x.whInv), exx: (x) => copFmt(x.shipInv),
+      td: (x) => `<td class="nw">${x.whInv || x.shipInv ? `${x.whInv ? `Warehouse ${esc(sd(x.whInv))}` : `<span class="mut">Warehouse —</span>`}<small>${x.shipInv ? `Final shipping ${esc(sd(x.shipInv))}` : "Final shipping —"}</small>` : dash}</td>` },
+    { id: "notes", label: "Notes", title: "ATLAS field: Shipping Team Notes, then the latest daily status update",
+      sort: (x) => x.note ? x.note.date.getTime() : null, ex: (x) => x.m.notes, exx: (x) => x.note ? `${copFmt(x.note.date)}: ${x.note.note}` : "",
+      td: (x) => `<td class="up">${x.m.notes ? `<span class="x keep"><b>Team:</b> ${esc(x.m.notes)}</span>` : ""}${x.note ? `<span class="d">${esc(sd(x.note.date))}</span><span class="x">${esc(x.note.note)}</span>` : x.m.notes ? "" : dash}</td>` },
+  ];
+}
+
+function copRenderTracker(root, built) {
+  const today = built.ctx.today;
+  let xs = copTrackerRows(built);
+  const pocs = Array.from(new Set(xs.map((x) => x.r.poc).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  if (CopUi.poc && !pocs.some((p) => copLow(p) === copLow(CopUi.poc))) CopUi.poc = "";
+  if (CopUi.poc) xs = xs.filter((x) => copLow(x.r.poc) === copLow(CopUi.poc));
+  const nAct = xs.filter((x) => x.active).length, nDel = xs.length - nAct;
+  const scope = ["all", "active", "delivered"].indexOf(CopUi.trkScope) !== -1 ? CopUi.trkScope : "all";
+  const inScope = xs.filter((x) => scope === "all" || (scope === "active") === x.active);
+  let rows = inScope;
+  if (CopUi.q) {
+    const q = copLow(CopUi.q);
+    rows = rows.filter((x) => copLow([x.r.wmtr, x.r.title, x.r.origin, x.r.dest, x.r.poc, x.r.status, x.r.program, x.m.itn, x.m.notes].join(" ")).includes(q));
+  }
+  if (CopUi.trkPick && !COP_TRK_PICK[CopUi.trkPick]) CopUi.trkPick = "";
+  if (CopUi.trkPick) rows = rows.filter(COP_TRK_PICK[CopUi.trkPick]);
+
+  /* ---- the metrics the tracker was kept for ---- */
+  const cnt = (f) => inScope.filter(f).length;
+  const rfqOn = cnt((x) => x.rfq.st === "ontime"), rfqLate = cnt((x) => x.rfq.st === "late"), rfqOver = cnt((x) => x.rfq.st === "overdue");
+  const rfqTot = rfqOn + rfqLate + rfqOver;
+  const eeiOk = cnt((x) => x.eei === "filed"), eeiMiss = cnt((x) => x.eei === "missed"), eeiHold = cnt((x) => x.eei === "hold");
+  const withOrig = inScope.filter((x) => x.tl.origRdd && x.tl.rdd), chg = withOrig.filter((x) => x.changed);
+  const avgSlip = chg.length ? Math.round(chg.reduce((t, x) => t + x.slip, 0) / chg.length) : 0;
+  const done = inScope.filter((x) => !x.active && x.tl.submitted && x.tl.delivered);
+  const avgDays = done.length ? Math.round(done.reduce((t, x) => t + copCalDays(x.tl.submitted, x.tl.delivered), 0) / done.length) : null;
+  const invOut = cnt(COP_TRK_PICK.inv), mar = cnt(COP_TRK_PICK.marad), hasOcean = inScope.some((x) => x.marad.st !== "na");
+  const pct = (a, b) => b ? Math.round((a / b) * 100) + "%" : "—";
+  const tile = (key, tone, big, label, hint) => `<button type="button" class="copx-kpi ${tone} ${CopUi.trkPick === key && key ? "on" : ""}" ${key ? `data-pick="${key}"` : "disabled"} aria-pressed="${CopUi.trkPick === key && !!key}" title="${esc(hint)}">
+      <span class="n">${esc(String(big))}</span><span class="l">${esc(label)}</span><span class="h">${esc(hint)}</span></button>`;
+  const tiles = el(`<div class="copx-kpis" role="group" aria-label="Tracker metrics — click a tile to filter">
+    ${tile("rfq", !rfqTot ? "" : rfqLate + rfqOver ? "r" : "g", pct(rfqOn, rfqTot), "RFQs sent within 1 business day",
+      rfqTot ? `${rfqOn} of ${rfqTot} on time${rfqOver ? ` · ${rfqOver} overdue now` : ""}${rfqLate ? ` · ${rfqLate} sent late` : ""}` : "No RFQ dates entered yet")}
+    ${tile("eei", eeiMiss ? "r" : eeiHold ? "a" : eeiOk ? "g" : "", eeiOk + eeiMiss ? `${eeiOk} / ${eeiOk + eeiMiss}` : "—", "EEI filed before departure",
+      `US exports that have left with an ITN / NOEEI citation${eeiHold ? ` · ${eeiHold} in Execution still to file` : ""}`)}
+    ${tile("rdd", chg.length ? "a" : "", chg.length, "RDD changed", withOrig.length ? `of ${withOrig.length} with an Original RDD${chg.length ? ` · average ${avgSlip > 0 ? "+" : ""}${avgSlip} days` : ""}` : "No Original RDD entered yet")}
+    ${tile("", "", avgDays === null ? "—" : avgDays, "Days, submitted → delivered", done.length ? `Average over ${copPlural(done.length, "shipment")} delivered since 1 Oct` : "Nothing delivered since 1 Oct in this view")}
+    ${tile("inv", invOut ? "a" : "", invOut, "Final invoices outstanding", "Delivered since 1 Oct with no Final Shipping Invoice Received date")}
+    ${hasOcean ? tile("marad", mar ? "b" : "", mar, "MARAD reports open", "Sealift shipments with a MARAD report due or overdue") : ""}
+  </div>`);
+
+  /* ---- how long each step takes ---- */
+  const st = copStepTimes(inScope);
+  const flow = el(`<div class="copx-flow" role="list" aria-label="Average business days per step">${st.map((t) => {
+    const over = t.s.goal && t.avg !== null && t.avg > t.s.goal;
+    return `<div class="fs ${t.n ? "" : "none"} ${over ? "over" : ""}" role="listitem" title="${esc(t.s.hint)}">
+      <span class="k">${esc(t.s.label)}</span>
+      <span class="v">${t.avg === null ? "—" : (Math.round(t.avg * 10) / 10)}<i>${t.avg === null ? "" : "days"}</i></span>
+      <span class="m">${t.n ? `${copPlural(t.n, "shipment")}${t.s.goal ? ` · goal ${t.s.goal}` : ""}` : "no dates yet"}</span>
+      ${t.max && t.max.n > 0 ? `<button type="button" class="lnk" data-find="${esc(t.max.x.r.last5)}" title="Show this shipment">Longest: ${esc(t.max.x.r.last5)} · ${t.max.n}d</button>` : `<span class="m">&nbsp;</span>`}
+    </div>`; }).join("")}</div>`);
+
+  const card = el(`<section class="copx-card">
+    <div class="copx-hd"><h2>Tracker</h2>
+      <span class="n">Everything the Ops Tracker held, read straight from ATLAS — shipments in progress and those delivered since 1 Oct 2026</span></div>
+    ${built.ds.hasMilestones ? "" : `<div class="copx-banner">${esc(COP_NO_FIELDS_TEXT)} Until then Date Packed, RFQ sent, ITN, MARAD, invoices and team notes show blank.</div>`}
+  </section>`);
+  card.appendChild(tiles);
+  card.appendChild(el(`<div class="copx-flow-hd"><b>Time in each step</b><span>average business days · hover a step for what it measures</span></div>`));
+  card.appendChild(flow);
+  root.appendChild(card);
+
+  /* ---- the table ---- */
+  const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t)}</option>`;
+  const seg = (v, t, n) => `<button type="button" data-scope="${v}" class="${scope === v ? "on" : ""}">${esc(t)} <span class="c">${n}</span></button>`;
+  const cols = copTrkCols(today);
+  const sort = CopUi.trkSort || { id: "", dir: 1 };
+  const sc = sort.id && cols.find((c) => c.id === sort.id);
+  const shown = !sc ? rows : rows.slice().sort((a, b) => {
+    const va = sc.sort(a), vb = sc.sort(b), blank = (v) => v === null || v === undefined || v === "";
+    if (blank(va) || blank(vb)) return copCmp(va, vb) || a.r.num - b.r.num;
+    return sort.dir * copCmp(va, vb) || a.r.num - b.r.num;
+  });
+  const tcard = el(`<section class="copx-card">
+    <div class="copx-frow trk">
+      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country, ITN, notes" value="${esc(CopUi.q)}"></div>
+      <div class="copx-f"><label for="copPoc">TTI POC</label><select id="copPoc">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select></div>
+      <div class="copx-f"><label>Show</label><div class="copx-seg">${seg("all", "All", xs.length)}${seg("active", "In progress", nAct)}${seg("delivered", "Delivered since 1 Oct", nDel)}</div></div>
+      <div class="copx-fbtns"><button class="copx-btn ghost" id="copReset" type="button">Reset</button></div>
+    </div>
+    <div class="copx-tbl copx-trk"><table><thead><tr class="hd">${cols.map((c) => {
+      const on = sort.id === c.id;
+      return `<th class="srt${on ? " on" : ""}${c.id === "wmtr" ? " stick" : ""}" data-sort="${c.id}" tabindex="0" title="${esc(c.title || "Click to sort")}" aria-sort="${on ? (sort.dir > 0 ? "ascending" : "descending") : "none"}">${esc(c.label)}${on ? ` <span class="ar">${sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`; }).join("")}</tr></thead>
+      <tbody>${shown.map((x) => `<tr class="row" data-w="${esc(x.r.wmtr)}" data-act="${x.active ? 1 : 0}">${cols.map((c) => c.td(x)).join("")}</tr>`).join("")
+        || `<tr><td colspan="${cols.length}" class="copx-msg">No shipments match.</td></tr>`}</tbody></table></div>
+    <p class="copx-foot">${rows.length === inScope.length ? copPlural(rows.length, "shipment") : `${rows.length} of ${inScope.length} shipments`} · the small “+3d” under a date is the business days since the step before it · click a row for its full checklist · shipments delivered before 1 Oct 2026 are on the archived Ops Tracker</p>
+  </section>`);
+  root.appendChild(tcard);
+
+  /* ---- wiring ---- */
+  const $ = (s) => root.querySelector(s);
+  root.querySelectorAll("button[data-pick]").forEach((b) => b.addEventListener("click", () => { CopUi.trkPick = CopUi.trkPick === b.dataset.pick ? "" : b.dataset.pick; copRerender(); }));
+  root.querySelectorAll("button[data-scope]").forEach((b) => b.addEventListener("click", () => { CopUi.trkScope = b.dataset.scope; copRerender(); }));
+  root.querySelectorAll("button[data-find]").forEach((b) => b.addEventListener("click", () => { CopUi.q = b.dataset.find; CopUi.trkPick = ""; copRerender(); }));
+  $("#copPoc").addEventListener("change", (e) => { CopUi.poc = e.target.value; copRerender(); });
+  const q = $("#copQ");
+  let qt = null;
+  q.addEventListener("input", () => {
+    clearTimeout(qt);
+    qt = setTimeout(() => {
+      CopUi.q = q.value; copRerender();
+      const nq = document.getElementById("copQ");
+      if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); }
+    }, 250);
+  });
+  $("#copReset").addEventListener("click", () => { Object.assign(CopUi, { poc: "", q: "", trkPick: "", trkScope: "all", trkSort: null }); copRerender(); });
+  const sortBy = (id) => { CopUi.trkSort = sort.id === id ? { id, dir: -sort.dir } : { id, dir: 1 }; copRerender(); };
+  root.querySelectorAll(".copx-trk th[data-sort]").forEach((th) => {
+    th.addEventListener("click", () => sortBy(th.dataset.sort));
+    th.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sortBy(th.dataset.sort); } });
+  });
+  root.querySelectorAll(".copx-trk tr.row").forEach((tr) => tr.addEventListener("click", (e) => {
+    if (e.target.closest("a,button")) return;
+    const w = tr.dataset.w;
+    CopUi.view = tr.dataset.act === "1" ? "active" : "closed";
+    Object.assign(CopUi, { q: "", poc: "", atRisk: false, quick: "", hit: "", rddDays: 0, focus: w });
+    CopUi.expanded.add(w);
+    copRerender();
+    requestAnimationFrame(() => {
+      const row = document.querySelector(`.copx-tbl tr.row[data-w="${CSS.escape(w)}"]`);
+      if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }));
+  copWireOpenLinks(root);
+  $("#copTrkExport").addEventListener("click", () => {
+    try { copExportTracker(shown, cols); } catch (e) { console.error(e); alert("Export failed: " + (e.message || e)); }
+  });
+}
+
+/** Tracker view -> .xlsx (what's on screen, plain values). */
+function copExportTracker(rows, cols) {
+  const head = [], pick = [];
+  for (const c of cols) {
+    head.push(c.label.replace("’", "'")); pick.push(c.ex);
+    if (c.exx) { head.push(c.id === "inv" ? "Final shipping invoice rec'd" : c.id === "notes" ? "Latest daily update" : c.label + " — status"); pick.push(c.exx); }
+  }
+  head[head.indexOf("Invoices rec'd")] = "Warehouse invoice rec'd";
+  const aoa = [["Status"].concat(head)];
+  for (const x of rows) aoa.push([x.r.status].concat(pick.map((f) => f(x) || "")));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = aoa[0].map((h) => ({ wch: /update|Notes/.test(h) ? 60 : /WMTR/.test(h) ? 26 : /Route/.test(h) ? 30 : 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Tracker");
+  pmrDownloadXlsxB64(XLSX.write(wb, { type: "base64", bookType: "xlsx" }), `Shipping_Tracker_${fileStamp()}.xlsx`);
 }
 
 /* Small chain-link mark for consolidated shipments (teal, like the hover's consol line). */
@@ -2084,8 +2456,8 @@ function copColDefs(isActive) {
       sort: (r) => toFloat(r.rec.f["total cost in usd"]) || null, fv: (r) => copMoney(toFloat(r.rec.f["total cost in usd"])) || "",
       td: (r) => `<td class="nw">${esc(copMoney(toFloat(r.rec.f["total cost in usd"])) || "—")}</td>` },
   ];
-  // Ops Tracker fields (until they're in ATLAS).
-  const trkCol = (id, label, key, ft) => ({ id, label, opt: true, ft: ft || "text", title: "From the Ops Tracker",
+  // Shipment-milestone fields (ATLAS Shipping Activity & History).
+  const trkCol = (id, label, key, ft) => ({ id, label, opt: true, ft: ft || "text", title: "ATLAS Shipping Activity field",
     sort: (r) => { const v = r.trk && r.trk[key]; const d = copTrkDate(v); return d ? d.getTime() : (norm(v || "") ? copLow(v) : null); },
     fv: (r) => r.trk ? copTrkText(r.trk[key]) : "",
     td: (r) => `<td class="nw">${r.trk && norm(r.trk[key] || "") ? esc(copTrkText(r.trk[key])) : "—"}</td>` });
@@ -2148,7 +2520,7 @@ function copCmp(a, b) {
 function copColumnPicker(isActive) {
   const defs = copColDefs(isActive).filter((c) => !c.fixed);
   const vis = new Set(copVisibleCols(isActive).map((c) => c.id));
-  const box = (c) => `<label class="copx-chk"><input type="checkbox" data-col="${esc(c.id)}" ${vis.has(c.id) ? "checked" : ""}> ${esc(c.label)}${c.title ? ` <small style="color:var(--ax-muted)">(${esc(c.title.replace(/^From the /, ""))})</small>` : ""}</label>`;
+  const box = (c) => `<label class="copx-chk"><input type="checkbox" data-col="${esc(c.id)}" ${vis.has(c.id) ? "checked" : ""}> ${esc(c.label)}</label>`;
   return el(`<div class="copx-colpick">
     <div><div class="k">Default columns</div>${defs.filter((c) => !c.opt).map(box).join("")}</div>
     <div><div class="k">More columns</div>${defs.filter((c) => c.opt).map(box).join("")}</div>
@@ -2778,10 +3150,7 @@ function copWire(root, built, rows, isActive) {
   for (const r of all) byW[r.wmtr] = r;
   const setMsg = (t) => { CopUi.msg = t; const m = $("#copMsg"); if (m) m.textContent = t; };
 
-  root.querySelectorAll(".copx-tabs button").forEach((b) => b.addEventListener("click", () => {
-    if (CopUi.view === b.dataset.v) return;
-    CopUi.view = b.dataset.v; CopUi.hit = ""; CopUi.quick = ""; CopUi.focus = ""; copRerender();
-  }));
+  copWireTop(root);
 
   // filter panel
   const det = $(".copx-filter");
@@ -2812,22 +3181,6 @@ function copWire(root, built, rows, isActive) {
     Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", quick: "", focus: "" });
     const st = copTblState(isActive); st.f = {}; st.sort = "";
     copRerender();
-  });
-  const fileIn = $("#copTrkFile");
-  const loadTrk = async (file) => {
-    try { const t = await copLoadTrackerFile(file); CopUi.msg = `Ops Tracker loaded — ${Object.keys(t.rows).length} active MTRs.`; }
-    catch (e) { CopUi.msg = e.message; }
-    copRerender();
-  };
-  $("#copTrkLoad").addEventListener("click", () => fileIn.click());
-  fileIn.addEventListener("change", () => { if (fileIn.files && fileIn.files[0]) loadTrk(fileIn.files[0]); });
-  const clr = $("#copTrkClear");
-  if (clr) clr.addEventListener("click", () => { copSetTracker(null); CopUi.msg = "Ops Tracker cleared."; copRerender(); });
-  root.addEventListener("dragover", (e) => { e.preventDefault(); });
-  root.addEventListener("drop", (e) => {
-    e.preventDefault(); e.stopPropagation();
-    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) loadTrk(f);
   });
   $("#copLimits").addEventListener("click", () => { CopUi.settingsOpen = !CopUi.settingsOpen; CopUi.filterOpen = true; copRerender(); });
   root.querySelectorAll(".copx-limits input[type=number]").forEach((inp) => inp.addEventListener("change", () => {
@@ -3149,15 +3502,18 @@ function copRailButton() {
   return btn;
 }
 
-/* Clicking COP shows the copy saved from the last pull at once (when nothing is
-   loaded yet), then pulls the latest Metrics UDQ from ATLAS in the background
-   and swaps it in, then the Christmas Tree UDQs (SRF reuses the Metrics pull —
-   same search). Fetch only works when the Utility runs inside ATLAS; elsewhere
-   it says so and keeps what's loaded. A full pull within the last
-   COP_AUTO_PULL_MIN minutes isn't repeated; once ATLAS can send only what
-   changed (atlasChangesOn), every click pulls. */
+/* Clicking Dashboard pulls the latest UDQ from ATLAS. Nothing is shown until
+   that pull has finished (2.9.0): the first open is a "Getting the latest…"
+   card, never a saved copy of an older pull — that looked like fresh data.
+   Once data is on screen the header always says when it was pulled; a later
+   pull keeps it up, marked "Refreshing…", and swaps the new data in. Then the
+   Christmas Tree SRF slot reuses the same pull. Fetch only works when the
+   Utility runs inside ATLAS; elsewhere it says so and waits for a dropped
+   UDQ. A full pull within the last COP_AUTO_PULL_MIN minutes isn't repeated
+   (the Refresh button forces one); once ATLAS can send only what changed
+   (atlasChangesOn), every click pulls. */
 const COP_AUTO_PULL_MIN = 10;
-const CopPull = { busy: false, at: 0 };
+const CopPull = { busy: false, at: 0, okAt: 0, err: "" };
 function copClock(ms) {
   return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
@@ -3177,39 +3533,36 @@ async function copSwapInMetrics(recs, label) {
   } else return;
   renderRail(); renderDashboard(); renderWorkspace();
 }
-async function copAutoFetch() {
+async function copAutoFetch(force) {
   if (CopPull.busy || typeof atlasPullMetricsRecords !== "function") return;
   const minGap = atlasChangesOn() ? 0 : COP_AUTO_PULL_MIN;
-  if (AppState.udqType === "metrics" && Date.now() - CopPull.at < minGap * 60000) return;
+  if (!force && AppState.udqType === "metrics" && Date.now() - CopPull.at < minGap * 60000) return;
   CopPull.busy = true;
   CopPull.at = Date.now();
-  let saved = null;
-  if (AppState.udqType !== "metrics") {
-    saved = await atlasSavedMetrics();
-    if (saved && AppState.udqType !== "metrics") {
-      await copSwapInMetrics(saved.records, `ATLAS API — Metrics (${saved.records.length} records, saved ${copClock(saved.at)})`);
-      atlasSetStatus(`Showing the ATLAS data saved ${copClock(saved.at)} — getting the latest from ATLAS…`);
-    }
-  }
+  CopPull.err = "";
+  copRerender();                                     // "Getting the latest…" / "Refreshing…"
   let recs;
   try {
-    recs = await atlasPullMetricsRecords({ quiet: !!saved });   // keep "Showing the ATLAS data saved …" up
+    recs = await atlasPullMetricsRecords();
   } catch (e) {
     console.error(e);
-    atlasSetStatus(`Couldn't pull the Metrics UDQ from ATLAS — ${e.message || e}` +
-      (saved && AppState.udqType === "metrics" ? ` Showing the copy saved ${copClock(saved.at)}.`
-        : AppState.udqType === "metrics" ? " Showing the UDQ already loaded."
-        : " Fetching only works inside ATLAS; drop a Metrics UDQ export instead."), true);
+    CopPull.err = String(e.message || e);
+    atlasSetStatus(`Couldn't pull the UDQ from ATLAS — ${CopPull.err}` +
+      (AppState.udqType === "metrics" ? " Still showing the UDQ already loaded."
+        : " Fetching only works inside ATLAS; drop a UDQ export instead."), true);
     CopPull.busy = false;
+    copRerender();
     return;                                          // no ATLAS → don't try the Christmas Tree either
   }
   // Swap in only if the Metrics data (or nothing) is still what's loaded —
   // never replace a shipment opened while the pull ran.
-  if (AppState.udqType === "metrics" || !AppState.grid) {
-    await copSwapInMetrics(recs);
-    atlasSetStatus(`Up to date with ATLAS as of ${copClock(Date.now())} — ${recs.length} records.`);
-  }
   CopPull.busy = false;
+  if (AppState.udqType === "metrics" || !AppState.grid) {
+    CopPull.okAt = Date.now();
+    await copSwapInMetrics(recs);
+    atlasSetStatus(`Up to date with ATLAS as of ${copClock(CopPull.okAt)} — ${recs.length} records.`);
+    copRerender();
+  }
   // Christmas Tree SRF slot from the pull above (no extra fetch). PR / PMCT / PLS are pulled by pmAutoPull
   // when Dashboard is clicked; the WS UDQ isn't pulled while the Christmas Tree tab is hidden.
   if (typeof loadFromAtlasXmasTree === "function") {
@@ -3257,7 +3610,7 @@ function copHubTabs() {
    DASHBOARD DROP BOX — one drop target under the tab bar on every Dashboard tab.
    Drop any UDQ export(s), one or several at once: Metrics → Shipments / Metrics /
    PMR / Export-Controlled, PR → Procurement, PMCT → Property, PLS → PLS (a WS UDQ
-   goes to the Christmas Tree). Anything else (a shipment UDQ, an Ops Tracker…)
+   goes to the Christmas Tree). Anything else (a single-shipment UDQ…)
    goes to the main loader, exactly as the main drop zone would take it.
    Settings › General › "Dashboard UDQ drop box" turns it off for when the Utility
    runs inside ATLAS and pulls the UDQs itself (every tab is then always clickable).
@@ -3354,5 +3707,5 @@ async function copHubIngest(fileList) {
 
 /* Node test support */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { copParseGrid, copEvaluate, copActiveEvaluate, copStepInfo, copParseTrackerWorkbook, copDailyGaps, COP_STEPS };
+  module.exports = { copParseGrid, copEvaluate, copActiveEvaluate, copStepInfo, copTimeline, copTrackerRows, copDailyGaps, COP_STEPS };
 }

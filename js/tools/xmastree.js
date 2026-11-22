@@ -848,6 +848,21 @@ function xtSortRows(rows) {
   return rows.slice().sort(byNum);
 }
 
+/* Cost rule (user, 2026-11-22): a cost difference is an issue ONLY when the actual
+   amount (current Total Cost) exceeds the governing DTRA-approved amount by more
+   than XT_COST_OVER_TOL. An actual that comes in under the approved amount is
+   never an issue. Used by the row flags, the cost metrics and the Dashboard. */
+const XT_COST_OVER_TOL = 0.10;
+function xtCostOver(row) {
+  const a = row && row.governing_amount, c = row && row.current_total_cost;
+  return typeof a === "number" && typeof c === "number" && a > 0 && (c - a) / a > XT_COST_OVER_TOL + 1e-9;
+}
+/** Whole-percent overrun for the wording ("12% over"); 0 when not over. */
+function xtCostOverPct(row) {
+  const a = row && row.governing_amount, c = row && row.current_total_cost;
+  return (typeof a === "number" && typeof c === "number" && a > 0 && c > a) ? Math.round((c / a - 1) * 100) : 0;
+}
+
 /* -------------------------------------------------------------------------
    ISSUE DETECTION — the whole point: surface missed / late metrics.
    Mirrors the tracker's conditional formatting, but only for metrics ATLAS
@@ -856,7 +871,7 @@ function xtSortRows(rows) {
 
    kind: "missing" (a due date has passed but the value is still blank),
          "late"    (the value exists but landed after its due date),
-         "variance"(estimate vs actual off by >=10%),
+         "variance"(actual cost more than 10% over the approved amount),
          "flag"    (rejected during/after review),
          "due"     (an open Ready-to-Invoice / Invoiced milestone coming due soon).
    Each issue names the column it belongs to + a short human label.
@@ -911,13 +926,12 @@ function xtRowIssues(row) {
     add("activity", "last_activity", "due",
         row.service === "PR" ? "TTI POC Status Check due today" : "Daily update due today");
 
-  // Cost variance. Two regimes:
-  //  - Active (undelivered): flag only once DTRA has approved an amount and the current
-  //    total cost has climbed above it \u2014 that's the signal to seek reapproval. Requests
-  //    with no approved amount yet (still in TTI/DTRA review) have a cost but nothing to
-  //    compare against, so they don't flag.
-  //  - Delivered/completed: the estimate-vs-actual accuracy check (>=10% either way).
-  // Both branches compare against the GOVERNING (most recent) approval, not the
+  // Cost. ONE rule, delivered or not (user, 2026-11-22): it's an issue only when the
+  // actual (current Total Cost) is MORE than 10% above the DTRA-approved amount \u2014
+  // xtCostOver. Coming in under the approved amount never is, however far under.
+  // Requests with no approved amount yet (still in TTI/DTRA review) have a cost but
+  // nothing to compare against, so they don't flag.
+  // The comparison is against the GOVERNING (most recent) approval, not the
   // first one. A request whose cost was raised and re-approved in ATLAS has been
   // authorized at the new figure; holding it to the original estimate reported it
   // as an overrun forever. The flag is attributed to the revised column when a
@@ -925,16 +939,14 @@ function xtRowIssues(row) {
   const revised = !!row.cost_revised;
   const vCol = revised ? "rev_est_vs_actual" : "est_vs_actual";
   const vMetric = revised ? "variance_rev" : "variance_est";
-  if (!isD(row.delivered)) {
-    if (typeof row.governing_amount === "number" && typeof row.current_total_cost === "number"
-        && row.current_total_cost > row.governing_amount)
+  if (xtCostOver(row)) {
+    const pct = xtCostOverPct(row);
+    if (!isD(row.delivered))
       add(vMetric, "current_total_cost", "variance",
-          revised ? "Cost exceeds the revised DTRA-approved amount \u2014 reapproval needed"
-                  : "Cost exceeds DTRA-approved amount \u2014 reapproval needed");
-  } else {
-    if (typeof row.cost_variance === "number" && Math.abs(row.cost_variance) >= 0.10)
+          `Cost is ${pct}% over the ${revised ? "revised " : ""}DTRA-approved amount \u2014 reapproval needed`);
+    else
       add(vMetric, vCol, "variance",
-          revised ? "Revised estimate vs actual off by \u226510%" : "Estimate vs actual off by \u226510%");
+          `Actual cost is ${pct}% over the ${revised ? "revised " : ""}DTRA-approved amount`);
   }
 
   // Rejected during/after review
@@ -1074,12 +1086,12 @@ const XT_ROLLUP_METRICS = [
     failReason: () => "No value in the AWB/BoL field" },
   // Scored against the GOVERNING approval (the most recent "DTRA Estimate Review
   // (Approved)" entry carrying a cost), not the first one \u2014 a request re-approved
-  // at a higher cost is authorized at that cost. See xtBuildRow/cost_variance.
+  // at a higher cost is authorized at that cost. Fails only when the actual is more
+  // than 10% OVER it (xtCostOver); under the estimate always passes.
   { key: "cost_srf", svc: "SRF", src: "row",
     label: "SRF Cost Estimate Accuracy (\u226410%)", green: 0.95, yellow: 0.90,
-    elig: (r) => typeof r.cost_variance === "number", pass: (r) => Math.abs(r.cost_variance) < 0.10,
-    failReason: (r) => (r.cost_revised ? "Revised estimate" : "Estimate") + " vs. actual off by "
-      + Math.round(Math.abs(r.cost_variance) * 100) + "%" },
+    elig: (r) => typeof r.cost_variance === "number", pass: (r) => !xtCostOver(r),
+    failReason: (r) => "Actual cost is " + xtCostOverPct(r) + "% over the " + (r.cost_revised ? "revised " : "") + "approved estimate" },
   // Manually-entered metric: a reviewer flags a WMTR by putting a note in the
   // "DTRA-Only Import/Export Comments" or "Revision Number" field
   // (xtManualMetricNote). Any note = a bust
@@ -1096,9 +1108,8 @@ const XT_ROLLUP_METRICS = [
     failReason: () => "Estimate submitted after 3-business-day due date" },
   { key: "cost_pr", svc: "PR", src: "row",
     label: "PR Cost Estimate Accuracy (\u226410%)", green: 0.95, yellow: 0.90,
-    elig: (r) => typeof r.cost_variance === "number", pass: (r) => Math.abs(r.cost_variance) < 0.10,
-    failReason: (r) => (r.cost_revised ? "Revised estimate" : "Estimate") + " vs. actual off by "
-      + Math.round(Math.abs(r.cost_variance) * 100) + "%" },
+    elig: (r) => typeof r.cost_variance === "number", pass: (r) => !xtCostOver(r),
+    failReason: (r) => "Actual cost is " + xtCostOverPct(r) + "% over the " + (r.cost_revised ? "revised " : "") + "approved estimate" },
 ];
 // Date-comparison metrics we would score today if ATLAS captured one missing
 // timestamp. Rendered as their own rows so Wendy can see exactly which field is the

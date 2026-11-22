@@ -155,10 +155,6 @@ body{
 .udq-actions .linkbtn:hover{ text-decoration: underline; }
 .udq-actions .linkbtn:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .udq-actions .udq-sep{ color: var(--steel); }
-/* "Recent UDQs" toggle: orange like the other link buttons, set a little apart
-   from "Diagnose layout". Underlined when its (collapsed) list is open. */
-.udq-actions .udq-recents-link{ margin-left: 14px; }
-.udq-actions .udq-recents-link.active{ text-decoration: underline; }
 .topbar .ver:hover{ color: #fff; background: rgba(255,255,255,.08); }
 .topbar .ver:focus-visible{ outline: 2px solid #9FB0C2; outline-offset: 1px; }
 .topbar .tagline{
@@ -1116,20 +1112,6 @@ body.theme-dark .cop-hub.sub button.active{ background:#5a6d9a; color:#fff; }
 .dg-panel table.data td.dg-bad{ color:#b32424; font-weight:600; }
 .dg-panel table.data td.dg-warn{ color:#9a6a00; }
 .dg-panel table.data td.dg-ok{ color: var(--cleared); }
-
-/* ---------- Recent UDQs (under the dropzone) ---------- */
-.recents{ margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 10px 14px; }
-.recents-head{ display: flex; align-items: center; font: 600 .72rem/1 var(--disp); letter-spacing: .06em; text-transform: uppercase; color: var(--steel); }
-.recents-clear{ margin-left: auto; background: none; border: 0; color: var(--steel); font-size: .78rem; cursor: pointer; text-transform: uppercase; letter-spacing: .04em; }
-.recents-clear:hover{ color: var(--warn); }
-.recents-list{ list-style: none; margin: 8px 0 0; padding: 0; }
-.recents-list li{ display: flex; align-items: baseline; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); font-size: .86rem; }
-.recents-list li:first-child{ border-top: 0; }
-.recents-type{ flex: 0 0 auto; font: 600 .66rem/1 var(--disp); letter-spacing: .04em; text-transform: uppercase; color: #fff; background: var(--steel); border-radius: 4px; padding: 3px 6px; }
-.recents-wmtr{ flex: 0 0 auto; font-family: var(--mono); font-size: 12px; color: var(--ink); }
-.recents-title{ flex: 1 1 auto; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.recents-ago{ flex: 0 0 auto; color: var(--steel); font-size: .78rem; }
-.recents-note{ margin-top: 8px; color: var(--steel); font-size: .76rem; }
 
 /* =========================================================================
    Metrics "at a glance" dashboard (2.5.0)

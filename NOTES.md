@@ -487,3 +487,53 @@ Arrived Warehouse or the warehouse actual date is filled.
   browser's HTTP cache (suspected on the ATLAS-hosted copy) can't pin users to an old
   release. Proper server-side fix to ask TTI for: `Cache-Control: no-cache` on
   index.html and sw.js.
+
+## v2.9.0 Shipping Operations — Ops Tracker retired, new look (2026-11-22) — pushed 2026-11-22
+- User (2026-11-22): the tracker fields are in ATLAS now (SRF UDQ, Shipping Activity & History, right after Tracking
+  Link): Date Packed, RFQ Sent Date, ITN / NOEEI Citation, MARAD Submitted Date, Warehouse Invoice Received, Final
+  Shipping Invoice Received, Monitor this RDD, Shipping Team Notes; plus top-level "Original RDD" (after NLT Completion
+  Date; revised RDD = NLT Completion Date). Fields are still being back-filled for everything delivered since 1 Oct 2026.
+- Ops Tracker upload REMOVED (cop.js: copParseTrackerWorkbook / copMaybeTrackerFile / atlas.cop.tracker all gone; the
+  old localStorage copy is deleted on load). Checks read ATLAS: copMsFor(rec, ds) -> { trk, why, na }. trk = null when
+  the export has no milestone columns (ds.hasMilestones false -> "No data") or the shipment was delivered before
+  COP_FIELDS_FROM_ISO = 2026-10-01 (-> N/A, "tracked on the archived Ops Tracker"). Until the back-fill is done, the
+  Closed audit shows RFQ / ITN misses on shipments delivered since 1 Oct whose fields are still blank.
+- "Monitor this RDD" = True in ATLAS switches RDD monitoring on (per-browser prefs.rddWatch still works too).
+- New TRACKER view (CopUi.view "tracker"; copTrackerRows / copTrkCols / copRenderTracker / copExportTracker): rows =
+  active + closed delivered on/after 1 Oct (cancelled left out). copTimeline(rec): submitted = Date Submitted (always <=
+  first non-Draft stamp in the sample), toDtra = first "DTRA Program Review", compliance = "DTRA Compliance Review
+  (Approved)", quoteSub = first "DTRA Estimate Review", quoteAppr = "... (Approved)", departed = Departure from Origin
+  Act. Date. RFQ status: due = 1 business day after later(compliance, packed); active past Estimate Preparation with no
+  RFQ date = "Not recorded" (not overdue). EEI: US export, not hand carry — filed / hold (in Execution) / later / missed.
+  Tiles = COP_TRK_PICK filters; step strip = COP_TL_STEPS average business days + longest shipment.
+- In progress view: KPI tiles (copTodayStrip) incl. new quick filters rfq / eei (COP_QUICK).
+- NEW LOOK = the "2.9.0 look" block at the END of COPX_CSS in cop.js (overrides the older rules above it; Inter /
+  Segoe UI, white cards, hairline borders, light table headers, colour only for exceptions). User plans to roll this
+  styling out to the other Dashboard tabs and then the whole Utility — when that happens, move the tokens into
+  css/app.css and delete the overridden rules. Hub tab bar (.cop-hub in app.css) and the Metrics / Procurement /
+  Property / PLS tabs are NOT restyled yet.
+- Dashboard pull: no saved copy shown any more (user: it wasn't apparent the data was stale). copAutoFetch(force):
+  blank "Getting the latest from ATLAS…" card until the pull finishes; header chip (copFreshChip) says "Live from
+  ATLAS · pulled <time>" or "From a file · <name>"; Refresh button = copAutoFetch(true). IndexedDB "atlas-udq-cache"
+  is only written while "changed since" pulls are on (atlasChangesOn), otherwise deleted.
+- FETCH PATH — CONFIRMED 2026-11-22 against Downloads\cfb99354-…(1).json (250 records): the new fields are on
+  ShippingActivityHistory[0] as datePacked(_UDQ), rfqSentDate(_UDQ), itN_NoEEI_Citation, maradSubmittedDate(_UDQ),
+  warehouseInvoiceReceivedDate(_UDQ), finalShippingInvoiceReceivedDate(_UDQ), monitorThisRDD(_UDQ), shippingTeamNotes —
+  pinned in ATLAS_SHIPACT_COLUMNS (json_udq.js; the guess-by-name matcher is gone). Original RDD = top-level
+  ManualStatusChangeDate (confirmed). Fetched grid vs. the 08:21 Excel export: all 8 fields + Original RDD + RDD
+  identical on 243/243 requests; Tracker numbers identical. monitorThisRDD is null everywhere so far — the value a
+  ticked box sends (true / "Yes") is unseen; copIsYes accepts true / yes / y / 1.
+- New UDQ types: "ir" (IR Number / IR-…) and "dtr" (DTR Number / DTR-…) — detectUdqType + readRequestUdq (udq.js),
+  renderRequestDashboard (app.js): summary only, no tools yet. appMaybeDashboardUdq (app.js): a PLS export or a
+  multi-request PR / PMCT / WS export dropped on the MAIN drop zone is handed to the Dashboard (copHubIngest). WS goes
+  to the Christmas Tree slot (tab hidden). A single-request PMCT / WS UDQ still loads as "SRF" (pre-existing).
+- Removed everywhere: "Diagnose layout" (udqDiagnose) and "Recent UDQs" (js/recents.js deleted).
+- Local testing tip: the page re-registers the service worker, which then serves STALE js — unregister it and clear
+  caches before every reload (navigator.serviceWorker.getRegistrations + caches.keys), or edits don't show.
+- COST RULE (user, 2026-11-22): a cost difference is an issue ONLY when actual (current Total Cost) is MORE than 10%
+  over the governing DTRA-approved amount; under-runs never count. One helper: xtCostOver / xtCostOverPct
+  (xmastree.js, XT_COST_OVER_TOL = 0.10, % of the APPROVED amount). Used by xtRowIssues (delivered AND undelivered —
+  the undelivered "any amount over = reapproval" flag is gone, superseding the 2.6.6 "COP only" note), the cost_srf /
+  cost_pr rollup metrics, the COP and the Metrics tab's Cost accuracy section (now shows the governing amount +
+  "Over by"). The Christmas Tree's "Estimate vs. Actual %" COLUMNS still use the workbook formula (1 - est/actual).
+  22 Nov SRF export: 10 delivered shipments were flagged (8 under, 2 over) -> 2 now; Cost accuracy all-time 130/132.

@@ -422,7 +422,7 @@ function openSettings() {
               <button class="btn ghost" id="setBackupImport" type="button">Import backup…</button>
               <input type="file" id="setBackupFile" accept=".json,application/json" class="hidden">
             </div>
-            <div class="settings-note">Saves your settings, reference data, run history and recents to one JSON file
+            <div class="settings-note">Saves your settings, reference data and run history to one JSON file
             you can keep, move to another machine, or share with teammates. Import lets you Replace or Merge.
             Storage is per-browser — a backup is a point-in-time file, not a live sync.</div>
           </div>

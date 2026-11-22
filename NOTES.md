@@ -761,3 +761,10 @@ Arrived Warehouse or the warehouse actual date is filled.
   40% less saturation). The request bar tint, its edge / badge and the highlighted tool follow --sch, so they went
   slate too. Header history: #16283C -> white -> #1b2b4b -> #2f4f86 -> #3d63a5 -> #516890.
   Pushed 2026-11-22.
+
+## v2.9.16 (2026-11-22) — header colour picked by the user
+- User on 2.9.15: "I'm not digging it", asked for a palette of light-to-dark blue / grey shades. Shown an inline
+  swatch picker (4 rows x 7, hue 216) with a live mini header; he chose #2f496f (steel-blue row, second darkest).
+  Navy scheme hdr is now #2f496f. If he asks again, show the picker again rather than guessing.
+  Header history: #16283C -> white -> #1b2b4b -> #2f4f86 -> #3d63a5 -> #516890 -> #2f496f (his pick).
+  Pushed 2026-11-22.

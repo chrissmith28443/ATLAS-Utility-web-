@@ -1640,8 +1640,8 @@ body.theme-dark .ui-tip:hover, body.theme-dark .ui-tip:focus{ color:#8fbaf0; }
    ========================================================================= */
 
 /* ---- header: the colour scheme's colour (2.9.13; --sch / --brand come from app.js applyScheme) ---- */
-.topbar{ background:var(--sch, #516890); color:#fff; align-items:center; gap:10px; padding:8px 18px; border-bottom:0; }
-body.theme-dark .topbar{ background:color-mix(in srgb, var(--sch, #516890) 55%, #0b1219); border-bottom:1px solid var(--line); }
+.topbar{ background:var(--sch, #2f496f); color:#fff; align-items:center; gap:10px; padding:8px 18px; border-bottom:0; }
+body.theme-dark .topbar{ background:color-mix(in srgb, var(--sch, #2f496f) 55%, #0b1219); border-bottom:1px solid var(--line); }
 .topbar .brand{ font:650 15.5px/1.2 Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; color:#fff; }
 .topbar .brandlogo{ width:26px; height:26px; margin-right:-2px; }
 .topbar .ver{ font-family:Inter,"Segoe UI",system-ui,sans-serif; font-size:11px; letter-spacing:.02em; color:rgba(255,255,255,.62); }
@@ -1664,7 +1664,7 @@ body.rail-collapsed .topbar .rail-toggle{ color:var(--brand, #f2b01e); }
 .layout{ grid-template-columns:232px 1fr; }
 @media (max-width:900px){ .layout{ grid-template-columns:1fr; } }
 body.rail-collapsed .layout{ grid-template-columns:1fr; }
-.rail{ padding:14px 12px 16px; background:color-mix(in srgb, var(--sch, #516890) 4%, var(--card)); }
+.rail{ padding:14px 12px 16px; background:color-mix(in srgb, var(--sch, #2f496f) 4%, var(--card)); }
 .rail h3, .rail .railhead h3{ font:650 10.5px/1 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.07em; color:var(--steel); }
 .rail h3{ margin:20px 8px 6px; }
 .rail .railhead{ margin:20px 4px 6px 8px; }
@@ -1672,13 +1672,13 @@ body.rail-collapsed .layout{ grid-template-columns:1fr; }
 .toolbtn{ border:0; border-radius:8px; padding:7px 10px; font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; font-size:13px; }
 .toolbtn .dot{ display:none; }
 .toolbtn:hover:not(:disabled){ background:color-mix(in srgb, var(--ink) 5%, transparent); }
-.toolbtn.active, body.theme-dark .toolbtn.active{ background:color-mix(in srgb, var(--sch, #516890) 12%, var(--card)); color:var(--sch, #516890); font-weight:600; }
-body.theme-dark .toolbtn.active{ background:color-mix(in srgb, var(--sch, #516890) 38%, var(--card)); color:color-mix(in srgb, var(--sch, #516890) 25%, #fff); }
+.toolbtn.active, body.theme-dark .toolbtn.active{ background:color-mix(in srgb, var(--sch, #2f496f) 12%, var(--card)); color:var(--sch, #2f496f); font-weight:600; }
+body.theme-dark .toolbtn.active{ background:color-mix(in srgb, var(--sch, #2f496f) 38%, var(--card)); color:color-mix(in srgb, var(--sch, #2f496f) 25%, #fff); }
 .toolbtn:focus-visible{ outline:2px solid #1e5aa8; outline-offset:1px; }
 .rail-cop{ margin:0 0 4px; padding:8px 12px; gap:9px; background:var(--brand, #f2b01e); color:var(--brand-ink, #1b2b4b); border-radius:10px; box-shadow:none; }
 .rail-cop:hover{ background:var(--brand, #f2b01e); filter:brightness(1.1); }
 .rail-cop.active{ outline:2px solid color-mix(in srgb, var(--brand, #f2b01e) 45%, transparent); outline-offset:2px; background:var(--brand, #f2b01e); }
-.rail-cop:focus-visible{ outline:2px solid var(--sch, #516890); outline-offset:2px; }
+.rail-cop:focus-visible{ outline:2px solid var(--sch, #2f496f); outline-offset:2px; }
 .rail-cop svg{ width:16px; height:16px; }
 .rail-cop .t{ font:600 13.5px/1.2 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; }
 body.theme-dark .rail-cop{ background:var(--brand, #f2b01e); }
@@ -1818,16 +1818,16 @@ body.theme-dark .atlas-pop .ap-wmtr .btn{ background:#3d5a8c; }
 .atlas-pop .ap-foot input{ accent-color:#1e5aa8; }
 
 /* ---- 2.9.13: colour back in the request bar — a soft wash of the scheme colour, a solid edge and a solid badge ---- */
-.manifest{ background:color-mix(in srgb, var(--sch, #516890) 24%, var(--card)); border-color:color-mix(in srgb, var(--sch, #516890) 45%, var(--line));
-  border-left:5px solid var(--sch, #516890); }
-.manifest .wmtr{ color:color-mix(in srgb, var(--sch, #516890) 65%, var(--ink)); font-weight:600; }
+.manifest{ background:color-mix(in srgb, var(--sch, #2f496f) 24%, var(--card)); border-color:color-mix(in srgb, var(--sch, #2f496f) 45%, var(--line));
+  border-left:5px solid var(--sch, #2f496f); }
+.manifest .wmtr{ color:color-mix(in srgb, var(--sch, #2f496f) 65%, var(--ink)); font-weight:600; }
 .manifest .title{ color:var(--ink-2); }
-.manifest .badge, body.theme-dark .manifest .badge{ background:var(--sch, #516890); color:#fff; }
-.route .lane{ border-top-color:color-mix(in srgb, var(--sch, #516890) 60%, transparent); }
-.route .lane .mode{ background:color-mix(in srgb, var(--sch, #516890) 24%, var(--card)); color:color-mix(in srgb, var(--sch, #516890) 65%, var(--ink)); font-weight:600; }
+.manifest .badge, body.theme-dark .manifest .badge{ background:var(--sch, #2f496f); color:#fff; }
+.route .lane{ border-top-color:color-mix(in srgb, var(--sch, #2f496f) 60%, transparent); }
+.route .lane .mode{ background:color-mix(in srgb, var(--sch, #2f496f) 24%, var(--card)); color:color-mix(in srgb, var(--sch, #2f496f) 65%, var(--ink)); font-weight:600; }
 .manifest-summary .mchip{ background:color-mix(in srgb, var(--card) 62%, transparent); color:var(--ink); }
-body.theme-dark .manifest{ background:color-mix(in srgb, var(--sch, #516890) 30%, var(--card)); border-color:color-mix(in srgb, var(--sch, #516890) 45%, var(--line));
-  border-left-color:color-mix(in srgb, var(--sch, #516890) 55%, #fff); }
+body.theme-dark .manifest{ background:color-mix(in srgb, var(--sch, #2f496f) 30%, var(--card)); border-color:color-mix(in srgb, var(--sch, #2f496f) 45%, var(--line));
+  border-left-color:color-mix(in srgb, var(--sch, #2f496f) 55%, #fff); }
 body.theme-dark .manifest .wmtr{ color:var(--ink); }
-body.theme-dark .route .lane .mode{ background:color-mix(in srgb, var(--sch, #516890) 30%, var(--card)); color:var(--ink-2); }
-body.theme-dark .manifest-summary .mchip{ background:color-mix(in srgb, var(--sch, #516890) 45%, var(--card)); }
+body.theme-dark .route .lane .mode{ background:color-mix(in srgb, var(--sch, #2f496f) 30%, var(--card)); color:var(--ink-2); }
+body.theme-dark .manifest-summary .mchip{ background:color-mix(in srgb, var(--sch, #2f496f) 45%, var(--card)); }

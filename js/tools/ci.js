@@ -857,7 +857,7 @@ body{
   border-collapse: separate;   /* separate + zero spacing so the outline can round */
   border-spacing: 0;
   table-layout: fixed;
-  font-size: 8pt;
+  font-size: 7.5pt;
   line-height: 1.15;
 }
 .table thead th{
@@ -867,7 +867,7 @@ body{
   border-bottom: 1px solid var(--ci-rule);
   padding: 3px 4px;
   font-weight: bold;
-  font-size: 7.5pt;         /* title case, one line — narrow columns like "Total Value" */
+  font-size: 7pt;           /* title case, one line — narrow columns like "Total Value" */
   line-height: 1.15;
   text-align: center;
   white-space: nowrap;
@@ -878,7 +878,7 @@ body{
 .table tbody td{
   border: 0;
   padding: 3px 4px;
-  font-size: 8pt;
+  font-size: 7.5pt;
   line-height: 1.15;
   vertical-align: middle;
   text-align: center;
@@ -919,7 +919,7 @@ body{
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  font-size: 7.5pt;
+  font-size: 7pt;
   line-height: 1.12;
   max-height: calc(2 * 1.12em);
   word-break: break-word;

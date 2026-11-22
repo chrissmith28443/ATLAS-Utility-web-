@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.22",
+    title: "Commercial Invoice item list half a point smaller",
+    notes: [
+      "Commercial Invoice: the line-item table text is half a point smaller (rows 7.5pt, description and column headings 7pt), in line with the rest of the form.",
+    ],
+  },
+  {
     version: "2.9.21",
     title: "Reindeer in the Snowfall theme; invoice label names TRLS II and TechTrans Intl",
     notes: [

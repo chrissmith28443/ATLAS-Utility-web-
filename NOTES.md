@@ -598,3 +598,17 @@ Arrived Warehouse or the warehouse actual date is filled.
   Utility-wide: lift these tokens into :root and drop the body.cop-quiet scope.
   Relief legend: click a code -> copCopyText("[RELIEF: CODE] ") (clipboard API, execCommand fallback), "Copied ✓".
   Pushed 2026-11-22.
+- v2.9.6 (user, 2026-11-22): BLANK = FLAG. User expected the un-back-filled fields to show as flags "so we know which
+  records need to be fixed"; before, a blank RFQ Sent Date past the estimate was grey "No data" / "Not recorded".
+  Now: active past TTI Estimate Preparation (pastPrep) with blank RFQ Sent Date or Date Packed -> amber warn
+  (checks "rfq", new "packed", ack key cop.packed); Closed audit (delivered >= 1 Oct) adds "Date Packed entered"
+  (warn) beside the existing RFQ / ITN fails; Tracker: amber "Missing" pill in Packed / RFQ sent, tile + filter
+  "records to fix" (COP_TRK_PICK.fix). Hand carry + courier (sc.handCarry || sc.courier) are N/A for both — MY
+  assumption (no forwarder RFQ), told to the user; undo if he disagrees.
+  Confirmed to the user: the Ops Tracker is NOT read for anything (reader removed in 2.9.0); pre-1-Oct deliveries =
+  N/A, they do NOT pull old tracker values. He said tracker data "should only be applied to shipments delivered
+  prior to 1 Oct" — if he wants pre-Oct shipments scored from the archived tracker, that reader would have to come
+  back for those only (asked him).
+  Also (user, same day): an RFQ SENT LATE is a red "fail" on In progress too (was the grey "late" state, counted only
+  in the Closed audit). Clears with Acknowledge or [RELIEF: RFQ].
+  Pushed 2026-11-22.

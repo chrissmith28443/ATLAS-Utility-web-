@@ -880,6 +880,7 @@ function copEvaluate(rec, ctx) {
       return;
     }
     if (!trk) { add("rfq", "estimate", "req", label, { met: ms.na ? "na" : null, detail: ms.why }); return; }
+    if (!copIsoToDate(trk.rfq) && (sc.handCarry || sc.courier)) { add("rfq", "estimate", "req", label, { met: "na", detail: "Hand carry / courier shipment — no forwarder RFQ." }); return; }
     const packed = copIsoToDate(trk.packed);
     const due = xtWorkday(packed && packed.getTime() > compApproved.getTime() ? packed : compApproved, 1, true);
     const sent = copIsoToDate(trk.rfq);
@@ -890,11 +891,17 @@ function copEvaluate(rec, ctx) {
         ? { state: "ok", detail: `Sent ${copFmt(sent)} (due ${copFmt(due)}).` }
         : { state: "fail", detail: `Sent ${copFmt(sent)}, after the ${copFmt(due)} due date.` });
     } else if (today.getTime() > due.getTime()) {
-      add("rfq", "estimate", "req", label, { state: "fail", detail: `No RFQ Sent Date in ATLAS; it was due ${copFmt(due)}.` });
+      add("rfq", "estimate", "req", label, { state: "fail", detail: `RFQ Sent Date is blank in ATLAS; it was due ${copFmt(due)}.` });
     } else {
       add("rfq", "estimate", "req", label, { state: "due", detail: `Due ${copFmt(due)}.` });
     }
   })();
+  // Date Packed: every request that got past the estimate needs it on the record.
+  if (trk && laneIdx > COP_LANE_IDX.estimate && !sc.handCarry && !sc.courier) {
+    const packed = copIsoToDate(trk.packed);
+    add("packed", "estimate", "req", "Date Packed entered",
+      packed ? { state: "ok", detail: `Packed ${copFmt(packed)}.` } : { state: "warn", detail: "Date Packed is blank in ATLAS." }, ["cop.packed"]);
+  }
   // Placeholder — switched off (COP_CHECK_ESTIMATE): not every POC fills the
   // Request Estimate List yet. The approved amount is always in the Workflow
   // Logs, and POCs upload the estimate as an attachment.
@@ -1408,14 +1415,20 @@ function copActiveEvaluate(rec, ctx) {
     if (!trk) { add("rfq", "estimate", label, ms.na ? "na" : "unknown", ms.why); return; }
     const sent = copIsoToDate(trk.rfq);
     if (!sent && norm(trk.rfq)) { add("rfq", "estimate", label, "na", `RFQ Sent Date shows "${trk.rfq}" — no RFQ needed.`); return; }
+    if (!sent && (sc.handCarry || sc.courier)) { add("rfq", "estimate", label, "na", "Hand carry / courier shipment — no forwarder RFQ."); return; }
     const packed = copIsoToDate(trk.packed);
     const start = packed && packed.getTime() > compApproved.getTime() ? packed : compApproved;
     const due = packed ? xtWorkday(start, 1, true) : null;
     if (sent) {
-      add("rfq", "estimate", label, due && sent.getTime() > due.getTime() ? "late" : "ok",
-        due && sent.getTime() > due.getTime() ? `Sent ${copFmt(sent)}, after the ${copFmt(due)} due date.` : `Sent ${copFmt(sent)}.`);
-    } else if (stepIdx > COP_STEP_IDX.estimate) {
-      add("rfq", "estimate", label, "unknown", "No RFQ Sent Date in ATLAS.");
+      // Sent after the 1-business-day window = a missed metric, flagged while the shipment is still open
+      // (user, 2026-11-22) — the same call the Closed audit makes. Acknowledge or [RELIEF: RFQ] clears it.
+      const late = !!due && sent.getTime() > due.getTime();
+      add("rfq", "estimate", label, late ? "fail" : "ok",
+        late ? `Sent ${copFmt(sent)}, after the ${copFmt(due)} due date.` : `Sent ${copFmt(sent)}.`, null,
+        late ? `RFQ sent late (${copFmt(sent)}, due ${copFmt(due)})` : undefined);
+    } else if (pastPrep) {
+      // Past Estimate Preparation, so the RFQ went out — the record is missing its date. Flag it so it gets fixed.
+      add("rfq", "estimate", label, "warn", "RFQ Sent Date is blank in ATLAS. The request is past Estimate Preparation, so the record needs it.", null, "RFQ Sent Date missing in ATLAS");
     } else if (!packed) {
       add("rfq", "estimate", label, stepIdx === COP_STEP_IDX.estimate ? "todo" : "later", `Waiting on the pack date (weights/dims from the warehouse). Due ${rule}.`);
     } else if (today.getTime() > due.getTime()) {
@@ -1423,6 +1436,15 @@ function copActiveEvaluate(rec, ctx) {
     } else {
       add("rfq", "estimate", label, stepIdx === COP_STEP_IDX.estimate ? "todo" : "later", `Due ${copFmt(due)}.`);
     }
+  })();
+  // Date Packed: needed by the time the request leaves Estimate Preparation (it starts the RFQ clock).
+  if (!sc.handCarry && !sc.courier) (function () {
+    const label = "Date Packed entered";
+    if (!trk) { add("packed", "estimate", label, ms.na ? "na" : "unknown", ms.why); return; }
+    const packed = copIsoToDate(trk.packed);
+    if (packed) add("packed", "estimate", label, "ok", `Packed ${copFmt(packed)}.`);
+    else if (pastPrep) add("packed", "estimate", label, "warn", "Date Packed is blank in ATLAS. The request is past Estimate Preparation, so the record needs it.", null, "Date Packed missing in ATLAS");
+    else add("packed", "estimate", label, stepIdx === COP_STEP_IDX.estimate ? "todo" : "later", "Enter it once the cargo is packed — it starts the RFQ clock.");
   })();
   // Total Cost (auto-calculated from the Cost List) above $0 before DTRA
   // Estimate Review — $0 means something was probably missed in the Cost List.
@@ -2254,16 +2276,22 @@ function copTrackerRows(built) {
   const mk = (r, active) => {
     const rec = r.rec, tl = copTimeline(rec), sc = copShipClass(rec), m = copMilestones(rec);
     tl.rfqStart = tl.compliance && tl.packed && tl.packed.getTime() > tl.compliance.getTime() ? tl.packed : tl.compliance;
+    // Past TTI Estimate Preparation (or delivered): Date Packed and RFQ Sent Date belong on the record by now.
+    const pastPrep = !active || r.stepIdx > COP_STEP_IDX.estimate || (r.stepIdx === COP_STEP_IDX.estimate && copLow(r.status) !== "tti estimate preparation");
+    const noQuote = sc.handCarry || sc.courier;      // no forwarder RFQ / pack-out
     // RFQ: due one business day after the later of Compliance approval and Date Packed.
     let rfq = { st: "none", due: null };
     if (!tl.rfq && m.rfq) rfq = { st: "na", due: null };                    // text, not a date: no RFQ needed
     else if (tl.rfqStart) {
       const due = xtWorkday(tl.rfqStart, 1, true);
       if (tl.rfq) rfq = { st: tl.rfq.getTime() <= due.getTime() ? "ontime" : "late", due };
-      else if (!active || r.stepIdx > COP_STEP_IDX.estimate) rfq = { st: "missing", due };   // past Estimate Preparation: it went out, the date just isn't in ATLAS
+      else if (pastPrep) rfq = { st: "missing", due };   // past Estimate Preparation: it went out, the date just isn't in ATLAS -> a record to fix
       else if (!tl.packed) rfq = { st: "wait", due: null };
       else rfq = { st: today.getTime() > due.getTime() ? "overdue" : "due", due };
     } else if (tl.rfq) rfq = { st: "sent", due: null };
+    if (!tl.rfq && noQuote && rfq.st !== "na") rfq = { st: "na", due: null };
+    else if (rfq.st === "none" && pastPrep) rfq = { st: "missing", due: null };
+    let packMissing = !tl.packed && pastPrep && !noQuote;
     // EEI: every US export except hand carry needs an ITN / NOEEI citation before it leaves.
     let eei = "na";
     if (sc.category === "EXPORT" && !sc.handCarry) {
@@ -2282,6 +2310,7 @@ function copTrackerRows(built) {
     if (rh("cop.rfq") && /late|overdue|due|wait|missing/.test(rfq.st)) rfq = { st: "relief", due: null, why: rh("cop.rfq").reason };
     let eeiWhy = "";
     if (rh("cop.itn") && (eei === "hold" || eei === "missed" || eei === "later")) { eeiWhy = rh("cop.itn").reason; eei = "relief"; }
+    if (rh("cop.packed")) packMissing = false;
     if (rh("cop.marad") && /overdue|due|later/.test(marad.st)) marad = { st: "relief", due: null, sub: null, why: rh("cop.marad").reason };
     const changed = !!(tl.origRdd && tl.rdd && xtIso(tl.origRdd) !== xtIso(tl.rdd));
     const { items } = copInvLines(rec);
@@ -2290,7 +2319,7 @@ function copTrackerRows(built) {
       || (/\d/.test(norm(copInv(x, /^hazmat/))) && !COP_NA_RE.test(norm(copInv(x, /^hazmat/)))));
     const temp = !COP_NA_RE.test(norm(rec.f["temperature-control requirements"] || ""));
     const note = rec.daily.length ? rec.daily.slice().sort((a, b) => b.date - a.date)[0] : null;
-    return { r, active, tl, sc, m, rfq, eei, eeiWhy, marad, changed, slip: changed ? copCalDays(tl.origRdd, tl.rdd) : 0, haz, temp, note,
+    return { r, active, tl, sc, m, rfq, eei, eeiWhy, marad, packMissing, changed, slip: changed ? copCalDays(tl.origRdd, tl.rdd) : 0, haz, temp, note,
       whInv: xtParseDate(m.whInv), shipInv: xtParseDate(m.shipInv) };
   };
   // Furthest along first (like the details table), then the delivered ones, newest first.
@@ -2303,6 +2332,7 @@ function copTrackerRows(built) {
 /* Tracker tiles double as filters. */
 const COP_TRK_PICK = {
   rfq: (x) => x.rfq.st === "late" || x.rfq.st === "overdue",
+  fix: (x) => x.rfq.st === "missing" || x.packMissing,          // blank Date Packed / RFQ Sent Date that should be filled
   eei: (x) => x.eei === "hold" || x.eei === "missed",
   rdd: (x) => x.changed,
   inv: (x) => !x.active && !x.shipInv,
@@ -2329,7 +2359,7 @@ function copTrkCols(today) {
   const dcol = (id, label, key, prev, title) => ({ id, label, title,
     sort: (x) => x.tl[key] ? x.tl[key].getTime() : null, ex: (x) => copFmt(x.tl[key]),
     td: (x) => `<td class="nw">${x.tl[key] ? esc(sd(x.tl[key])) + gap(prev && x.tl[prev], x.tl[key]) : dash}</td>` });
-  const RFQ = { ontime: ["g", "On time"], late: ["r", "Late"], overdue: ["r", "Overdue"], due: ["b", "Due"], wait: ["", "Waiting on pack date"], missing: ["", "Not recorded"], na: ["", "No RFQ needed"], relief: ["t", "Relieved"], sent: ["", ""], none: ["", ""] };
+  const RFQ = { ontime: ["g", "On time"], late: ["r", "Late"], overdue: ["r", "Overdue"], due: ["b", "Due"], wait: ["", "Waiting on pack date"], missing: ["a", "Missing"], na: ["", "No RFQ needed"], relief: ["t", "Relieved"], sent: ["", ""], none: ["", ""] };
   const rfqWord = (x) => { const w = RFQ[x.rfq.st][1]; return w + (x.rfq.due && /late|overdue|due/.test(x.rfq.st) ? ` · due ${sd(x.rfq.due)}` : ""); };
   const EEI = { filed: ["g", "Released"], hold: ["a", "Hold · ITN needed"], missed: ["r", "Departed without ITN"], later: ["", "Needed before departure"], relief: ["t", "Relieved"], na: ["", "Not a US export"] };
   const MAR = { done: ["g", "Submitted"], overdue: ["r", "Overdue"], due: ["b", "Due"], later: ["", "After departure"], relief: ["t", "Relieved"], na: ["", ""] };
@@ -2345,7 +2375,9 @@ function copTrkCols(today) {
     dcol("submitted", "Submitted", "submitted", null, "First Workflow Logs stamp after Draft"),
     dcol("toDtra", "To DTRA", "toDtra", "submitted", "First DTRA Program Review stamp"),
     dcol("compliance", "Compliance", "compliance", "toDtra", "DTRA Compliance Review approved"),
-    dcol("packed", "Packed", "packed", "compliance", "ATLAS field: Date Packed"),
+    { id: "packed", label: "Packed", title: "ATLAS field: Date Packed — needed once the request is past Estimate Preparation",
+      sort: (x) => x.tl.packed ? x.tl.packed.getTime() : null, ex: (x) => copFmt(x.tl.packed), fv: (x) => x.tl.packed ? "Entered" : x.packMissing ? "Missing" : "",
+      td: (x) => `<td class="nw">${x.tl.packed ? esc(sd(x.tl.packed)) + gap(x.tl.compliance, x.tl.packed) : x.packMissing ? `<span class="copx-pill a" title="Date Packed is blank in ATLAS">Missing</span>` : dash}</td>` },
     { id: "rfq", label: "RFQ sent", title: "ATLAS field: RFQ Sent Date — due 1 business day after the later of Compliance approval and Date Packed",
       sort: (x) => x.tl.rfq ? x.tl.rfq.getTime() : null, ex: (x) => copFmt(x.tl.rfq), exx: rfqWord, fv: (x) => RFQ[x.rfq.st][1],
       td: (x) => `<td class="nw"${x.rfq.st === "relief" ? ` title="${esc("Relieved — " + (x.rfq.why || "no reason given"))}"` : ""}>${x.tl.rfq ? esc(sd(x.tl.rfq)) : ""} ${pill(RFQ[x.rfq.st][0], rfqWord(x)) || (x.tl.rfq ? "" : dash)}</td>` },
@@ -2422,12 +2454,15 @@ function copRenderTracker(root, built) {
   const done = inScope.filter((x) => !x.active && x.tl.submitted && x.tl.delivered);
   const avgDays = done.length ? Math.round(done.reduce((t, x) => t + copCalDays(x.tl.submitted, x.tl.delivered), 0) / done.length) : null;
   const invOut = cnt(COP_TRK_PICK.inv), mar = cnt(COP_TRK_PICK.marad), hasOcean = inScope.some((x) => x.marad.st !== "na");
+  const fixN = cnt(COP_TRK_PICK.fix), rfqBlank = cnt((x) => x.rfq.st === "missing"), packBlank = cnt((x) => x.packMissing);
   const pct = (a, b) => b ? Math.round((a / b) * 100) + "%" : "—";
   const tile = (key, tone, big, label, hint) => `<button type="button" class="copx-kpi ${tone} ${CopUi.trkPick === key && key ? "on" : ""} ${big === 0 || big === "—" ? "zero" : ""}" ${key ? `data-pick="${key}"` : "disabled"} aria-pressed="${CopUi.trkPick === key && !!key}" title="${esc(hint)}">
       <span class="n">${esc(String(big))}</span><span class="l">${esc(label)}</span></button>`;
   const tiles = el(`<div class="copx-kpis" role="group" aria-label="Tracker metrics — click a tile to filter">
+    ${tile("fix", fixN ? "a" : "", fixN, fixN === 1 ? "record to fix" : "records to fix",
+      `Past Estimate Preparation with a blank field in ATLAS — Date Packed: ${packBlank} · RFQ Sent Date: ${rfqBlank}`)}
     ${tile("rfq", !rfqTot ? "" : rfqLate + rfqOver ? "r" : "g", pct(rfqOn, rfqTot), "RFQs on time",
-      rfqTot ? `RFQ sent within 1 business day: ${rfqOn} of ${rfqTot}${rfqOver ? ` · ${rfqOver} overdue now` : ""}${rfqLate ? ` · ${rfqLate} sent late` : ""}` : "RFQ sent within 1 business day — no RFQ dates entered yet")}
+      rfqTot ? `RFQ sent within 1 business day: ${rfqOn} of ${rfqTot}${rfqOver ? ` · ${rfqOver} overdue now` : ""}${rfqLate ? ` · ${rfqLate} sent late` : ""}${rfqBlank ? ` · ${rfqBlank} more have no RFQ date` : ""}` : "RFQ sent within 1 business day — no RFQ dates entered yet")}
     ${tile("eei", eeiMiss ? "r" : eeiHold ? "a" : eeiOk ? "g" : "", eeiOk + eeiMiss ? `${eeiOk}/${eeiOk + eeiMiss}` : "—", "EEI filed before departure",
       `US exports that left with an ITN / NOEEI citation${eeiHold ? ` · ${eeiHold} in Execution still to file` : ""}`)}
     ${tile("rdd", chg.length ? "a" : "", chg.length, "RDD changed", withOrig.length ? `Of ${withOrig.length} with an Original RDD${chg.length ? ` · average ${avgSlip > 0 ? "+" : ""}${avgSlip} days` : ""}` : "No Original RDD entered yet")}
@@ -2636,7 +2671,9 @@ function copAuditItems(r) {
       }
       case "rfq":
         m = /^Sent (\S+), after the (\S+) due date/.exec(d);
-        out.push({ cls, cat: "RFQ", text: m ? `RFQ late: sent ${m[1]} (due ${m[2]})` : /due (\S+)/.test(d) ? `RFQ not sent (due ${/due (\S+)/.exec(d)[1]})` : "RFQ" }); break;
+        out.push({ cls, cat: "RFQ", text: m ? `RFQ late: sent ${m[1]} (due ${m[2]})` : /due (\S+)/.test(d) ? `RFQ Sent Date blank (was due ${/due (\S+)/.exec(d)[1]})` : "RFQ Sent Date blank" }); break;
+      case "packed":
+        out.push({ cls, cat: "Date Packed", text: "Date Packed blank" }); break;
       case "awb":
         out.push({ cls, cat: "AWB / carrier", text: d.replace(/^Missing: /, "Missing ") }); break;
       case "itn":

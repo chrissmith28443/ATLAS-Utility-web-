@@ -13,6 +13,19 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.6",
+    title: "Blank tracker fields are flagged",
+    notes: [
+      "A shipment that is past Estimate Preparation (or was delivered on or after 1 Oct 2026) with a blank Date Packed or RFQ Sent Date in ATLAS is now flagged, so the records that need fixing stand out. Before, a blank only showed as a grey \"No data\" / \"Not recorded\".",
+      "In progress: those shipments turn amber and count under Need attention; the checklist says which field is blank.",
+      "In progress: an RFQ that went out after the 1-business-day window is now flagged red while the shipment is still open (before, it was only counted on the Closed audit). Acknowledge it, or use [RELIEF: RFQ], to clear it.",
+      "Tracker: the blank cell shows an amber \"Missing\", and a new \"records to fix\" tile lists just those shipments.",
+      "Closed audit: a blank Date Packed is listed next to the RFQ and ITN checks.",
+      "Hand carry and courier (FedEx, UPS, DHL, USPS) shipments aren't asked for a pack date or an RFQ date.",
+      "The old Ops Tracker is not read for any shipment. Shipments delivered before 1 Oct 2026 show N/A for these checks.",
+    ],
+  },
+  {
     version: "2.9.5",
     title: "The new look across the whole Dashboard",
     notes: [

@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.20",
+    title: "Christmas theme; blue header on the Packing List and Inventory Sheet; placards without logos",
+    notes: [
+      "New holiday theme under Settings \u203a Appearance \u203a Holiday: Christmas \u2014 Snowfall. White header with a candy-cane stripe, red Dashboard and Fetch buttons, and watercolour-style artwork behind the page \u2014 a pine sprig at the foot of the left menu, a sleigh at the foot of the page, and a little snow. Pick any other colour to switch it off.",
+      "Packing List and Inventory Sheet: the header band is now the same blue as the Utility's own header, with white text \u2014 in the preview, the PDF and the Excel file. Package headers stay blue-grey.",
+      "Placards no longer carry the DTRA symbol or the TRLS II logo, in both the PDF and the Word version. The \"Prepared by\" line stays centred.",
+    ],
+  },
+  {
     version: "2.9.19",
     title: "Commercial Invoice header centred",
     notes: [

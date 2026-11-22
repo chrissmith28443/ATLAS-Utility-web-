@@ -217,13 +217,15 @@ const SETTINGS_STYLE = `
   .set-appx+.set-appx{border-left:0;}
   .set-appx.active{background:var(--card);color:var(--s-blue);box-shadow:0 1px 2px rgba(16,24,40,.14);}
   .set-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer;margin:9px 0;}
-  .set-schemes{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:14px;}
+  .set-schemes{margin-top:14px;}
+  .set-sch-row{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-bottom:10px;}
+  .set-sch-lbl{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--steel);margin-right:4px;}
   .set-sch{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line);cursor:pointer;
     background:linear-gradient(135deg,var(--a) 0 50%,var(--b) 50% 100%);transition:transform .1s;}
   .set-sch:hover{transform:scale(1.1);}
   .set-sch.active{box-shadow:0 0 0 2px var(--s-blue);}
   .set-sch:focus-visible{outline:2px solid var(--s-blue);outline-offset:3px;}
-  .set-sch-name{font-size:12.5px;font-weight:600;color:var(--steel);margin-left:4px;}
+  .set-sch-name{font-size:12.5px;font-weight:600;color:var(--steel);}
   .udq-id{font-family:var(--mono);font-size:12px;}
   .udq-id.udq-bad{border-color:var(--warn);outline:1px solid var(--warn);}
   .udq-summary{font-family:var(--mono);font-size:11.5px;color:var(--steel);margin:2px 0 10px;word-break:break-all;}
@@ -457,9 +459,14 @@ function openSettings() {
               <button type="button" class="set-appx" data-mode="dark">Dark</button>
             </div>
             <div class="set-schemes" id="setSchemes" role="radiogroup" aria-label="Colour">
-              ${(typeof ATLAS_SCHEMES !== "undefined" ? ATLAS_SCHEMES : []).map((s) =>
-                `<button type="button" class="set-sch" role="radio" data-scheme="${s.id}" title="${s.label}" aria-label="${s.label}" style="--a:${s.hdr};--b:${s.brand}"></button>`).join("")}
-              <span class="set-sch-name" id="setSchName"></span>
+              ${(() => {
+                const all = (typeof ATLAS_SCHEMES !== "undefined" ? ATLAS_SCHEMES : []);
+                const sw = (s) => `<button type="button" class="set-sch" role="radio" data-scheme="${s.id}" title="${s.label}" aria-label="${s.label}" style="--a:${s.hdr};--b:${s.brand};${s.swatch ? `background:${s.swatch};` : ""}"></button>`;
+                const hol = all.filter((s) => s.holiday);
+                return `<div class="set-sch-row">${all.filter((s) => !s.holiday).map(sw).join("")}</div>` +
+                  (hol.length ? `<div class="set-sch-row"><span class="set-sch-lbl">Holiday</span>${hol.map(sw).join("")}</div>` : "");
+              })()}
+              <div class="set-sch-name" id="setSchName"></div>
             </div>
             <div class="settings-note">Applies immediately and is remembered on this device.</div>
           </div>

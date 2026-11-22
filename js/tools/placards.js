@@ -258,11 +258,12 @@ function _pkRenderPage(p) {
     ? `<div class="pk-logo left">${b.logo ? `<img src="${b.logo}" alt="">` : ""}</div>
       <div class="pk-head-mid"><div class="pk-sub">${esc(b.name)}</div></div>
       <div class="pk-logo right"></div>`
-    : `<div class="pk-logo left"><img src="${LOGO_LEFT}" alt=""></div>
+    // 2.9.20: no logo images on the placard — the DTRA seal and the TRLS II logo are gone; the line stays centred.
+    : `<div class="pk-logo left"></div>
       <div class="pk-head-mid">
         <div class="pk-sub">Prepared by TechTrans International<br>on behalf of DTRA</div>
       </div>
-      <div class="pk-logo right"><img src="${LOGO_RIGHT}" alt=""></div>`;
+      <div class="pk-logo right"></div>`;
   return `
 <div class="pk-page">
   <div class="pk-card">
@@ -406,8 +407,9 @@ function placardsBuildDocxZip(placards) {
   // Logos -> media. The data URIs live in assets.js. Offline mode: only the
   // user's own logo (left), if they uploaded one.
   const brand = placards[0] && placards[0].brand;
-  const srcL = brand ? brand.logo : LOGO_LEFT;
-  const srcR = brand ? "" : LOGO_RIGHT;
+  // 2.9.20: only an Offline-mode company logo is embedded; the standard placard carries no logo images.
+  const srcL = brand ? brand.logo : "";
+  const srcR = "";
   if (srcL) zip.file("word/media/logoL.png", _pkB64ToU8(_pkStripDataUri(srcL)));
   if (srcR) zip.file("word/media/logoR.png", _pkB64ToU8(_pkStripDataUri(srcR)));
 
@@ -522,9 +524,7 @@ function _pkPlacardXml(p) {
         ? (b.logo ? _pkFloatLogo("rIdLogoL", b.logoW || 140, b.logoH || 140,
                                  Math.min(0.62, 2.0 * (b.logoH || 1) / (b.logoW || 1)), "left") : "") +
           _pkRun(b.name || "", { sz: 28, bold: true, color: _PK_INK })
-        : _pkFloatLogo("rIdLogoL", 140, 140, 0.62, "left") +
-          _pkFloatLogo("rIdLogoR", 393, 140, 0.62, "right") +
-          _pkRun("Prepared by TechTrans International", { sz: 26, bold: true, color: _PK_INK }) +
+        : _pkRun("Prepared by TechTrans International", { sz: 26, bold: true, color: _PK_INK }) +
           "<w:r><w:br/></w:r>" +
           _pkRun("on behalf of DTRA", { sz: 26, bold: true, color: _PK_INK }),
         { jc: "center" }),

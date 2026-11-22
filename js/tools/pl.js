@@ -583,24 +583,23 @@ body{ font-family:var(--body); color:var(--ink); padding:18px 14px 40px; }
   box-shadow:0 10px 30px rgba(22,40,60,.10);
 }
 
-/* Header band — blue-grey with a steel-blue line under it */
+/* Header band — the blue of the app's header (2.9.20), white text. Package headers below stay blue-grey. */
 .pl-head{
-  background:var(--band); color:var(--ink); display:flex; align-items:center;
-  justify-content:space-between; gap:20px; padding:18px 24px;
-  border-bottom:3px solid var(--accent);
+  background:var(--accent); color:#fff; display:flex; align-items:center;
+  justify-content:space-between; gap:20px; padding:10px 24px;   /* slimmer band (2.9.20) */
 }
 .pl-brand{ display:flex; flex-direction:column; line-height:1; }
-.pl-brand-1{ font-family:var(--disp); font-weight:700; font-size:30px; letter-spacing:2px; color:var(--ink); }
-.pl-brand-2{ font-family:var(--disp); font-weight:500; font-size:12px; letter-spacing:3px;
-  text-transform:uppercase; color:var(--band-ink); margin-top:5px; }
+.pl-brand-1{ font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:2px; color:#fff; }
+.pl-brand-2{ font-family:var(--disp); font-weight:500; font-size:10.5px; letter-spacing:3px;
+  text-transform:uppercase; color:#C9D3E0; margin-top:5px; }
 .pl-brand-1.sm{ font-size:20px; letter-spacing:1px; margin-top:6px; }
 .pl-brand-logo{ display:inline-block; background:#fff; border-radius:6px; padding:4px 8px; align-self:flex-start; }
 .pl-brand-logo img{ display:block; max-height:42px; max-width:200px; }
 .pl-ttl{ text-align:right; }
 .pl-ttl h1{ font-family:var(--disp); font-weight:700; letter-spacing:3px; text-transform:uppercase;
-  font-size:32px; margin:0; line-height:.95; }
-.pl-ttl .sub{ font-family:var(--mono); font-size:11px; color:var(--band-ink); letter-spacing:1px; margin-top:5px; }
-.pl-ttl .sub b{ color:var(--ink); font-weight:600; }
+  font-size:23px; margin:0; line-height:.95; }
+.pl-ttl .sub{ font-family:var(--mono); font-size:10.5px; color:#C9D3E0; letter-spacing:1px; margin-top:4px; }
+.pl-ttl .sub b{ color:#fff; font-weight:600; }
 
 /* Route strip */
 .pl-route{ display:grid; grid-template-columns:1fr 42px 1fr; border-bottom:1px solid var(--line); }
@@ -700,11 +699,11 @@ table.pl-items th:nth-child(6),table.pl-items td:nth-child(6){ width:9%; }
   .pl-foot{ break-inside:avoid; page-break-inside:avoid; }
 
   /* Same band + line as on screen; smaller type, tighter spacing */
-  .pl-head{ background:#CDD3DC; border-bottom:3px solid #2F496F; padding:9px 16px; gap:14px; }
+  .pl-head{ background:#2F496F; padding:9px 16px; gap:14px; }
   .pl-brand-1{ font-size:21px; letter-spacing:1.5px; }
-  .pl-brand-2{ font-size:9px; letter-spacing:2px; color:#44566B; margin-top:3px; }
+  .pl-brand-2{ font-size:9px; letter-spacing:2px; color:#C9D3E0; margin-top:3px; }
   .pl-ttl h1{ font-size:22px; letter-spacing:2px; }
-  .pl-ttl .sub{ font-size:9px; margin-top:3px; color:#44566B; }
+  .pl-ttl .sub{ font-size:9px; margin-top:3px; color:#C9D3E0; }
   .pl-route{ border-bottom:1px solid #CBD3DB; }
   .pl-route .end{ padding:7px 16px; }
   .pl-route.three .end{ padding:7px 11px; }
@@ -777,8 +776,8 @@ function _plXlsxStyles() {
   const fonts = [
     `<font><sz val="10"/><name val="Calibri"/><color rgb="FF1B2A3A"/></font>`,                 // 0 default
     `<font><b/><sz val="10"/><name val="Calibri"/><color rgb="FF1B2A3A"/></font>`,              // 1 bold
-    `<font><b/><sz val="16"/><name val="Calibri"/><color rgb="FF16283C"/></font>`,              // 2 band title, bold 16 (dark on the blue-grey band)
-    `<font><sz val="9"/><name val="Calibri"/><color rgb="FF44566B"/></font>`,                   // 3 band sub-text 9
+    `<font><b/><sz val="16"/><name val="Calibri"/><color rgb="FFFFFFFF"/></font>`,              // 2 band title, bold 16 (white on the steel-blue band)
+    `<font><sz val="9"/><name val="Calibri"/><color rgb="FFC9D3E0"/></font>`,                   // 3 band sub-text 9 (light on the steel-blue band)
     `<font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF566B81"/></font>`,              // 4 gray-blue bold 11
     `<font><b/><sz val="11"/><name val="Calibri"/><color rgb="FF16283C"/></font>`,              // 5 group head, bold 11 (dark on the band)
     `<font><b/><sz val="8"/><name val="Calibri"/><color rgb="FF566B81"/></font>`,               // 6 label bold 8
@@ -810,11 +809,11 @@ function _plXlsxStyles() {
     `${al || ""}</xf>`;
   const cellXfs = [
     xf(0, 0, 0),                              // 0 default
-    xf(2, 2, 0, AL("left", "center")),       // 1 band brand
-    xf(2, 2, 0, AL("right", "center")),      // 2 band title right
-    xf(3, 2, 0, AL("left", "center")),       // 3 band sub left
-    xf(3, 2, 0, AL("right", "center")),      // 4 band sub right
-    xf(3, 2, 0),                              // 5 band blank
+    xf(2, 5, 0, AL("left", "center")),       // 1 band brand            (title band = fill 5, steel blue)
+    xf(2, 5, 0, AL("right", "center")),      // 2 band title right
+    xf(3, 5, 0, AL("left", "center")),       // 3 band sub left
+    xf(3, 5, 0, AL("right", "center")),      // 4 band sub right
+    xf(3, 5, 0),                              // 5 band blank
     xf(4, 0, 0, AL("left", "bottom")),       // 6 section label
     xf(6, 0, 0, AL("left", "center")),       // 7 field label
     xf(0, 0, 0, AL("left", "top", true)),    // 8 address wrap

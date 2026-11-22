@@ -819,3 +819,32 @@ Arrived Warehouse or the warehouse actual date is filled.
   title, then the red declaration, then the 2px steel-blue rule. Continuation header centred again too.
   Lesson: on the CIV keep the header symmetrical with the centred footer.
   Pushed 2026-11-22.
+
+## v2.9.20 (2026-11-22) — PL / Inventory Sheet header in the app's blue; placards lose their logos
+- User: "Use the same blue color from the main utility header in the PL and Inv Sheet headers." -> .pl-head /
+  .inv-head background #2F496F with white text (screen + print); no line under it. Excel: title-band styles 1-5
+  now use fill 5 (steel blue) with white / light fonts; package (group) headers keep fill 2 blue-grey + dark text.
+  Package headers in the preview stay blue-grey — he said "headers", read as the top band only.
+- User: "Remove the DTRA logo and TRLS II label from the placard." -> placards.js: the standard header has no
+  images (preview / PDF), and the Word export embeds none (srcL only for an Offline-mode company logo; the two
+  _pkFloatLogo calls removed). LOGO_LEFT / LOGO_RIGHT are now unused by CIV and Placards (PO still uses LOGO_TTI).
+- CHRISTMAS THEME (same version). User asked for a Christmas theme: reds and whites, watercolour-type images in
+  the background (reindeer / sleigh), holiday themes listed under Settings > Appearance, and to see options
+  before anything is pushed. Shown three mock-ups; he picked B, "Snowfall".
+  * Scheme "xmas" in ATLAS_SCHEMES (app.js) with holiday:true, hdr #ffffff, hdrInk #7d1622, tint #b3202f,
+    brand #b3202f. applyScheme now sets --hdr-bg / --hdr-ink / --sch (= tint or hdr) and calls holidayApply.
+    Header CSS uses var(--hdr-ink) so a light header gets dark text.
+  * js/holiday.js (NEW file, in index.html + sw.js shell list): ATLAS_HOLIDAY_ART[id] = { rail, main, snow } as
+    SVG text (shapes through feTurbulence + feDisplacementMap = watercolour look); holidayApply sets
+    --art-rail / --art-main / --art-snow as data-URI backgrounds, or clears them for normal schemes.
+  * app.css: .rail / .main paint those variables; body[data-scheme=xmas] adds the candy-cane stripe under the
+    header, white rail, 210px of room at the foot of the page for the sleigh (background-attachment: local, so
+    it shows on short pages and at the end of long ones), 100px under the menu for the sprig; dark-mode header
+    is deep red.
+  * Settings > Appearance: second swatch row labelled Holiday (striped swatch).
+  * The artwork generator (Python) lived in the session scratchpad and is gone after the session; to add another
+    holiday, hand-write or regenerate SVG and add it to holiday.js. Reindeer art was drawn for options A / C but
+    is not in the app.
+- Also same version: user said the PL / Inventory Sheet header bands were too tall for the overall look ->
+  padding 18px -> 10px, brand 30 -> 22px, title 32 -> 23px (screen; print sizes were already small).
+  Pushed 2026-11-22.

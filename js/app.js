@@ -988,9 +988,10 @@ function renderRail() {
    Two separate choices, both in Settings > Appearance, both remembered on this
    device:
      mode    Light or Dark        — class "theme-dark" on <body> (re-points the CSS variables)
-     scheme  one of ATLAS_SCHEMES — sets three CSS variables on <body>:
-               --sch        the header colour (also tints the request bar, the left menu
-                            and the highlighted tool)
+     scheme  one of ATLAS_SCHEMES — sets these CSS variables on <body>:
+               --hdr-bg     the header colour, --hdr-ink the text on it
+               --sch        the tint (request bar, left menu, highlighted tool) — the header
+                            colour unless the scheme gives its own (holiday schemes do)
                --brand      the Dashboard and Fetch / UDQ buttons
                --brand-ink  the text on those two buttons
    The Atomic Possum (and its nose that flipped the purple theme) left the left
@@ -1007,6 +1008,11 @@ const ATLAS_SCHEMES = [
   { id: "orchid",   label: "Orchid",   hdr: "#4a2a66", brand: "#c77dff", ink: "#2a0a44" },
   { id: "rose",     label: "Rose",     hdr: "#8e2f5c", brand: "#f7a8c8", ink: "#4a0f2a" },
   { id: "lavender", label: "Lavender", hdr: "#5b55a6", brand: "#cdbdfa", ink: "#221a4d" },
+  // Holiday schemes (listed on their own row in Settings). hdr = header background, hdrInk = the text on it,
+  // tint = the colour used for the request bar edge, badge and highlighted tool (defaults to hdr).
+  // Their artwork lives in js/holiday.js; special styling in app.css under body[data-scheme="<id>"].
+  { id: "xmas", label: "Christmas \u2014 Snowfall", holiday: true, hdr: "#ffffff", hdrInk: "#7d1622", tint: "#b3202f",
+    brand: "#b3202f", ink: "#ffffff", swatch: "repeating-linear-gradient(135deg,#b3202f 0 5px,#ffffff 5px 10px)" },
 ];
 
 function currentTheme() { return document.body.classList.contains("theme-dark") ? "dark" : "default"; }
@@ -1028,11 +1034,14 @@ function currentScheme() { return document.body.dataset.scheme || ATLAS_SCHEMES[
 function applyScheme(id) {
   const s = ATLAS_SCHEMES.find((x) => x.id === id) || ATLAS_SCHEMES[0];
   document.body.dataset.scheme = s.id;
-  document.body.style.setProperty("--sch", s.hdr);
+  document.body.style.setProperty("--sch", s.tint || s.hdr);          // tints: request bar, highlighted tool
+  document.body.style.setProperty("--hdr-bg", s.hdr);                  // header background
+  document.body.style.setProperty("--hdr-ink", s.hdrInk || "#ffffff"); // header text
   document.body.style.setProperty("--brand", s.brand);
   document.body.style.setProperty("--brand-ink", s.ink);
+  if (typeof holidayApply === "function") holidayApply(s.id);         // holiday artwork (js/holiday.js), or none
   const meta = document.querySelector('meta[name="theme-color"]');   // the installed app's title bar
-  if (meta) meta.setAttribute("content", s.hdr);
+  if (meta) meta.setAttribute("content", s.tint || s.hdr);
 }
 /* Colour scheme — Settings > Appearance. */
 function setScheme(id) {

@@ -1640,20 +1640,20 @@ body.theme-dark .ui-tip:hover, body.theme-dark .ui-tip:focus{ color:#8fbaf0; }
    ========================================================================= */
 
 /* ---- header: the colour scheme's colour (2.9.13; --sch / --brand come from app.js applyScheme) ---- */
-.topbar{ background:var(--sch, #2f496f); color:#fff; align-items:center; gap:10px; padding:8px 18px; border-bottom:0; }
-body.theme-dark .topbar{ background:color-mix(in srgb, var(--sch, #2f496f) 55%, #0b1219); border-bottom:1px solid var(--line); }
-.topbar .brand{ font:650 15.5px/1.2 Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; color:#fff; }
+.topbar{ background:var(--hdr-bg, var(--sch, #2f496f)); color:var(--hdr-ink, #fff); align-items:center; gap:10px; padding:8px 18px; border-bottom:0; }
+body.theme-dark .topbar{ background:color-mix(in srgb, var(--hdr-bg, var(--sch, #2f496f)) 55%, #0b1219); border-bottom:1px solid var(--line); }
+.topbar .brand{ font:650 15.5px/1.2 Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; color:var(--hdr-ink, #fff); }
 .topbar .brandlogo{ width:26px; height:26px; margin-right:-2px; }
-.topbar .ver{ font-family:Inter,"Segoe UI",system-ui,sans-serif; font-size:11px; letter-spacing:.02em; color:rgba(255,255,255,.62); }
-.topbar .ver:hover{ color:#fff; background:rgba(255,255,255,.1); }
-.topbar .tagline{ color:rgba(255,255,255,.62); }
-.topbar .rail-toggle, .topbar .gear, .topbar .hist-btn{ color:rgba(255,255,255,.82); opacity:1; border-radius:8px; }
-.topbar .rail-toggle:hover{ color:#fff; background:rgba(255,255,255,.1); }
-.topbar .gear:hover, .topbar .hist-btn:hover{ color:#fff; }
+.topbar .ver{ font-family:Inter,"Segoe UI",system-ui,sans-serif; font-size:11px; letter-spacing:.02em; color:color-mix(in srgb, var(--hdr-ink, #fff) 62%, transparent); }
+.topbar .ver:hover{ color:var(--hdr-ink, #fff); background:color-mix(in srgb, var(--hdr-ink, #fff) 10%, transparent); }
+.topbar .tagline{ color:color-mix(in srgb, var(--hdr-ink, #fff) 62%, transparent); }
+.topbar .rail-toggle, .topbar .gear, .topbar .hist-btn{ color:color-mix(in srgb, var(--hdr-ink, #fff) 82%, transparent); opacity:1; border-radius:8px; }
+.topbar .rail-toggle:hover{ color:var(--hdr-ink, #fff); background:color-mix(in srgb, var(--hdr-ink, #fff) 10%, transparent); }
+.topbar .gear:hover, .topbar .hist-btn:hover{ color:var(--hdr-ink, #fff); }
 .topbar .rail-toggle svg, .topbar .gear svg{ width:18px; height:18px; }
 body.rail-collapsed .topbar .rail-toggle{ color:var(--brand, #f2b01e); }
 .topbar .ver:focus-visible, .topbar .rail-toggle:focus-visible, .topbar .gear:focus-visible, .topbar .hist-btn:focus-visible,
-.topbar #compareBtn:focus-visible, .topbar .install-btn:focus-visible, .topbar .fetchbtn:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+.topbar #compareBtn:focus-visible, .topbar .install-btn:focus-visible, .topbar .fetchbtn:focus-visible{ outline:2px solid var(--hdr-ink, #fff); outline-offset:2px; }
 /* Fetch / UDQ and (in the left menu) Dashboard share the scheme's button colour — not the navy of the page buttons */
 .topbar .fetchbtn{ font:600 12.5px/1 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; gap:7px;
   background:var(--brand, #f2b01e); color:var(--brand-ink, #1b2b4b); border-radius:9px; padding:8px 14px; box-shadow:none; }
@@ -1831,3 +1831,25 @@ body.theme-dark .manifest{ background:color-mix(in srgb, var(--sch, #2f496f) 30%
 body.theme-dark .manifest .wmtr{ color:var(--ink); }
 body.theme-dark .route .lane .mode{ background:color-mix(in srgb, var(--sch, #2f496f) 30%, var(--card)); color:var(--ink-2); }
 body.theme-dark .manifest-summary .mchip{ background:color-mix(in srgb, var(--sch, #2f496f) 45%, var(--card)); }
+
+/* ---- holiday artwork (2.9.20). js/holiday.js sets --art-rail / --art-main / --art-snow for a holiday
+   scheme and clears them otherwise, so every other scheme paints nothing here. Background images only:
+   they sit behind the content at the foot of the left menu and of the main column. ---- */
+.rail{ background-image:var(--art-rail, none); background-repeat:no-repeat; background-position:left -30px bottom -12px; background-size:240px auto; }
+.main{ background-image:var(--art-main, none), var(--art-snow, none); background-repeat:no-repeat, repeat;
+  background-position:right 30px bottom 2px, 0 0; background-size:300px auto, 620px 310px; }
+/* The artwork scrolls with the page, and a holiday scheme adds room at the foot of the page for it — so it shows
+   at once on a short page and at the end of a long one, never underneath the content. */
+body[data-scheme="xmas"] .main{ background-attachment:local, local; padding-bottom:210px; }
+
+/* ---- Christmas — Snowfall (data-scheme="xmas"): white header with a candy-cane stripe, red buttons ---- */
+body[data-scheme="xmas"]:not(.theme-dark){ --paper:#f4f7fa; }
+body[data-scheme="xmas"] .topbar{ padding-bottom:15px; border-bottom:1px solid #e3c4c7;
+  background:linear-gradient(var(--hdr-bg, #fff), var(--hdr-bg, #fff)) top / 100% calc(100% - 7px) no-repeat,
+             repeating-linear-gradient(135deg, #b3202f 0 9px, #ffffff 9px 18px); }
+body.theme-dark[data-scheme="xmas"] .topbar{ --hdr-bg:#4a1219; --hdr-ink:#ffffff; border-bottom-color:var(--line); }
+body[data-scheme="xmas"]:not(.theme-dark) .rail{ background-color:var(--card); }
+body[data-scheme="xmas"] .rail{ padding-bottom:100px; }   /* room for the sprig under the last menu item */
+body[data-scheme="xmas"]:not(.theme-dark) .manifest{ background:color-mix(in srgb, var(--sch) 5%, var(--card)); border-color:color-mix(in srgb, var(--sch) 22%, var(--line)); }
+body[data-scheme="xmas"]:not(.theme-dark) .route .lane .mode{ background:color-mix(in srgb, var(--sch) 5%, var(--card)); }
+body[data-scheme="xmas"] .rail-cop.active{ outline-color:color-mix(in srgb, #b3202f 45%, transparent); }

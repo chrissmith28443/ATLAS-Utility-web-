@@ -728,3 +728,22 @@ Arrived Warehouse or the warehouse actual date is filled.
   Export, PO), IR request view, dark mode, and the Dashboard hub (unchanged). NOT checked: Offline mode pages
   (couldn't switch it on from the test), AWB page, real mouse hover, live site.
   Pushed 2026-11-22.
+
+## v2.9.13 (2026-11-22) — colour back in header / request bar; colour schemes; possum removed
+- User on 2.9.12: "a little too much white now" (header, request bar, left pane). Wants colour back in the header and
+  request bar; possum picture removed; the colour-scheme choice moved to Settings > Appearance with "a handful of
+  boy and girl colors" for fun; Dashboard + Fetch buttons a different colour from the navy page buttons. He was
+  "not a huge fan of the orange with the dark blue". Asked to see a preview of button-colour alternatives.
+- COLOUR SCHEMES (app.js, block before "Rendering: tool workspace"): ATLAS_SCHEMES [{id,label,hdr,brand,ink}],
+  applyScheme sets --sch / --brand / --brand-ink on <body> (+ data-scheme, + the theme-color meta); setScheme saves
+  to localStorage "atlas.scheme" (added to backup.js). Light/Dark is separate ("atlas.theme", class theme-dark).
+  The old possum-nose purple ("atlas.theme" = "purple", class theme-purple) migrates to Light + scheme "orchid";
+  theme-purple is never applied any more (its CSS is dead but left in place). toggleTheme is gone.
+- CSS: header = var(--sch) (dark mode: mixed 55% toward #0b1219); Fetch + .rail-cop = var(--brand);
+  request bar .manifest = 8% wash of --sch + 5px solid left edge + solid badge; rail = 4% wash; active tool = 12%
+  wash with --sch text. Page buttons stay navy #1e2a4a / links blue #1e5aa8.
+- Settings > Appearance: Light / Dark + a row of two-tone swatches (#setSchemes, .set-sch); applies at once.
+- DEFAULT (Navy scheme): user picked GOLD #f2b01e (ink #1b2b4b) for Dashboard + Fetch and asked for a lighter navy header (#2f4f86; #1b2b4b was "too dark again"). Was teal #0a7f7b at first — the user was shown six alternatives (teal, green,
+  sky blue, violet, gold, raspberry) and asked to pick; change ATLAS_SCHEMES[0].brand / .ink and the three
+  "var(--brand, #0a7f7b)" fallbacks stay harmless.
+  Pushed 2026-11-22.

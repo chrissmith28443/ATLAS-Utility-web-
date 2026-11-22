@@ -4,18 +4,18 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.9.12-tools-look";
+const CACHE = "atlas-cache-v2.9.13-colour-schemes";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
-  "css/app.css?v=101",
-  "js/app.js?v=117",
+  "css/app.css?v=102",
+  "js/app.js?v=118",
   "js/assets.js?v=64",
-  "js/about.js?v=200",
+  "js/about.js?v=201",
   "js/a11y.js?v=61",
-  "js/backup.js?v=69",
-  "js/constants.js?v=191",
+  "js/backup.js?v=70",
+  "js/constants.js?v=192",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=93",
   "js/pwa.js?v=63",
@@ -23,7 +23,7 @@ const APP_SHELL = [
   "js/formcache.js?v=65",
   "js/compare.js?v=65",
   "js/json_udq.js?v=34",
-  "js/settings.js?v=76",
+  "js/settings.js?v=77",
   "js/tools/ci.js?v=66",
   "js/tools/coreims.js?v=62",
   "js/tools/coreims_template.js?v=61",

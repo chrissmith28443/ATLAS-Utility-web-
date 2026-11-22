@@ -39,6 +39,7 @@ const ATLAS_BACKUP_SPEC = [
   { key: "atlas.pmdash.view", kind: "json", label: "Dashboard view settings (which tiles, panels and columns show)" },
   { key: "atlas.offline", kind: "json", label: "Offline mode (on/off, company name & logo)" },
   { key: "atlas.offline.shipments", kind: "json", label: "Offline-mode shipments" },  { key: "atlas.theme",    kind: "string", label: "Appearance" },
+  { key: "atlas.scheme",   kind: "string", label: "Colour scheme" },
 ];
 
 const ATLAS_BACKUP_MARK = "atlas-backup";

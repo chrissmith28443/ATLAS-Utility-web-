@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.13",
+    title: "Colour back in the header and request bar; colour schemes in Settings",
+    notes: [
+      "The header is a solid colour again and the request bar has a soft wash of the same colour, with a solid edge and badge.",
+      "Settings › Appearance now has a row of colour schemes next to Light / Dark — Navy, Ocean, Forest, Graphite, Crimson, Teal, Orchid, Rose and Lavender. The choice applies at once and is remembered on this device.",
+      "The Dashboard and Fetch / UDQ buttons have their own colour (set by the scheme), different from the navy buttons on the pages.",
+      "The Atomic Possum picture is gone from the left menu; its purple theme lives on as the Orchid scheme.",
+    ],
+  },
+  {
     version: "2.9.12",
     title: "New look for every tool, the header, the left menu and the request bar; quieter pre-flight",
     notes: [

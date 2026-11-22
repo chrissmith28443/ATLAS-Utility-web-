@@ -217,6 +217,13 @@ const SETTINGS_STYLE = `
   .set-appx+.set-appx{border-left:0;}
   .set-appx.active{background:var(--card);color:var(--s-blue);box-shadow:0 1px 2px rgba(16,24,40,.14);}
   .set-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer;margin:9px 0;}
+  .set-schemes{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:14px;}
+  .set-sch{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line);cursor:pointer;
+    background:linear-gradient(135deg,var(--a) 0 50%,var(--b) 50% 100%);transition:transform .1s;}
+  .set-sch:hover{transform:scale(1.1);}
+  .set-sch.active{box-shadow:0 0 0 2px var(--s-blue);}
+  .set-sch:focus-visible{outline:2px solid var(--s-blue);outline-offset:3px;}
+  .set-sch-name{font-size:12.5px;font-weight:600;color:var(--steel);margin-left:4px;}
   .udq-id{font-family:var(--mono);font-size:12px;}
   .udq-id.udq-bad{border-color:var(--warn);outline:1px solid var(--warn);}
   .udq-summary{font-family:var(--mono);font-size:11.5px;color:var(--steel);margin:2px 0 10px;word-break:break-all;}
@@ -449,6 +456,11 @@ function openSettings() {
               <button type="button" class="set-appx" data-mode="default">Light</button>
               <button type="button" class="set-appx" data-mode="dark">Dark</button>
             </div>
+            <div class="set-schemes" id="setSchemes" role="radiogroup" aria-label="Colour">
+              ${(typeof ATLAS_SCHEMES !== "undefined" ? ATLAS_SCHEMES : []).map((s) =>
+                `<button type="button" class="set-sch" role="radio" data-scheme="${s.id}" title="${s.label}" aria-label="${s.label}" style="--a:${s.hdr};--b:${s.brand}"></button>`).join("")}
+              <span class="set-sch-name" id="setSchName"></span>
+            </div>
             <div class="settings-note">Applies immediately and is remembered on this device.</div>
           </div>
 
@@ -579,6 +591,22 @@ function openSettings() {
       });
     });
     markApp();
+  }
+  // Colour scheme — same: applies at once, remembered on this device.
+  const schHost = overlay.querySelector("#setSchemes");
+  if (schHost && typeof setScheme === "function") {
+    const markSch = () => {
+      const cur = currentScheme();
+      schHost.querySelectorAll(".set-sch").forEach((b) => {
+        const on = b.dataset.scheme === cur;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      const s = ATLAS_SCHEMES.find((x) => x.id === cur), nm = schHost.querySelector("#setSchName");
+      if (s && nm) nm.textContent = s.label;
+    };
+    schHost.querySelectorAll(".set-sch").forEach((b) => b.addEventListener("click", () => { setScheme(b.dataset.scheme); markSch(); }));
+    markSch();
   }
 
   // Add-row buttons (clear any "empty" placeholder first)

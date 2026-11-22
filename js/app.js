@@ -980,70 +980,76 @@ function renderRail() {
     rail.appendChild(btn);
   }
 
-  // ── TTI Shipping Team emblem — the Atomic Possum logo, pinned to the bottom ──
-  // The color-theme toggle is a small hidden hotspot over the possum's nose
-  // (a "boop the nose" easter egg), not the whole image.
-  const possum = (typeof LOGO_POSSUM !== "undefined" && LOGO_POSSUM) ? LOGO_POSSUM : "";
-  if (possum) {
-    const team = el(`
-      <div class="rail-team">
-        <div class="rail-team-frame">
-          <img class="rail-team-logo" src="${possum}" alt="TTI Shipping Team">
-          <span class="possum-nose" title="Boop the nose"></span>
-        </div>
-      </div>`);
-    team.querySelector(".possum-nose").addEventListener("click", toggleTheme);
-    rail.appendChild(team);
-  }
 }
 
-/* ---------------- Color theme (Atomic Possum toggle) ----------------
-   The whole UI is driven by CSS variables, so switching themes is just a class
-   on <body>. The choice is remembered across sessions. */
+/* ---------------- Appearance: light / dark + a colour scheme ----------------
+   Two separate choices, both in Settings > Appearance, both remembered on this
+   device:
+     mode    Light or Dark        — class "theme-dark" on <body> (re-points the CSS variables)
+     scheme  one of ATLAS_SCHEMES — sets three CSS variables on <body>:
+               --sch        the header colour (also tints the request bar, the left menu
+                            and the highlighted tool)
+               --brand      the Dashboard and Fetch / UDQ buttons
+               --brand-ink  the text on those two buttons
+   The Atomic Possum (and its nose that flipped the purple theme) left the left
+   menu in 2.9.13; "Orchid" is that purple as a scheme. */
 const ATLAS_THEME_KEY = "atlas.theme";
-let _prePurpleTheme = "default";
+const ATLAS_SCHEME_KEY = "atlas.scheme";
+const ATLAS_SCHEMES = [
+  { id: "navy",     label: "Navy",     hdr: "#2f4f86", brand: "#f2b01e", ink: "#1b2b4b" },
+  { id: "ocean",    label: "Ocean",    hdr: "#0f4c81", brand: "#2cc3d6", ink: "#06262c" },
+  { id: "forest",   label: "Forest",   hdr: "#1f4d3a", brand: "#e0aa25", ink: "#1d2a12" },
+  { id: "graphite", label: "Graphite", hdr: "#2b2f36", brand: "#3d8bfd", ink: "#061a3a" },
+  { id: "crimson",  label: "Crimson",  hdr: "#7a1f2b", brand: "#f0b429", ink: "#3a1206" },
+  { id: "teal",     label: "Teal",     hdr: "#0f5257", brand: "#5fd9cc", ink: "#06302d" },
+  { id: "orchid",   label: "Orchid",   hdr: "#4a2a66", brand: "#c77dff", ink: "#2a0a44" },
+  { id: "rose",     label: "Rose",     hdr: "#8e2f5c", brand: "#f7a8c8", ink: "#4a0f2a" },
+  { id: "lavender", label: "Lavender", hdr: "#5b55a6", brand: "#cdbdfa", ink: "#221a4d" },
+];
 
-function currentTheme() {
-  if (document.body.classList.contains("theme-purple")) return "purple";
-  if (document.body.classList.contains("theme-dark")) return "dark";
-  return "default";
-}
-
+function currentTheme() { return document.body.classList.contains("theme-dark") ? "dark" : "default"; }
 function applyTheme(name) {
-  document.body.classList.toggle("theme-purple", name === "purple");
+  document.body.classList.remove("theme-purple");   // retired: the purple look is the "Orchid" scheme now
   document.body.classList.toggle("theme-dark", name === "dark");
 }
-
 function saveTheme(name) {
   try { localStorage.setItem(ATLAS_THEME_KEY, name); } catch (e) { /* storage off — fine */ }
 }
-
-/* Light/Dark — the user-facing appearance control (Settings). */
+/* Light/Dark — Settings > Appearance. */
 function setAppearance(mode) {
   const name = mode === "dark" ? "dark" : "default";
   applyTheme(name);
   saveTheme(name);
 }
 
-/* Atomic-Possum easter egg (nose boop). Toggles purple without losing the
-   user's chosen light/dark base. */
-function toggleTheme() {
-  if (currentTheme() === "purple") {
-    applyTheme(_prePurpleTheme);
-    saveTheme(_prePurpleTheme);
-  } else {
-    _prePurpleTheme = currentTheme();
-    applyTheme("purple");
-    saveTheme("purple");
-  }
+function currentScheme() { return document.body.dataset.scheme || ATLAS_SCHEMES[0].id; }
+function applyScheme(id) {
+  const s = ATLAS_SCHEMES.find((x) => x.id === id) || ATLAS_SCHEMES[0];
+  document.body.dataset.scheme = s.id;
+  document.body.style.setProperty("--sch", s.hdr);
+  document.body.style.setProperty("--brand", s.brand);
+  document.body.style.setProperty("--brand-ink", s.ink);
+  const meta = document.querySelector('meta[name="theme-color"]');   // the installed app's title bar
+  if (meta) meta.setAttribute("content", s.hdr);
+}
+/* Colour scheme — Settings > Appearance. */
+function setScheme(id) {
+  applyScheme(id);
+  try { localStorage.setItem(ATLAS_SCHEME_KEY, currentScheme()); } catch (e) { /* storage off — fine */ }
 }
 
 function loadSavedTheme() {
-  let saved = "default";
-  try { saved = localStorage.getItem(ATLAS_THEME_KEY) || "default"; } catch (e) { /* ignore */ }
-  if (saved !== "purple" && saved !== "dark") saved = "default";
-  if (saved === "purple") _prePurpleTheme = "default";
-  applyTheme(saved);
+  let saved = "default", scheme = "";
+  try {
+    saved = localStorage.getItem(ATLAS_THEME_KEY) || "default";
+    scheme = localStorage.getItem(ATLAS_SCHEME_KEY) || "";
+  } catch (e) { /* ignore */ }
+  if (saved === "purple") {             // the old possum-nose purple → Light + Orchid
+    saved = "default"; saveTheme(saved);
+    if (!scheme) { scheme = "orchid"; try { localStorage.setItem(ATLAS_SCHEME_KEY, scheme); } catch (e) { /* ignore */ } }
+  }
+  applyTheme(saved === "dark" ? "dark" : "default");
+  applyScheme(scheme);
 }
 
 /* ---------------- Rendering: tool workspace ---------------- */

@@ -612,3 +612,6 @@ Arrived Warehouse or the warehouse actual date is filled.
   Also (user, same day): an RFQ SENT LATE is a red "fail" on In progress too (was the grey "late" state, counted only
   in the Closed audit). Clears with Acknowledge or [RELIEF: RFQ].
   Pushed 2026-11-22.
+- v2.9.7 (user, 2026-11-22): hand carry is the ONLY exemption from the Date Packed / RFQ Sent Date flags — courier
+  shipments DO need both (supersedes my 2.9.6 assumption). Columns buttons (#copCols, #copTrkView) are an icon now
+  (copColsBtn, a columns glyph; user was offered three dots / the pmdash sliders icon as alternatives). Pushed 2026-11-22.

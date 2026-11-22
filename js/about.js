@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.7",
+    title: "Courier shipments need a pack date and RFQ date",
+    notes: [
+      "Courier shipments (FedEx, UPS, DHL, USPS) are now held to Date Packed and RFQ Sent Date like any other shipment. Only hand carry is left out of those two flags.",
+      "The Columns button on Shipment details, Closed audit and the Tracker is now a small columns icon.",
+    ],
+  },
+  {
     version: "2.9.6",
     title: "Blank tracker fields are flagged",
     notes: [

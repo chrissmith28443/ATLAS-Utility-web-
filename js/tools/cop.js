@@ -880,7 +880,7 @@ function copEvaluate(rec, ctx) {
       return;
     }
     if (!trk) { add("rfq", "estimate", "req", label, { met: ms.na ? "na" : null, detail: ms.why }); return; }
-    if (!copIsoToDate(trk.rfq) && (sc.handCarry || sc.courier)) { add("rfq", "estimate", "req", label, { met: "na", detail: "Hand carry / courier shipment — no forwarder RFQ." }); return; }
+    if (!copIsoToDate(trk.rfq) && sc.handCarry) { add("rfq", "estimate", "req", label, { met: "na", detail: "Hand carry — no RFQ." }); return; }
     const packed = copIsoToDate(trk.packed);
     const due = xtWorkday(packed && packed.getTime() > compApproved.getTime() ? packed : compApproved, 1, true);
     const sent = copIsoToDate(trk.rfq);
@@ -897,7 +897,7 @@ function copEvaluate(rec, ctx) {
     }
   })();
   // Date Packed: every request that got past the estimate needs it on the record.
-  if (trk && laneIdx > COP_LANE_IDX.estimate && !sc.handCarry && !sc.courier) {
+  if (trk && laneIdx > COP_LANE_IDX.estimate && !sc.handCarry) {
     const packed = copIsoToDate(trk.packed);
     add("packed", "estimate", "req", "Date Packed entered",
       packed ? { state: "ok", detail: `Packed ${copFmt(packed)}.` } : { state: "warn", detail: "Date Packed is blank in ATLAS." }, ["cop.packed"]);
@@ -1415,7 +1415,7 @@ function copActiveEvaluate(rec, ctx) {
     if (!trk) { add("rfq", "estimate", label, ms.na ? "na" : "unknown", ms.why); return; }
     const sent = copIsoToDate(trk.rfq);
     if (!sent && norm(trk.rfq)) { add("rfq", "estimate", label, "na", `RFQ Sent Date shows "${trk.rfq}" — no RFQ needed.`); return; }
-    if (!sent && (sc.handCarry || sc.courier)) { add("rfq", "estimate", label, "na", "Hand carry / courier shipment — no forwarder RFQ."); return; }
+    if (!sent && sc.handCarry) { add("rfq", "estimate", label, "na", "Hand carry — no RFQ."); return; }
     const packed = copIsoToDate(trk.packed);
     const start = packed && packed.getTime() > compApproved.getTime() ? packed : compApproved;
     const due = packed ? xtWorkday(start, 1, true) : null;
@@ -1438,7 +1438,7 @@ function copActiveEvaluate(rec, ctx) {
     }
   })();
   // Date Packed: needed by the time the request leaves Estimate Preparation (it starts the RFQ clock).
-  if (!sc.handCarry && !sc.courier) (function () {
+  if (!sc.handCarry) (function () {
     const label = "Date Packed entered";
     if (!trk) { add("packed", "estimate", label, ms.na ? "na" : "unknown", ms.why); return; }
     const packed = copIsoToDate(trk.packed);
@@ -2024,6 +2024,8 @@ tr.copx-det td{background:var(--ax-soft)}
 .copx-tbl th{padding:8px 12px}
 .copx-tbl td{padding:8px 12px}
 .copx-trk tr.flt th.stick{z-index:3}
+.copx-ibtn.on{background:var(--ax-blue-soft);color:var(--ax-blue)}
+.copx-hd .acts{align-items:center}
 .copx-ibtn.go{color:var(--ax-green);margin-left:-8px}
 .copx-ibtn.go:hover:not(:disabled){background:var(--ax-green-soft);color:var(--ax-green)}
 body.theme-dark .copx-ibtn.go{color:#66bb6a}
@@ -2146,7 +2148,7 @@ function renderCopWorkspace(container) {
   const tcard = el(`<section class="copx-card">
     <div class="copx-hd"><h2 title="${esc(tnote)}">${sheet ? "Daily status updates" : dc ? "Doc check" : isActive ? "Shipment details" : "Post-shipment audit"}</h2>
       ${rows.length === base.length ? "" : `<span class="n">${rows.length} of ${base.length}</span>`}
-      <div class="acts">${!isActive ? `<button class="copx-btn ${dc ? "blue" : "addb"}" id="copDocCheck" type="button" aria-pressed="${!!dc}">${dc ? "Back to audit" : "Doc Check"}</button>` : ""}${sheet || dc ? "" : `<button class="copx-btn ${CopUi.colsOpen ? "blue" : ""}" id="copCols" type="button" aria-expanded="${!!CopUi.colsOpen}">Columns</button>`}
+      <div class="acts">${!isActive ? `<button class="copx-btn ${dc ? "blue" : "addb"}" id="copDocCheck" type="button" aria-pressed="${!!dc}">${dc ? "Back to audit" : "Doc Check"}</button>` : ""}${sheet || dc ? "" : copColsBtn("copCols", CopUi.colsOpen)}
       ${edit ? `<button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button>` : ""}</div></div>
   </section>`);
   root.appendChild(tcard);
@@ -2182,6 +2184,11 @@ async function copCopyText(text) {
     ta.remove();
     return ok;
   } catch (e) { return false; }
+}
+/** "Choose columns" icon button (Shipment details / Closed audit / Tracker). */
+function copColsBtn(id, open, extra) {
+  return `<button class="copx-ibtn ${open ? "on" : ""}" id="${id}" type="button" title="Choose which columns show" aria-label="Choose columns" aria-expanded="${!!open}" ${extra || ""}>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg></button>`;
 }
 /** View switch + Refresh (shared by every view). */
 function copWireTop(root) {
@@ -2278,7 +2285,7 @@ function copTrackerRows(built) {
     tl.rfqStart = tl.compliance && tl.packed && tl.packed.getTime() > tl.compliance.getTime() ? tl.packed : tl.compliance;
     // Past TTI Estimate Preparation (or delivered): Date Packed and RFQ Sent Date belong on the record by now.
     const pastPrep = !active || r.stepIdx > COP_STEP_IDX.estimate || (r.stepIdx === COP_STEP_IDX.estimate && copLow(r.status) !== "tti estimate preparation");
-    const noQuote = sc.handCarry || sc.courier;      // no forwarder RFQ / pack-out
+    const noQuote = sc.handCarry;                    // hand carry only — courier shipments DO need a pack date and RFQ date (user, 2026-11-22)
     // RFQ: due one business day after the later of Compliance approval and Date Packed.
     let rfq = { st: "none", due: null };
     if (!tl.rfq && m.rfq) rfq = { st: "na", due: null };                    // text, not a date: no RFQ needed
@@ -2519,7 +2526,7 @@ function copRenderTracker(root, built) {
       <select id="copPoc" class="copx-sel" aria-label="TTI POC">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select>
       <div class="copx-seg">${seg("active", "In progress", nAct)}${seg("delivered", "Delivered", nDel)}${seg("all", "All", xs.length)}</div>
       ${rows.length === inScope.length ? "" : `<span class="n">${rows.length} of ${inScope.length}</span>`}
-      <button class="copx-btn sm ${CopUi.trkViewOpen ? "blue" : ""}" id="copTrkView" type="button" aria-expanded="${!!CopUi.trkViewOpen}" style="margin-left:auto">Columns</button>
+      ${copColsBtn("copTrkView", CopUi.trkViewOpen, 'style="margin-left:auto"')}
       <button class="copx-btn ghost sm" id="copReset" type="button">Reset</button>
     </div>
     ${CopUi.trkViewOpen ? `<div class="copx-colpick">

@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.15",
+    title: "Greyer blue header",
+    notes: [
+      "The header (and the request bar tint that follows it) is a greyer, slate blue.",
+    ],
+  },
+  {
     version: "2.9.14",
     title: "Lighter header, stronger request bar",
     notes: [

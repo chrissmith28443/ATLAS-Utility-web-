@@ -755,3 +755,9 @@ Arrived Warehouse or the warehouse actual date is filled.
   History of the default header: #16283C (original) -> white (2.9.12, "too white") -> #1b2b4b ("too dark again")
   -> #2f4f86 -> #3d63a5. Applies to every scheme (percentages are shared).
   Pushed 2026-11-22.
+
+## v2.9.15 (2026-11-22) — header: more grey in the blue
+- User on 2.9.14: "More gray in the blue header color." Navy scheme hdr #3d63a5 -> #516890 (same lightness, about
+  40% less saturation). The request bar tint, its edge / badge and the highlighted tool follow --sch, so they went
+  slate too. Header history: #16283C -> white -> #1b2b4b -> #2f4f86 -> #3d63a5 -> #516890.
+  Pushed 2026-11-22.

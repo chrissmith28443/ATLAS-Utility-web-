@@ -13,6 +13,19 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.1",
+    title: "A quieter Shipments dashboard",
+    notes: [
+      "Header is one line: title, a small dot showing where the data came from (hover for the details), the three views as small tabs, and icon buttons for Refresh, Print and Export.",
+      "Tiles are much smaller — a number and a name. What each one means shows when you hover over it.",
+      "Explanatory small print is out of the default view (card sub-titles, step sub-labels, the \"Loaded …\" lines, the drop box instructions, table footnotes). It's all still there as hover text. Errors still show.",
+      "Search box removed — the table's own column filters do that. The Tracker table now has the same filter row under its headings.",
+      "Tracker opens on shipments in progress. Its notes column is the latest daily update; Shipping Team Notes is a separate column. New Columns button: switch Tracker columns and the step-time strip on or off (remembered in this browser).",
+      "A failed pull from ATLAS is no longer flagged while you're working from a dropped file. \"Browse for the .xlsx\" is gone where the drop box is showing.",
+      "A little more colour: tinted step headers and tiles.",
+    ],
+  },
+  {
     version: "2.9.0",
     title: "Shipping Operations dashboard — the Ops Tracker moves into ATLAS",
     notes: [

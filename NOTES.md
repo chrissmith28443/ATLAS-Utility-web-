@@ -537,3 +537,21 @@ Arrived Warehouse or the warehouse actual date is filled.
   cost_pr rollup metrics, the COP and the Metrics tab's Cost accuracy section (now shows the governing amount +
   "Over by"). The Christmas Tree's "Estimate vs. Actual %" COLUMNS still use the workbook formula (1 - est/actual).
   22 Nov SRF export: 10 delivered shipments were flagged (8 under, 2 over) -> 2 now; Cost accuracy all-time 130/132.
+
+## v2.9.1 quieter Shipments dashboard (2026-11-22) — pushed 2026-11-22
+- User feedback on 2.9.0: too busy. Direction for the whole restyle: LESS in the default view — small helper text goes
+  to hover (title attributes), fewer data points by default, more made configurable; "let me know before you remove
+  any data elements" (ask before turning columns / tiles off by default). A few more subtle colours are welcome.
+- Done: one-line header (copFreshChip = dot + "From file" / pull time, details on hover; a failed pull shows only
+  when the data on screen is an earlier ATLAS pull); small text tabs; icon-only Refresh / Print / Export; compact
+  tiles (number + name, hint on hover); search box removed (In progress / Closed / Tracker) — Tracker got a column
+  filter row (CopUi.trkF); "Needs attention only" tick box only on Closed (the tile does it on In progress); card
+  sub-titles, board step sub-labels, legend tip, drop-box instructions and "Loaded …" lines hidden (body.cop-quiet hides
+  #loadStatus unless .err; CopDrop.status = errors only). Browse button only when the drop box is off.
+- Tracker: default scope "active"; "Latest update" column = newest daily update (that IS what the Ops Tracker's notes
+  column held); "Team notes" = Shipping Team Notes, separate column. Columns button -> prefs.trk { off: [col ids],
+  flow } (only what's OFF is stored).
+- OPEN, waiting on the user: (1) which columns / tiles to switch off by default (proposal given in chat);
+  (2) RELIEF CODES in Shipping Team Notes — that field will carry codes that relieve a shipment from a metric; the
+  Utility must read them and override the flag. Code format not decided (proposal given in chat: [RELIEF: RFQ] etc.,
+  mapped onto the existing acknowledge keys so it's shared by everyone instead of per browser). Nothing built yet.

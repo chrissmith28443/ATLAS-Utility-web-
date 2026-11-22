@@ -880,6 +880,8 @@ function renderWorkspace() {
     AppState.activeTool === "proc" || AppState.activeTool === "prop" || AppState.activeTool === "pls" ||
     // The Dashboard has its own drop box under the tab bar (cop.js) — one drop target, not two.
     (typeof copHubDropOn === "function" && copHubDropOn() && copHubActive()));
+  // Dashboard views keep the "Loaded …" line out of sight (errors still show) — less to read.
+  document.body.classList.toggle("cop-quiet", typeof copHubActive === "function" && copHubActive());
   const offline = typeof offlineOn === "function" && offlineOn();
   // Per-document parent-items toggle (CI, PL, Placards, RFQ, Packet).
   if (!offline && typeof mpInjectDocToggle === "function") mpInjectDocToggle(ws, AppState.activeTool);

@@ -1441,6 +1441,7 @@ body.rail-collapsed .main > *{ margin-left: auto; margin-right: auto; }
 .dropzone.loader-compact .dz-sub{ margin-top: 0; }
 body.dropzone-hidden #dropzone{ display: none; }
 body.xt-hide-dropzone #dropzone{ display: none; }
+body.cop-quiet #loadStatus:not(.err){ display: none; }
 
 /* ---- Inventory Crosswalk (General Tools) ---- */
 #icDrop{ margin: 12px 0; }

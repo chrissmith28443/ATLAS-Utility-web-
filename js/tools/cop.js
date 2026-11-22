@@ -185,7 +185,7 @@ const COP_STATES = {
    ------------------------------------------------------------------------- */
 const CopUi = {
   view: "active",       // "active" (In progress) | "tracker" | "closed"
-  trkScope: "all",      // Tracker view: "all" | "active" | "delivered"
+  trkScope: "active",   // Tracker view: "active" (default) | "delivered" | "all"
   trkPick: "",          // Tracker view: tile filter (COP_TRK_PICK key)
   trkSort: null,        // Tracker view: { id, dir }
   poc: "",              // TTI POC filter ("" = all; "My shipments only" lives in prefs)
@@ -1471,7 +1471,7 @@ function copTodayStrip(base) {
   const n = (f) => base.filter(f).length;
   const att = n((r) => r.counts.red || r.counts.amber);
   const tile = (key, tone, count, label, hint, on) => `<button type="button" class="copx-kpi ${tone} ${on ? "on" : ""} ${count ? "" : "zero"}" data-quick="${key}" ${count || on ? "" : "disabled"} aria-pressed="${!!on}" title="${esc(hint)}">
-      <span class="n">${count}</span><span class="l">${esc(label)}</span><span class="h">${esc(hint)}</span></button>`;
+      <span class="n">${count}</span><span class="l">${esc(label)}</span></button>`;
   return el(`<div class="copx-kpis copx-today" role="group" aria-label="Today — click a tile to filter">
     ${tile("", "", base.length, "In progress", "Every active shipment", !CopUi.quick && !CopUi.atRisk)}
     ${tile("attention", "a", att, "Need attention", "Something is missed or needs action", CopUi.atRisk)}
@@ -1834,6 +1834,74 @@ tr.copx-det td{background:var(--ax-soft)}
 .copx-trk .up .x.keep{-webkit-line-clamp:3;margin-bottom:3px}
 .copx-trk .copx-pill{margin-right:0}
 .copx-foot{margin:10px 2px 0;font-size:11.5px;color:var(--ax-muted)}
+/* ===== 2.9.1 — quieter default view: one-line header, small tiles, helper text moved to hover, a little more colour ===== */
+.copx{gap:14px;--ax-tint:color-mix(in srgb,var(--ax-blue) 5%,var(--ax-card));--ax-th-bg:color-mix(in srgb,var(--ax-blue) 6%,var(--ax-card))}
+.copx-top{gap:8px 14px}
+.copx-top h1{font-size:18px}
+.copx-top .acts{margin-left:0;gap:2px}
+.copx-fresh{border:0;background:transparent;padding:0;font-size:11.5px;color:var(--ax-muted);cursor:default;gap:6px}
+.copx-fresh i{width:7px;height:7px}
+.copx-fresh.err{color:var(--ax-red)}
+.copx-tabs{margin-left:auto;background:transparent;padding:0;gap:2px;border-radius:0}
+.copx-tabs button{padding:5px 10px;font-size:12.5px;border-radius:7px;gap:5px}
+.copx-tabs button:hover:not(.on){color:var(--ax-ink);background:var(--ax-line2)}
+.copx-tabs button.on{background:var(--ax-blue-soft);color:var(--ax-blue);box-shadow:none}
+.copx-tabs button .c,.copx-tabs button.on .c{background:transparent;color:inherit;opacity:.7;padding:0;font-size:11px;line-height:inherit}
+.copx-ibtn{justify-content:center;width:30px;height:30px;padding:0;border-color:transparent;background:transparent;color:var(--ax-muted);border-radius:8px}
+.copx-ibtn:hover:not(:disabled){background:var(--ax-line2);border-color:transparent;color:var(--ax-ink)}
+.copx-card{padding:14px 16px 16px}
+.copx-hd{margin-bottom:10px;align-items:center}
+.copx-hd h2{font-size:14px}
+.copx-hd .n,.copx-frow .n{font-size:11.5px;color:var(--ax-muted)}
+.copx-btn.sm{min-height:30px;padding:4px 11px;font-size:12px}
+/* tiles: a number and a name — the explanation is the hover text */
+.copx-kpis{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.copx-kpi{flex-direction:row;align-items:baseline;gap:6px;border-radius:8px;padding:5px 11px;font-size:12px;line-height:1.35;color:var(--ax-ink2)}
+.copx-kpi::before{display:none}
+.copx-kpi .n{font-size:14px;font-weight:700;line-height:1.35;letter-spacing:0}
+.copx-kpi .l{font-size:12px;font-weight:500}
+.copx-kpi:hover:not(:disabled){transform:none;box-shadow:none}
+.copx-kpi.r:not(.zero){background:color-mix(in srgb,var(--ax-red) 6%,var(--ax-card));border-color:color-mix(in srgb,var(--ax-red) 28%,var(--ax-line))}
+.copx-kpi.a:not(.zero){background:color-mix(in srgb,var(--ax-amber) 7%,var(--ax-card));border-color:color-mix(in srgb,var(--ax-amber) 28%,var(--ax-line))}
+.copx-kpi.p:not(.zero){background:color-mix(in srgb,var(--ax-purple) 7%,var(--ax-card));border-color:color-mix(in srgb,var(--ax-purple) 26%,var(--ax-line))}
+.copx-kpi.b:not(.zero),.copx-kpi.n:not(.zero){background:color-mix(in srgb,var(--ax-blue) 6%,var(--ax-card));border-color:color-mix(in srgb,var(--ax-blue) 26%,var(--ax-line))}
+.copx-kpi.t:not(.zero){background:color-mix(in srgb,var(--ax-teal) 7%,var(--ax-card));border-color:color-mix(in srgb,var(--ax-teal) 28%,var(--ax-line))}
+.copx-kpi.g:not(.zero){background:color-mix(in srgb,var(--ax-green) 7%,var(--ax-card));border-color:color-mix(in srgb,var(--ax-green) 28%,var(--ax-line))}
+.copx-kpi.zero{color:var(--ax-muted)}
+.copx-kpi.on{background:var(--ax-blue-soft);border-color:var(--ax-blue);box-shadow:none}
+/* filters: no labels, no search box */
+.copx-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-bottom:12px}
+.copx-filters .copx-frow,.copx-frow.trk{gap:8px 10px;align-items:center;margin-bottom:0}
+.copx-frow.trk{margin-bottom:12px}
+.copx-filters .copx-fbtns,.copx-frow.trk .copx-fbtns{margin-left:0}
+.copx-sel{border:1px solid var(--ax-line);border-radius:8px;padding:5px 9px;min-height:30px;background:var(--ax-card);color:var(--ax-ink);font-size:12.5px;max-width:240px}
+.copx-sel:focus{outline:2px solid var(--ax-blue-soft);border-color:var(--ax-blue)}
+.copx-chk{min-height:30px;font-size:12px}
+.copx-filter>summary{color:var(--ax-muted);font-weight:500}
+.copx-filter[open]{flex-basis:100%}
+.copx-seg button{min-height:30px;padding:4px 11px}
+/* board: tinted step headers, slimmer */
+.copx-col .ch{min-height:0;padding:9px 50px 9px 14px;box-shadow:none;border-bottom:1px solid var(--ax-line);background:color-mix(in srgb,var(--ax-blue) 5%,var(--ax-card))}
+.copx-col.review .ch{box-shadow:none;background:color-mix(in srgb,var(--ax-blue) 9%,var(--ax-card))}
+.copx-col.estimate .ch{box-shadow:none;background:color-mix(in srgb,var(--ax-blue) 13%,var(--ax-card))}
+.copx-col.exec .ch{box-shadow:none;background:color-mix(in srgb,var(--ax-teal) 11%,var(--ax-card))}
+.copx-col .ch .cnt{width:26px;height:26px;font-size:13px;right:11px;background:var(--ax-card)}
+.copx-col{background:var(--ax-card)}
+.copx-ph{background:var(--ax-soft)}
+.copx-ph .pl{font-size:10px;margin-bottom:6px}
+.copx-legend{margin-top:12px;padding-top:10px;gap:14px;font-size:11px}
+/* step-time strip */
+.copx-flow-hd{display:block;margin:2px 0 6px;font-size:10.5px;font-weight:650;color:var(--ax-muted);text-transform:uppercase;letter-spacing:.05em}
+.copx-flow{border-radius:10px;border-top:2px solid transparent;background:linear-gradient(var(--ax-card),var(--ax-card)) padding-box,linear-gradient(90deg,#9db4d3,var(--ax-blue),var(--ax-teal)) border-box}
+.copx-flow .fs{padding:8px 11px 7px;gap:0}
+.copx-flow .k{font-size:11px;font-weight:600;color:var(--ax-ink2);text-transform:none;letter-spacing:0}
+.copx-flow .v{font-size:17px}
+.copx-flow .lnk{font-size:10.5px;font-weight:500;color:var(--ax-muted)}
+.copx-flow .lnk:hover{color:var(--ax-link)}
+/* tables */
+.copx-tbl th{padding:8px 12px}
+.copx-tbl td{padding:8px 12px}
+.copx-trk tr.flt th.stick{z-index:3}
 `;
 
 /* Display groups for a check's stage (active steps + the audit engine's lanes). */
@@ -1864,14 +1932,15 @@ function renderCopWorkspace(container) {
         </section>`
       : `<section class="copx-card copx-wait">
           <h2>No shipment data loaded</h2>
-          <p class="copx-msg">${CopPull.err ? `Couldn't pull from ATLAS — ${esc(CopPull.err)} ` : ""}The Dashboard reads the SRF UDQ (every shipment). Pull it from ATLAS, or drop the exported .xlsx in the box above.</p>
+          <p class="copx-msg">${CopPull.err ? `Couldn't pull from ATLAS — ${esc(CopPull.err)} ` : ""}${copHubDropOn() ? "Drop the SRF UDQ export in the box above, or pull it from ATLAS." : "Pull the SRF UDQ from ATLAS, or browse for the exported .xlsx."}</p>
           <div class="copx-fbtns" style="justify-content:center"><button class="copx-btn green" id="copFetch" type="button">Pull from ATLAS</button>
-            <button class="copx-btn ghost" id="copBrowse" type="button">Browse for the .xlsx…</button></div>
+            ${copHubDropOn() ? "" : `<button class="copx-btn ghost" id="copBrowse" type="button">Browse for the .xlsx…</button>`}</div>
         </section>`);
     root.appendChild(empty);
     if (!busy) {
       empty.querySelector("#copFetch").addEventListener("click", () => copAutoFetch(true));
-      empty.querySelector("#copBrowse").addEventListener("click", () => { const fi = document.getElementById("fileInput"); if (fi) fi.click(); });
+      const br = empty.querySelector("#copBrowse");
+      if (br) br.addEventListener("click", () => { const fi = document.getElementById("fileInput"); if (fi) fi.click(); });
     }
     return;
   }
@@ -1891,54 +1960,50 @@ function renderCopWorkspace(container) {
   const view = CopUi.view;
   const isActive = view !== "closed";
 
-  /* ---- page header: title, how fresh the data is, the three views, actions ---- */
+  /* ---- page header: one quiet line — title, data-freshness dot, the three views, icon actions ---- */
   const vbtn = (v, label, n) => `<button type="button" data-v="${v}" class="${view === v ? "on" : ""}" role="tab" aria-selected="${view === v}">${esc(label)}${n === null ? "" : `<span class="c">${n}</span>`}</button>`;
+  const ico = (d) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const top = el(`<header class="copx-top">
-    <div class="tt"><h1>Shipping Operations</h1><div class="fr">${copFreshChip(built)}</div></div>
+    <h1>Shipping Operations</h1>${copFreshChip(built)}
     <div class="copx-tabs" role="tablist" aria-label="Shipment views">
       ${vbtn("active", "In progress", built.active.length)}${vbtn("tracker", "Tracker", null)}${vbtn("closed", "Closed audit", built.closed.length)}
     </div>
     <div class="acts">
-      <button class="copx-ibtn" id="copRefresh" type="button" title="Pull the latest from ATLAS now" ${CopPull.busy ? "disabled" : ""}>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>Refresh</button>
-      ${view === "tracker" ? "" : `<button class="copx-ibtn" id="copPrint" type="button">Print</button>`}
-      <button class="copx-ibtn" id="${view === "tracker" ? "copTrkExport" : "copExport"}" type="button">Export</button>
+      <button class="copx-ibtn" id="copRefresh" type="button" title="Refresh — pull the latest from ATLAS" aria-label="Refresh from ATLAS" ${CopPull.busy ? "disabled" : ""}>${ico('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>')}</button>
+      ${view === "tracker" ? "" : `<button class="copx-ibtn" id="copPrint" type="button" title="Print this view" aria-label="Print">${ico('<path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/>')}</button>`}
+      <button class="copx-ibtn" id="${view === "tracker" ? "copTrkExport" : "copExport"}" type="button" title="Export to Excel" aria-label="Export to Excel">${ico('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/>')}</button>
     </div>
   </header>`);
   if (COP_MOCKUP.requestorView) top.appendChild(roleBar);
   root.appendChild(top);
-
   if (view === "tracker") { copRenderTracker(root, built); copWireTop(root); return; }
 
   const all = isActive ? built.active : built.closed;
   const { base, rows } = copFilterRows(all);
 
-  /* ---- main card ---- */
-  const card = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>${isActive ? "Shipments in progress" : "Closed shipments"}</h2>
-      <span class="n">${rows.length === base.length ? copPlural(base.length, "shipment") : `${rows.length} of ${base.length} shipments`}</span>
-    </div>
-  </section>`);
+  /* ---- main card: tiles, filters, board ---- */
+  const card = el(`<section class="copx-card"></section>`);
   root.appendChild(card);
   if (isActive) card.appendChild(copTodayStrip(base));
   card.appendChild(copFilterPanel(built, all));
   if (isActive) {
-    // The board shows exactly what's in the table: top filters, search and
-    // table column filters all drive it (counts and tallies follow).
+    // The board shows exactly what's in the table: the filters above and the
+    // table's column filters all drive it (counts and tallies follow).
     card.appendChild(copBoard(rows, rows));
-    card.appendChild(el(`<div class="copx-legend">
-      <span><i></i>On track</span><span><i class="p"></i>Today's update still due</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
-      <span><em>3</em>daily updates missing</span><span>${COP_CONSOL_ICON}Consol</span>
-      <span class="tip">Oldest in its status first · hover for the latest update · click for details</span></div>`));
+    card.appendChild(el(`<div class="copx-legend" title="Oldest in its status first · hover a shipment for its latest update · click it for details">
+      <span><i></i>On track</span><span><i class="p"></i>Today's update due</span><span><i class="a"></i>Needs attention</span><span><i class="r"></i>Missed / overdue</span>
+      <span><em>3</em>updates missing</span><span>${COP_CONSOL_ICON}Consol</span></div>`));
   }
-
   /* ---- details table ---- */
   const edit = isActive && copCanEdit();
   const sheet = edit && CopUi.updMode;
   const dc = !isActive && CopUi.docCheck;
+  const tnote = sheet ? "Every shipment in view — type an update and Save it, or Save all at the end" : dc ? "Required shipping documents on closed requests, and how many of each were prepared"
+    : isActive ? "Click a row for its checklist and daily updates · click a header to sort"
+    : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost, invoicing) · click a header to sort";
   const tcard = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>${sheet ? "Daily status updates" : dc ? "Doc check" : isActive ? "Shipment details" : "Post-shipment audit"}</h2>
-      <span class="n">${sheet ? "Every shipment in view — type an update and Save it, or Save all at the end" : dc ? "Required shipping documents on closed requests, and how many of each were prepared" : isActive ? "Click a row for its checklist and daily updates · click a header to sort" : "Every closed shipment, checked for metric hits (RFQ, daily updates, shipping documents, carrier/AWB, delivery vs RDD, cost variance, invoicing) · click a header to sort"}</span>
+    <div class="copx-hd"><h2 title="${esc(tnote)}">${sheet ? "Daily status updates" : dc ? "Doc check" : isActive ? "Shipment details" : "Post-shipment audit"}</h2>
+      ${rows.length === base.length ? "" : `<span class="n">${rows.length} of ${base.length}</span>`}
       <div class="acts">${!isActive ? `<button class="copx-btn ${dc ? "blue" : "addb"}" id="copDocCheck" type="button" aria-pressed="${!!dc}">${dc ? "Back to audit" : "Doc Check"}</button>` : ""}${sheet || dc ? "" : `<button class="copx-btn ${CopUi.colsOpen ? "blue" : ""}" id="copCols" type="button" aria-expanded="${!!CopUi.colsOpen}">Columns</button>`}
       ${edit ? `<button class="copx-btn ${sheet ? "blue" : "addb"}" id="copUpdMode" type="button">${sheet ? "Back to shipment details" : "Enter daily updates"}</button>` : ""}</div></div>
   </section>`);
@@ -1949,16 +2014,21 @@ function renderCopWorkspace(container) {
   copWire(root, built, rows, isActive);
 }
 
-/** Where the data on screen came from, and when — always visible, so stale data can't pass as fresh. */
+/** Where the data on screen came from, and when: a small dot and a word — the
+    full story is the hover text. A failed refresh only shows when what's on
+    screen is an earlier ATLAS pull (outside ATLAS a pull can't work, and a
+    dropped file isn't made stale by it). */
 function copFreshChip(built) {
   const n = built ? built.active.length + built.closed.length : 0;
-  if (CopPull.busy) return `<span class="copx-fresh busy"><i></i>Refreshing from ATLAS…</span>`;
+  if (CopPull.busy) return `<span class="copx-fresh busy" title="Pulling the latest from ATLAS…"><i></i>Refreshing…</span>`;
   const fromAtlas = /^ATLAS API/i.test(AppState.fileName || "");
-  const err = CopPull.err ? `<span class="copx-fresh err" title="${esc(CopPull.err)}"><i></i>Last refresh didn't go through</span>` : "";
-  if (fromAtlas) return `<span class="copx-fresh ok"><i></i>Live from ATLAS${CopPull.okAt ? ` · pulled ${esc(copClock(CopPull.okAt))}` : ""} · ${copPlural(n, "request")}</span>${err}`;
-  return `<span class="copx-fresh file"><i></i>From a file · ${esc(AppState.fileName || "UDQ export")} · ${copPlural(n, "request")}</span>${err}`;
+  if (!fromAtlas) return `<span class="copx-fresh file" title="${esc(`From a file · ${AppState.fileName || "UDQ export"} · ${copPlural(n, "request")}`)}"><i></i>From file</span>`;
+  const at = CopPull.okAt ? new Date(CopPull.okAt) : null;
+  const when = !at ? "ATLAS" : at.toDateString() === new Date().toDateString()
+    ? at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : copClock(CopPull.okAt);
+  if (CopPull.err) return `<span class="copx-fresh err" title="${esc(`The last refresh didn't go through — ${CopPull.err} Showing the ATLAS pull from ${at ? copClock(CopPull.okAt) : "earlier"}.`)}"><i></i>${esc(when)} · not refreshed</span>`;
+  return `<span class="copx-fresh ok" title="${esc(`Live from ATLAS${at ? ` · pulled ${copClock(CopPull.okAt)}` : ""} · ${copPlural(n, "request")}`)}"><i></i>${esc(when)}</span>`;
 }
-
 /** View switch + Refresh (shared by every view). */
 function copWireTop(root) {
   root.querySelectorAll(".copx-tabs button").forEach((b) => b.addEventListener("click", () => {
@@ -1969,8 +2039,9 @@ function copWireTop(root) {
   if (rf) rf.addEventListener("click", () => copAutoFetch(true));
 }
 
-/** Filters: search, TTI POC and "needs attention" always in view; the
-    collapsible "More filters" bar holds the rest (RDD, day limits). */
+/** Filters: TTI POC always in view (plus Metric hits / needs-attention on the
+    Closed audit); "More" holds the rest (RDD, day limits). No search box — the
+    table's own column filters do that. */
 function copFilterPanel(built, all) {
   const prefs = copGetPrefs();
   // TTI POC choices come from the shipments in this view only.
@@ -1985,7 +2056,7 @@ function copFilterPanel(built, all) {
   }
   const isActive = CopUi.view !== "closed";     // Active: "Needs attention only" covers it
   if (isActive || (CopUi.hit && !hits[CopUi.hit])) CopUi.hit = "";
-  const hitOpts = opt("", "All", !CopUi.hit) + Object.keys(hits).sort((a, b) => hits[b].n - hits[a].n)
+  const hitOpts = opt("", "All metric hits", !CopUi.hit) + Object.keys(hits).sort((a, b) => hits[b].n - hits[a].n)
     .map((id) => opt(id, `${hits[id].label} (${hits[id].n})`, CopUi.hit === id)).join("");
   const stuckRows = Object.keys(COP_STUCK_DEFAULTS).map((k) => `<div>${esc(COP_STUCK_LABELS[k])}:
       amber<input type="number" min="1" max="200" data-k="${k}" data-i="0" value="${prefs.stuck[k][0]}">
@@ -1993,15 +2064,13 @@ function copFilterPanel(built, all) {
   const more = (CopUi.rddDays ? 1 : 0);
   return el(`<div class="copx-filters">
     <div class="copx-frow">
-      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country, status" value="${esc(CopUi.q)}"></div>
-      <div class="copx-f"><label for="copPoc">TTI POC</label>
-        <select id="copPoc">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select></div>
-      ${isActive ? "" : `<div class="copx-f"><label for="copHit">Metric hits</label><select id="copHit">${hitOpts}</select></div>`}
-      <label class="copx-chk"><input type="checkbox" id="copRisk" ${CopUi.atRisk ? "checked" : ""}> Needs attention only</label>
-      <div class="copx-fbtns"><button class="copx-btn ghost" id="copReset" type="button">Reset</button></div>
+      <select id="copPoc" class="copx-sel" aria-label="TTI POC">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select>
+      ${isActive ? "" : `<select id="copHit" class="copx-sel" aria-label="Metric hits">${hitOpts}</select>
+      <label class="copx-chk"><input type="checkbox" id="copRisk" ${CopUi.atRisk ? "checked" : ""}> Needs attention only</label>`}
+      <button class="copx-btn ghost sm" id="copReset" type="button">Reset</button>
     </div>
     <details class="copx-filter"${CopUi.filterOpen ? " open" : ""}>
-      <summary>More filters${more ? ` <span class="copx-pill b" style="margin-left:8px">${more} on</span>` : ""}<span class="chev" aria-hidden="true" style="margin-left:6px">▾</span></summary>
+      <summary>More${more ? ` <span class="copx-pill b" style="margin-left:6px">${more} on</span>` : ""}<span class="chev" aria-hidden="true" style="margin-left:4px">▾</span></summary>
       <div class="fbody">
         <div class="copx-f"><label for="copRdd">RDD</label><select id="copRdd">
           ${[[0, "Any"], [-1, "Past RDD"], [7, "Within 7 days"], [14, "Within 14 days"], [30, "Within 30 days"]].map(([v, t]) => opt(v, t, CopUi.rddDays === v)).join("")}</select></div>
@@ -2015,7 +2084,6 @@ function copFilterPanel(built, all) {
     </details>
   </div>`);
 }
-
 /* =========================================================================
    TRACKER VIEW (2.9.0) — the Ops Tracker, straight from ATLAS. One row per
    shipment that's in progress or was delivered on / after COP_FIELDS_FROM_ISO,
@@ -2110,7 +2178,7 @@ function copTrkCols(today) {
   const yr = today.getFullYear();
   const sd = (d) => d ? `${d.getDate()} ${COP_MON[d.getMonth()]}${d.getFullYear() !== yr ? " ’" + String(d.getFullYear()).slice(2) : ""}` : "";
   const dash = `<span class="mut">—</span>`;
-  const gap = (a, b) => (a && b && b.getTime() >= a.getTime()) ? `<small>+${copBizDaysBetween(a, b)}d</small>` : "";
+  const gap = (a, b) => (a && b && b.getTime() >= a.getTime()) ? `<small title="Business days since the step before">+${copBizDaysBetween(a, b)}d</small>` : "";
   const dcol = (id, label, key, prev, title) => ({ id, label, title,
     sort: (x) => x.tl[key] ? x.tl[key].getTime() : null, ex: (x) => copFmt(x.tl[key]),
     td: (x) => `<td class="nw">${x.tl[key] ? esc(sd(x.tl[key])) + gap(prev && x.tl[prev], x.tl[key]) : dash}</td>` });
@@ -2120,10 +2188,11 @@ function copTrkCols(today) {
   const MAR = { done: ["g", "Submitted"], overdue: ["r", "Overdue"], due: ["b", "Due"], later: ["", "After departure"], na: ["", ""] };
   const pill = (cls, text) => !text ? "" : cls ? `<span class="copx-pill ${cls}">${esc(text)}</span>` : `<span class="mut">${esc(text)}</span>`;
   return [
-    { id: "wmtr", label: "WMTR", sort: (x) => x.r.num, ex: (x) => x.r.wmtr,
+    { id: "wmtr", label: "WMTR", sort: (x) => x.r.num, ex: (x) => x.r.wmtr, ft: "text", fv: (x) => `${x.r.wmtr} ${x.r.status}`,
       td: (x) => `<td class="w stick">${copWmtrLink(x.r, x.r.last5)}${x.haz ? ` <span class="copx-pill a" title="HAZMAT / dangerous goods on the inventory">DG</span>` : ""}${x.temp ? ` <span class="copx-pill b" title="Temperature control: ${esc(x.r.rec.f["temperature-control requirements"] || "")}">Temp</span>` : ""}
         <small>${x.active ? esc(x.r.status) : `<span class="copx-pill g">Delivered</span> ${esc(x.r.status)}`}</small></td>` },
     { id: "route", label: "Route · Program", sort: (x) => copLow(x.r.dest) || null, ex: (x) => `${x.r.origin} → ${x.r.dest}`,
+      ft: "text", fv: (x) => `${x.r.origin} → ${x.r.dest} ${x.r.program} ${x.r.mode}`,
       td: (x) => `<td class="nw">${esc(x.r.origin || "?")} → ${esc(x.r.dest || "?")}<small>${esc([x.r.program, x.r.mode].filter(Boolean).join(" · "))}</small></td>` },
     { id: "poc", label: "TTI POC", sort: (x) => copLow(x.r.poc) || null, ex: (x) => x.r.poc, td: (x) => `<td class="nw">${esc(x.r.poc || "—")}</td>` },
     dcol("submitted", "Submitted", "submitted", null, "First Workflow Logs stamp after Draft"),
@@ -2131,7 +2200,7 @@ function copTrkCols(today) {
     dcol("compliance", "Compliance", "compliance", "toDtra", "DTRA Compliance Review approved"),
     dcol("packed", "Packed", "packed", "compliance", "ATLAS field: Date Packed"),
     { id: "rfq", label: "RFQ sent", title: "ATLAS field: RFQ Sent Date — due 1 business day after the later of Compliance approval and Date Packed",
-      sort: (x) => x.tl.rfq ? x.tl.rfq.getTime() : null, ex: (x) => copFmt(x.tl.rfq), exx: rfqWord,
+      sort: (x) => x.tl.rfq ? x.tl.rfq.getTime() : null, ex: (x) => copFmt(x.tl.rfq), exx: rfqWord, fv: (x) => RFQ[x.rfq.st][1],
       td: (x) => `<td class="nw">${x.tl.rfq ? esc(sd(x.tl.rfq)) : ""} ${pill(RFQ[x.rfq.st][0], rfqWord(x)) || (x.tl.rfq ? "" : dash)}</td>` },
     dcol("quoteSub", "Quote sub.", "quoteSub", "rfq", "Estimate submitted to DTRA (first DTRA Estimate Review stamp)"),
     dcol("quoteAppr", "Quote appr.", "quoteAppr", "quoteSub", "DTRA Estimate Review approved"),
@@ -2144,39 +2213,59 @@ function copTrkCols(today) {
       sort: (x) => (x.tl.departed || x.tl.etd) ? (x.tl.departed || x.tl.etd).getTime() : null, ex: (x) => copFmt(x.tl.departed || x.tl.etd), exx: (x) => x.tl.departed ? "Actual" : x.tl.etd ? "Estimate" : "",
       td: (x) => `<td class="nw">${x.tl.departed ? esc(sd(x.tl.departed)) + gap(x.tl.quoteAppr, x.tl.departed) : x.tl.etd ? `${esc(sd(x.tl.etd))}<small>estimate</small>` : dash}</td>` },
     { id: "eei", label: "EEI · ITN / NOEEI", title: "ATLAS field: ITN / NOEEI Citation — must be in before a US export departs",
-      sort: (x) => ({ missed: 0, hold: 1, later: 2, filed: 3, na: 4 })[x.eei], ex: (x) => x.m.itn, exx: (x) => EEI[x.eei][1],
+      sort: (x) => ({ missed: 0, hold: 1, later: 2, filed: 3, na: 4 })[x.eei], ex: (x) => x.m.itn, exx: (x) => EEI[x.eei][1], fv: (x) => EEI[x.eei][1],
       td: (x) => `<td class="nw">${pill(EEI[x.eei][0], EEI[x.eei][1])}${x.m.itn ? `<small class="mono">${esc(x.m.itn)}</small>` : ""}</td>` },
-    { id: "marad", label: "MARAD", title: "Sealift only — due 20 working days after departure (30 from abroad); ATLAS field: MARAD Submitted Date",
+    { id: "marad", label: "MARAD", fv: (x) => MAR[x.marad.st][1], title: "Sealift only — due 20 working days after departure (30 from abroad); ATLAS field: MARAD Submitted Date",
       sort: (x) => ({ overdue: 0, due: 1, later: 2, done: 3, na: 4 })[x.marad.st], ex: (x) => copFmt(x.marad.sub), exx: (x) => MAR[x.marad.st][1] + (x.marad.due && !x.marad.sub ? ` · due ${copFmt(x.marad.due)}` : ""),
       td: (x) => `<td class="nw">${x.marad.st === "na" ? dash : pill(MAR[x.marad.st][0], MAR[x.marad.st][1] + (x.marad.sub ? ` ${sd(x.marad.sub)}` : x.marad.due ? ` ${sd(x.marad.due)}` : ""))}</td>` },
     dcol("delivered", "Delivered", "delivered", "departed", "ATLAS field: Delivery Date"),
-    { id: "inv", label: "Invoices rec’d", title: "ATLAS fields: Warehouse Invoice Received · Final Shipping Invoice Received",
+    { id: "inv", label: "Invoices rec’d", xl: "Warehouse invoice rec'd", xl2: "Final shipping invoice rec'd", title: "ATLAS fields: Warehouse Invoice Received · Final Shipping Invoice Received",
       sort: (x) => (x.whInv ? 1 : 0) + (x.shipInv ? 2 : 0), ex: (x) => copFmt(x.whInv), exx: (x) => copFmt(x.shipInv),
       td: (x) => `<td class="nw">${x.whInv || x.shipInv ? `${x.whInv ? `Warehouse ${esc(sd(x.whInv))}` : `<span class="mut">Warehouse —</span>`}<small>${x.shipInv ? `Final shipping ${esc(sd(x.shipInv))}` : "Final shipping —"}</small>` : dash}</td>` },
-    { id: "notes", label: "Notes", title: "ATLAS field: Shipping Team Notes, then the latest daily status update",
-      sort: (x) => x.note ? x.note.date.getTime() : null, ex: (x) => x.m.notes, exx: (x) => x.note ? `${copFmt(x.note.date)}: ${x.note.note}` : "",
-      td: (x) => `<td class="up">${x.m.notes ? `<span class="x keep"><b>Team:</b> ${esc(x.m.notes)}</span>` : ""}${x.note ? `<span class="d">${esc(sd(x.note.date))}</span><span class="x">${esc(x.note.note)}</span>` : x.m.notes ? "" : dash}</td>` },
+    // The Ops Tracker's "Status Notes" column = the latest daily status update.
+    { id: "update", label: "Latest update", xl: "Latest update — date", xl2: "Latest update", title: "The newest daily status update",
+      ft: "text", fv: (x) => x.note ? x.note.note : "",
+      sort: (x) => x.note ? x.note.date.getTime() : null, ex: (x) => x.note ? copFmt(x.note.date) : "", exx: (x) => x.note ? x.note.note : "",
+      td: (x) => `<td class="up">${x.note ? `<span class="d">${esc(sd(x.note.date))}</span><span class="x">${esc(x.note.note)}</span>` : dash}</td>` },
+    // Shipping Team Notes is its own ATLAS field (team notes; later, the relief codes).
+    { id: "team", label: "Team notes", title: "ATLAS field: Shipping Team Notes", ft: "text", fv: (x) => x.m.notes,
+      sort: (x) => copLow(x.m.notes) || null, ex: (x) => x.m.notes,
+      td: (x) => `<td class="up">${x.m.notes ? `<span class="x keep">${esc(x.m.notes)}</span>` : dash}</td>` },
   ];
 }
 
+/* Tracker view settings, kept in this browser: columns switched off and whether
+   the step-time strip shows. Only what's OFF is stored, so a new column
+   starts out visible. */
+function copTrkPrefs() {
+  const t = copGetPrefs().trk;
+  const o = (t && typeof t === "object") ? t : {};
+  return { off: Array.isArray(o.off) ? o.off : [], flow: o.flow !== false };
+}
+function copSetTrkPrefs(t) { const p = copGetPrefs(); p.trk = t; copSetPrefs(p); }
 function copRenderTracker(root, built) {
   const today = built.ctx.today;
+  const tp = copTrkPrefs();
   let xs = copTrackerRows(built);
   const pocs = Array.from(new Set(xs.map((x) => x.r.poc).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   if (CopUi.poc && !pocs.some((p) => copLow(p) === copLow(CopUi.poc))) CopUi.poc = "";
   if (CopUi.poc) xs = xs.filter((x) => copLow(x.r.poc) === copLow(CopUi.poc));
   const nAct = xs.filter((x) => x.active).length, nDel = xs.length - nAct;
-  const scope = ["all", "active", "delivered"].indexOf(CopUi.trkScope) !== -1 ? CopUi.trkScope : "all";
+  const scope = ["all", "active", "delivered"].indexOf(CopUi.trkScope) !== -1 ? CopUi.trkScope : "active";
   const inScope = xs.filter((x) => scope === "all" || (scope === "active") === x.active);
+  const allCols = copTrkCols(today);
+  const cols = allCols.filter((c) => c.id === "wmtr" || tp.off.indexOf(c.id) === -1);
+  const F = CopUi.trkF || (CopUi.trkF = {});
   let rows = inScope;
-  if (CopUi.q) {
-    const q = copLow(CopUi.q);
-    rows = rows.filter((x) => copLow([x.r.wmtr, x.r.title, x.r.origin, x.r.dest, x.r.poc, x.r.status, x.r.program, x.m.itn, x.m.notes].join(" ")).includes(q));
-  }
   if (CopUi.trkPick && !COP_TRK_PICK[CopUi.trkPick]) CopUi.trkPick = "";
   if (CopUi.trkPick) rows = rows.filter(COP_TRK_PICK[CopUi.trkPick]);
+  for (const c of cols) {
+    const v = F[c.id];
+    if (!v || !c.fv) continue;
+    rows = c.ft === "text" ? rows.filter((x) => copLow(c.fv(x)).includes(copLow(v))) : rows.filter((x) => c.fv(x) === v);
+  }
 
-  /* ---- the metrics the tracker was kept for ---- */
+  /* ---- the metrics the tracker was kept for (small tiles; the hover text explains each) ---- */
   const cnt = (f) => inScope.filter(f).length;
   const rfqOn = cnt((x) => x.rfq.st === "ontime"), rfqLate = cnt((x) => x.rfq.st === "late"), rfqOver = cnt((x) => x.rfq.st === "overdue");
   const rfqTot = rfqOn + rfqLate + rfqOver;
@@ -2187,44 +2276,40 @@ function copRenderTracker(root, built) {
   const avgDays = done.length ? Math.round(done.reduce((t, x) => t + copCalDays(x.tl.submitted, x.tl.delivered), 0) / done.length) : null;
   const invOut = cnt(COP_TRK_PICK.inv), mar = cnt(COP_TRK_PICK.marad), hasOcean = inScope.some((x) => x.marad.st !== "na");
   const pct = (a, b) => b ? Math.round((a / b) * 100) + "%" : "—";
-  const tile = (key, tone, big, label, hint) => `<button type="button" class="copx-kpi ${tone} ${CopUi.trkPick === key && key ? "on" : ""}" ${key ? `data-pick="${key}"` : "disabled"} aria-pressed="${CopUi.trkPick === key && !!key}" title="${esc(hint)}">
-      <span class="n">${esc(String(big))}</span><span class="l">${esc(label)}</span><span class="h">${esc(hint)}</span></button>`;
+  const tile = (key, tone, big, label, hint) => `<button type="button" class="copx-kpi ${tone} ${CopUi.trkPick === key && key ? "on" : ""} ${big === 0 || big === "—" ? "zero" : ""}" ${key ? `data-pick="${key}"` : "disabled"} aria-pressed="${CopUi.trkPick === key && !!key}" title="${esc(hint)}">
+      <span class="n">${esc(String(big))}</span><span class="l">${esc(label)}</span></button>`;
   const tiles = el(`<div class="copx-kpis" role="group" aria-label="Tracker metrics — click a tile to filter">
-    ${tile("rfq", !rfqTot ? "" : rfqLate + rfqOver ? "r" : "g", pct(rfqOn, rfqTot), "RFQs sent within 1 business day",
-      rfqTot ? `${rfqOn} of ${rfqTot} on time${rfqOver ? ` · ${rfqOver} overdue now` : ""}${rfqLate ? ` · ${rfqLate} sent late` : ""}` : "No RFQ dates entered yet")}
-    ${tile("eei", eeiMiss ? "r" : eeiHold ? "a" : eeiOk ? "g" : "", eeiOk + eeiMiss ? `${eeiOk} / ${eeiOk + eeiMiss}` : "—", "EEI filed before departure",
-      `US exports that have left with an ITN / NOEEI citation${eeiHold ? ` · ${eeiHold} in Execution still to file` : ""}`)}
-    ${tile("rdd", chg.length ? "a" : "", chg.length, "RDD changed", withOrig.length ? `of ${withOrig.length} with an Original RDD${chg.length ? ` · average ${avgSlip > 0 ? "+" : ""}${avgSlip} days` : ""}` : "No Original RDD entered yet")}
-    ${tile("", "", avgDays === null ? "—" : avgDays, "Days, submitted → delivered", done.length ? `Average over ${copPlural(done.length, "shipment")} delivered since 1 Oct` : "Nothing delivered since 1 Oct in this view")}
-    ${tile("inv", invOut ? "a" : "", invOut, "Final invoices outstanding", "Delivered since 1 Oct with no Final Shipping Invoice Received date")}
-    ${hasOcean ? tile("marad", mar ? "b" : "", mar, "MARAD reports open", "Sealift shipments with a MARAD report due or overdue") : ""}
+    ${tile("rfq", !rfqTot ? "" : rfqLate + rfqOver ? "r" : "g", pct(rfqOn, rfqTot), "RFQs on time",
+      rfqTot ? `RFQ sent within 1 business day: ${rfqOn} of ${rfqTot}${rfqOver ? ` · ${rfqOver} overdue now` : ""}${rfqLate ? ` · ${rfqLate} sent late` : ""}` : "RFQ sent within 1 business day — no RFQ dates entered yet")}
+    ${tile("eei", eeiMiss ? "r" : eeiHold ? "a" : eeiOk ? "g" : "", eeiOk + eeiMiss ? `${eeiOk}/${eeiOk + eeiMiss}` : "—", "EEI filed before departure",
+      `US exports that left with an ITN / NOEEI citation${eeiHold ? ` · ${eeiHold} in Execution still to file` : ""}`)}
+    ${tile("rdd", chg.length ? "a" : "", chg.length, "RDD changed", withOrig.length ? `Of ${withOrig.length} with an Original RDD${chg.length ? ` · average ${avgSlip > 0 ? "+" : ""}${avgSlip} days` : ""}` : "No Original RDD entered yet")}
+    ${done.length ? tile("", "", avgDays, "days to deliver", `Average calendar days from submitted to delivered, over ${copPlural(done.length, "shipment")} delivered since 1 Oct`) : ""}
+    ${nDel && scope !== "active" ? tile("inv", invOut ? "a" : "", invOut, "invoices outstanding", "Delivered since 1 Oct with no Final Shipping Invoice Received date") : ""}
+    ${hasOcean ? tile("marad", mar ? "b" : "", mar, "MARAD open", "Sealift shipments with a MARAD report due or overdue") : ""}
   </div>`);
 
-  /* ---- how long each step takes ---- */
-  const st = copStepTimes(inScope);
-  const flow = el(`<div class="copx-flow" role="list" aria-label="Average business days per step">${st.map((t) => {
-    const over = t.s.goal && t.avg !== null && t.avg > t.s.goal;
-    return `<div class="fs ${t.n ? "" : "none"} ${over ? "over" : ""}" role="listitem" title="${esc(t.s.hint)}">
-      <span class="k">${esc(t.s.label)}</span>
-      <span class="v">${t.avg === null ? "—" : (Math.round(t.avg * 10) / 10)}<i>${t.avg === null ? "" : "days"}</i></span>
-      <span class="m">${t.n ? `${copPlural(t.n, "shipment")}${t.s.goal ? ` · goal ${t.s.goal}` : ""}` : "no dates yet"}</span>
-      ${t.max && t.max.n > 0 ? `<button type="button" class="lnk" data-find="${esc(t.max.x.r.last5)}" title="Show this shipment">Longest: ${esc(t.max.x.r.last5)} · ${t.max.n}d</button>` : `<span class="m">&nbsp;</span>`}
-    </div>`; }).join("")}</div>`);
-
   const card = el(`<section class="copx-card">
-    <div class="copx-hd"><h2>Tracker</h2>
-      <span class="n">Everything the Ops Tracker held, read straight from ATLAS — shipments in progress and those delivered since 1 Oct 2026</span></div>
-    ${built.ds.hasMilestones ? "" : `<div class="copx-banner">${esc(COP_NO_FIELDS_TEXT)} Until then Date Packed, RFQ sent, ITN, MARAD, invoices and team notes show blank.</div>`}
+    ${built.ds.hasMilestones ? "" : `<div class="copx-banner">${esc(COP_NO_FIELDS_TEXT)}</div>`}
   </section>`);
   card.appendChild(tiles);
-  card.appendChild(el(`<div class="copx-flow-hd"><b>Time in each step</b><span>average business days · hover a step for what it measures</span></div>`));
-  card.appendChild(flow);
+  if (tp.flow) {
+    /* ---- how long each step takes ---- */
+    const st = copStepTimes(inScope);
+    card.appendChild(el(`<div class="copx-flow-hd">Average business days in each step</div>`));
+    card.appendChild(el(`<div class="copx-flow" role="list">${st.map((t) => {
+      const over = t.s.goal && t.avg !== null && t.avg > t.s.goal;
+      return `<div class="fs ${t.n ? "" : "none"} ${over ? "over" : ""}" role="listitem" title="${esc(`${t.s.hint} · ${t.n ? copPlural(t.n, "shipment") : "no dates yet"}${t.s.goal ? ` · goal ${t.s.goal}` : ""}`)}">
+        <span class="k">${esc(t.s.label)}</span>
+        <span class="v">${t.avg === null ? "—" : (Math.round(t.avg * 10) / 10)}</span>
+        ${t.max && t.max.n > 0 ? `<button type="button" class="lnk" data-find="${esc(t.max.x.r.last5)}" title="Longest in this step — show this shipment">${esc(t.max.x.r.last5)} · ${t.max.n}d</button>` : ""}
+      </div>`; }).join("")}</div>`));
+  }
   root.appendChild(card);
 
   /* ---- the table ---- */
   const opt = (v, t, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(t)}</option>`;
   const seg = (v, t, n) => `<button type="button" data-scope="${v}" class="${scope === v ? "on" : ""}">${esc(t)} <span class="c">${n}</span></button>`;
-  const cols = copTrkCols(today);
   const sort = CopUi.trkSort || { id: "", dir: 1 };
   const sc = sort.id && cols.find((c) => c.id === sort.id);
   const shown = !sc ? rows : rows.slice().sort((a, b) => {
@@ -2232,19 +2317,37 @@ function copRenderTracker(root, built) {
     if (blank(va) || blank(vb)) return copCmp(va, vb) || a.r.num - b.r.num;
     return sort.dir * copCmp(va, vb) || a.r.num - b.r.num;
   });
+  const head = cols.map((c) => {
+    const on = sort.id === c.id;
+    return `<th class="srt${on ? " on" : ""}${c.id === "wmtr" ? " stick" : ""}" data-sort="${c.id}" tabindex="0" title="${esc(c.title || "Click to sort")}" aria-sort="${on ? (sort.dir > 0 ? "ascending" : "descending") : "none"}">${esc(c.label)}${on ? ` <span class="ar">${sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
+  }).join("");
+  const fil = cols.map((c) => {
+    const stick = c.id === "wmtr" ? ' class="stick"' : "";
+    if (!c.fv) return `<th${stick}></th>`;
+    const v = F[c.id] || "";
+    if (c.ft === "text") return `<th${stick}><input type="search" class="copx-cf" data-cf="${esc(c.id)}" value="${esc(v)}" placeholder="Filter" aria-label="Filter ${esc(c.label)}"></th>`;
+    const vals = Array.from(new Set(inScope.map((x) => c.fv(x)).filter(Boolean)));
+    if (v && vals.indexOf(v) === -1) vals.push(v);
+    vals.sort((a, b) => copCmp(a, b));
+    return `<th${stick}><select class="copx-cf" data-cf="${esc(c.id)}" aria-label="Filter ${esc(c.label)}">${opt("", "All", !v)}${vals.map((x) => opt(x, x, x === v)).join("")}</select></th>`;
+  }).join("");
+  const box = (id, label, on, locked) => `<label class="copx-chk"><input type="checkbox" data-tcol="${esc(id)}" ${on ? "checked" : ""} ${locked ? "disabled" : ""}> ${esc(label)}</label>`;
   const tcard = el(`<section class="copx-card">
     <div class="copx-frow trk">
-      <div class="copx-f"><label for="copQ">Search</label><input type="search" id="copQ" placeholder="WMTR, title, country, ITN, notes" value="${esc(CopUi.q)}"></div>
-      <div class="copx-f"><label for="copPoc">TTI POC</label><select id="copPoc">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select></div>
-      <div class="copx-f"><label>Show</label><div class="copx-seg">${seg("all", "All", xs.length)}${seg("active", "In progress", nAct)}${seg("delivered", "Delivered since 1 Oct", nDel)}</div></div>
-      <div class="copx-fbtns"><button class="copx-btn ghost" id="copReset" type="button">Reset</button></div>
+      <select id="copPoc" class="copx-sel" aria-label="TTI POC">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select>
+      <div class="copx-seg">${seg("active", "In progress", nAct)}${seg("delivered", "Delivered since 1 Oct", nDel)}${seg("all", "All", xs.length)}</div>
+      ${rows.length === inScope.length ? "" : `<span class="n">${rows.length} of ${inScope.length}</span>`}
+      <button class="copx-btn sm ${CopUi.trkViewOpen ? "blue" : ""}" id="copTrkView" type="button" aria-expanded="${!!CopUi.trkViewOpen}" style="margin-left:auto">Columns</button>
+      <button class="copx-btn ghost sm" id="copReset" type="button">Reset</button>
     </div>
-    <div class="copx-tbl copx-trk"><table><thead><tr class="hd">${cols.map((c) => {
-      const on = sort.id === c.id;
-      return `<th class="srt${on ? " on" : ""}${c.id === "wmtr" ? " stick" : ""}" data-sort="${c.id}" tabindex="0" title="${esc(c.title || "Click to sort")}" aria-sort="${on ? (sort.dir > 0 ? "ascending" : "descending") : "none"}">${esc(c.label)}${on ? ` <span class="ar">${sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`; }).join("")}</tr></thead>
+    ${CopUi.trkViewOpen ? `<div class="copx-colpick">
+      <div><div class="k">Columns</div>${allCols.map((c) => box(c.id, c.label.replace("’", "'"), c.id === "wmtr" || tp.off.indexOf(c.id) === -1, c.id === "wmtr")).join("")}</div>
+      <div><div class="k">Above the table</div>${box("@flow", "Average business days in each step", tp.flow)}</div>
+      <div class="ft"><button class="lnk" type="button" id="copTrkViewReset">Show everything</button></div>
+    </div>` : ""}
+    <div class="copx-tbl copx-trk"><table><thead><tr class="hd">${head}</tr><tr class="flt">${fil}</tr></thead>
       <tbody>${shown.map((x) => `<tr class="row" data-w="${esc(x.r.wmtr)}" data-act="${x.active ? 1 : 0}">${cols.map((c) => c.td(x)).join("")}</tr>`).join("")
         || `<tr><td colspan="${cols.length}" class="copx-msg">No shipments match.</td></tr>`}</tbody></table></div>
-    <p class="copx-foot">${rows.length === inScope.length ? copPlural(rows.length, "shipment") : `${rows.length} of ${inScope.length} shipments`} · the small “+3d” under a date is the business days since the step before it · click a row for its full checklist · shipments delivered before 1 Oct 2026 are on the archived Ops Tracker</p>
   </section>`);
   root.appendChild(tcard);
 
@@ -2252,24 +2355,39 @@ function copRenderTracker(root, built) {
   const $ = (s) => root.querySelector(s);
   root.querySelectorAll("button[data-pick]").forEach((b) => b.addEventListener("click", () => { CopUi.trkPick = CopUi.trkPick === b.dataset.pick ? "" : b.dataset.pick; copRerender(); }));
   root.querySelectorAll("button[data-scope]").forEach((b) => b.addEventListener("click", () => { CopUi.trkScope = b.dataset.scope; copRerender(); }));
-  root.querySelectorAll("button[data-find]").forEach((b) => b.addEventListener("click", () => { CopUi.q = b.dataset.find; CopUi.trkPick = ""; copRerender(); }));
+  root.querySelectorAll("button[data-find]").forEach((b) => b.addEventListener("click", () => { F.wmtr = b.dataset.find; CopUi.trkPick = ""; copRerender(); }));
   $("#copPoc").addEventListener("change", (e) => { CopUi.poc = e.target.value; copRerender(); });
-  const q = $("#copQ");
-  let qt = null;
-  q.addEventListener("input", () => {
-    clearTimeout(qt);
-    qt = setTimeout(() => {
-      CopUi.q = q.value; copRerender();
-      const nq = document.getElementById("copQ");
-      if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); }
-    }, 250);
-  });
-  $("#copReset").addEventListener("click", () => { Object.assign(CopUi, { poc: "", q: "", trkPick: "", trkScope: "all", trkSort: null }); copRerender(); });
+  $("#copReset").addEventListener("click", () => { Object.assign(CopUi, { poc: "", q: "", trkPick: "", trkScope: "active", trkSort: null, trkF: {} }); copRerender(); });
+  $("#copTrkView").addEventListener("click", () => { CopUi.trkViewOpen = !CopUi.trkViewOpen; copRerender(); });
+  root.querySelectorAll("input[data-tcol]").forEach((cb) => cb.addEventListener("change", () => {
+    const id = cb.dataset.tcol, t = copTrkPrefs();
+    if (id === "@flow") t.flow = cb.checked;
+    else { t.off = t.off.filter((x) => x !== id); if (!cb.checked) { t.off.push(id); delete F[id]; if (sort.id === id) CopUi.trkSort = null; } }
+    copSetTrkPrefs(t); copRerender();
+  }));
+  const vr = $("#copTrkViewReset");
+  if (vr) vr.addEventListener("click", () => { copSetTrkPrefs({ off: [], flow: true }); copRerender(); });
   const sortBy = (id) => { CopUi.trkSort = sort.id === id ? { id, dir: -sort.dir } : { id, dir: 1 }; copRerender(); };
   root.querySelectorAll(".copx-trk th[data-sort]").forEach((th) => {
     th.addEventListener("click", () => sortBy(th.dataset.sort));
     th.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sortBy(th.dataset.sort); } });
   });
+  let ft = null;
+  root.querySelectorAll(".copx-trk .copx-cf").forEach((inp) => {
+    const id = inp.dataset.cf;
+    const apply = () => {
+      F[id] = inp.value; copRerender();
+      if (inp.tagName === "INPUT") {
+        const n = document.querySelector(`.copx-trk .copx-cf[data-cf="${CSS.escape(id)}"]`);
+        if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+      }
+    };
+    if (inp.tagName === "SELECT") inp.addEventListener("change", apply);
+    else inp.addEventListener("input", () => { clearTimeout(ft); ft = setTimeout(apply, 300); });
+  });
+  // keep the filter row pinned just under the header row
+  const hd = root.querySelector(".copx-trk tr.hd");
+  if (hd) requestAnimationFrame(() => root.querySelectorAll(".copx-trk tr.flt th").forEach((th) => { th.style.top = hd.offsetHeight + "px"; }));
   root.querySelectorAll(".copx-trk tr.row").forEach((tr) => tr.addEventListener("click", (e) => {
     if (e.target.closest("a,button")) return;
     const w = tr.dataset.w;
@@ -2288,23 +2406,21 @@ function copRenderTracker(root, built) {
   });
 }
 
-/** Tracker view -> .xlsx (what's on screen, plain values). */
+/** Tracker view -> .xlsx (the rows and columns on screen, plain values). */
 function copExportTracker(rows, cols) {
-  const head = [], pick = [];
+  const head = ["Status"], pick = [(x) => x.r.status];
   for (const c of cols) {
-    head.push(c.label.replace("’", "'")); pick.push(c.ex);
-    if (c.exx) { head.push(c.id === "inv" ? "Final shipping invoice rec'd" : c.id === "notes" ? "Latest daily update" : c.label + " — status"); pick.push(c.exx); }
+    head.push(c.xl || c.label.replace("’", "'")); pick.push(c.ex);
+    if (c.exx) { head.push(c.xl2 || c.label.replace("’", "'") + " — status"); pick.push(c.exx); }
   }
-  head[head.indexOf("Invoices rec'd")] = "Warehouse invoice rec'd";
-  const aoa = [["Status"].concat(head)];
-  for (const x of rows) aoa.push([x.r.status].concat(pick.map((f) => f(x) || "")));
+  const aoa = [head];
+  for (const x of rows) aoa.push(pick.map((f) => f(x) || ""));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = aoa[0].map((h) => ({ wch: /update|Notes/.test(h) ? 60 : /WMTR/.test(h) ? 26 : /Route/.test(h) ? 30 : 18 }));
+  ws["!cols"] = head.map((h) => ({ wch: /update$|notes/i.test(h) ? 60 : /WMTR/.test(h) ? 26 : /Route/.test(h) ? 30 : 18 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Tracker");
   pmrDownloadXlsxB64(XLSX.write(wb, { type: "base64", bookType: "xlsx" }), `Shipping_Tracker_${fileStamp()}.xlsx`);
 }
-
 /* Small chain-link mark for consolidated shipments (teal, like the hover's consol line). */
 const COP_CONSOL_ICON = `<span class="cl" title="Consol" aria-hidden="true"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></span>`;
 
@@ -2324,7 +2440,7 @@ function copBoard(base, rows) {
   const sortB = (a, b) => copCmp(a.statusSince ? a.statusSince.getTime() : null, b.statusSince ? b.statusSince.getTime() : null) || a.num - b.num;
   const tally = (xs) => {
     const r = xs.filter((x) => x.health === "red").length, a = xs.filter((x) => x.health === "amber").length;
-    return `<span class="r"><b>${r}</b> missed</span><span class="a"><b>${a}</b> attention</span><span class="g"><b>${xs.length - r - a}</b> on track</span>`;
+    return (r ? `<span class="r"><b>${r}</b> missed</span>` : "") + (a ? `<span class="a"><b>${a}</b> attention</span>` : "");
   };
   const board = el(`<div class="copx-board"></div>`);
   for (const s of COP_STEPS) {
@@ -2340,9 +2456,9 @@ function copBoard(base, rows) {
       }).join("");
     } else body = xs.length ? xs.map(tag).join("") : `<span class="copx-empty">None</span>`;
     board.appendChild(el(`<div class="copx-col ${s.id}">
-      <div class="ch"><div class="t">${esc(s.label)}</div><div class="s">${esc(s.sub)}</div>
+      <div class="ch" title="${esc(s.sub)}"><div class="t">${esc(s.label)}</div>
         <span class="cnt" title="${xs.length} WMTR${xs.length === 1 ? "" : "s"} in this step">${xs.length}</span></div>
-      <div class="tally">${tally(xs)}</div>
+      ${tally(xs) ? `<div class="tally">${tally(xs)}</div>` : ""}
       <div class="cb ${COP_STEP_SUBS[s.id] ? "subs" : ""}">${body}</div></div>`));
   }
   const unplaced = base.filter((r) => !r.step);
@@ -3159,7 +3275,7 @@ function copWire(root, built, rows, isActive) {
   $("#copPoc").addEventListener("change", (e) => { CopUi.poc = e.target.value; copRerender(); });
   if ($("#copHit")) $("#copHit").addEventListener("change", (e) => { CopUi.hit = e.target.value; copRerender(); });
   $("#copRdd").addEventListener("change", (e) => { CopUi.rddDays = Number(e.target.value) || 0; copRerender(); });
-  $("#copRisk").addEventListener("change", (e) => { CopUi.atRisk = e.target.checked; copRerender(); });
+  if ($("#copRisk")) $("#copRisk").addEventListener("change", (e) => { CopUi.atRisk = e.target.checked; copRerender(); });
   root.querySelectorAll(".copx-today button[data-quick]").forEach((b) => b.addEventListener("click", () => {
     const k = b.dataset.quick;
     if (k === "attention") { CopUi.atRisk = !CopUi.atRisk; CopUi.quick = ""; }
@@ -3167,16 +3283,7 @@ function copWire(root, built, rows, isActive) {
     else { CopUi.quick = CopUi.quick === k ? "" : k; CopUi.atRisk = false; }
     copRerender();
   }));
-  const q = $("#copQ");
-  let qt = null;
-  q.addEventListener("input", () => {
-    clearTimeout(qt);
-    qt = setTimeout(() => {
-      CopUi.q = q.value; copRerender();
-      const nq = document.getElementById("copQ");
-      if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); }
-    }, 250);
-  });
+  CopUi.q = "";
   $("#copReset").addEventListener("click", () => {
     Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", quick: "", focus: "" });
     const st = copTblState(isActive); st.f = {}; st.sort = "";
@@ -3547,9 +3654,9 @@ async function copAutoFetch(force) {
   } catch (e) {
     console.error(e);
     CopPull.err = String(e.message || e);
-    atlasSetStatus(`Couldn't pull the UDQ from ATLAS — ${CopPull.err}` +
-      (AppState.udqType === "metrics" ? " Still showing the UDQ already loaded."
-        : " Fetching only works inside ATLAS; drop a UDQ export instead."), true);
+    if (AppState.udqType === "metrics" && /^ATLAS API/i.test(AppState.fileName || ""))
+      atlasSetStatus(`Couldn't refresh from ATLAS — ${CopPull.err} Still showing the earlier pull.`, true);
+    else atlasSetStatus("");
     CopPull.busy = false;
     copRerender();
     return;                                          // no ATLAS → don't try the Christmas Tree either
@@ -3636,11 +3743,11 @@ function copHubDropBox() {
   const chip = (u, on) => `<span class="cop-drop-chip ${on ? "on" : ""}">${on ? "&#10003; " : ""}${esc(u)}</span>`;
   const has = { Metrics: AppState.udqType === "metrics", PR: copHubHas("proc"), PMCT: copHubHas("prop"), PLS: copHubHas("pls") };
   const box = el(`<div class="cop-drop">
-    <div class="dropzone compact" tabindex="0" role="button" aria-label="Drop UDQ exports for the Dashboard">
+    <div class="dropzone compact" tabindex="0" role="button" aria-label="Drop UDQ exports for the Dashboard"
+      title="Metrics, PR, PMCT and PLS UDQ exports (.xlsx) — one or several at once, or click to browse. Each lights up its own tab.">
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;color:var(--steel)">
         <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
-      <div style="flex:1;min-width:0"><div class="dz-title">${CopDrop.busy ? "Reading…" : "Drop UDQs here"}</div>
-        <div class="dz-sub">Metrics, PR, PMCT and PLS UDQ exports (.xlsx) — one or several at once, or click to browse. Each lights up its own tab.</div></div>
+      <div style="flex:1;min-width:0"><div class="dz-title">${CopDrop.busy ? "Reading…" : "Drop UDQs here"}</div></div>
       <div class="cop-drop-chips" aria-label="Loaded UDQs">${Object.keys(has).map((u) => chip(u, has[u])).join("")}</div>
     </div>
     <input type="file" accept=".xlsx,.xlsm,.xls" multiple hidden>
@@ -3693,7 +3800,7 @@ async function copHubIngest(fileList) {
   CopDrop.busy = false;
   const errMsg = bad.length ? ` Couldn't load ${bad.join(", ")}` +
     (XTree.statusErr && XTree.status ? ` — ${XTree.status}` : PmPls.err && PmPls.status ? ` — ${PmPls.status}` : ".") : "";
-  CopDrop.status = (parts.length ? `Loaded ${parts.join(" · ")}.` : "") + errMsg +
+  CopDrop.status = errMsg.trim() +
     (other.length && !copHubActive() ? "" : other.length ? ` ${other.join(", ")} isn't a Dashboard UDQ — it went to the main loader.` : "");
   CopDrop.err = !!bad.length && !parts.length;
   if (!copHubActive()) return;                         // a shipment UDQ was opened instead — loadFile already showed it

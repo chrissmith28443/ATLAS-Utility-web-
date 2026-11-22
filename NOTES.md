@@ -747,3 +747,11 @@ Arrived Warehouse or the warehouse actual date is filled.
   sky blue, violet, gold, raspberry) and asked to pick; change ATLAS_SCHEMES[0].brand / .ink and the three
   "var(--brand, #0a7f7b)" fallbacks stay harmless.
   Pushed 2026-11-22.
+
+## v2.9.14 (2026-11-22) — header lighter again, request bar darker
+- User on 2.9.13: header "a little lighter still"; request bar "a little darker — too close to the gray background".
+- Navy scheme hdr #2f4f86 -> #3d63a5. Request bar wash 8% -> 24% of --sch (border 45%); WMTR / mode text are now
+  --sch mixed 65% toward --ink so they stay readable on the deeper tint; summary chips are translucent white.
+  History of the default header: #16283C (original) -> white (2.9.12, "too white") -> #1b2b4b ("too dark again")
+  -> #2f4f86 -> #3d63a5. Applies to every scheme (percentages are shared).
+  Pushed 2026-11-22.

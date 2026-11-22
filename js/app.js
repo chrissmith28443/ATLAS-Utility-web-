@@ -996,7 +996,7 @@ function renderRail() {
 const ATLAS_THEME_KEY = "atlas.theme";
 const ATLAS_SCHEME_KEY = "atlas.scheme";
 const ATLAS_SCHEMES = [
-  { id: "navy",     label: "Navy",     hdr: "#2f4f86", brand: "#f2b01e", ink: "#1b2b4b" },
+  { id: "navy",     label: "Navy",     hdr: "#3d63a5", brand: "#f2b01e", ink: "#1b2b4b" },
   { id: "ocean",    label: "Ocean",    hdr: "#0f4c81", brand: "#2cc3d6", ink: "#06262c" },
   { id: "forest",   label: "Forest",   hdr: "#1f4d3a", brand: "#e0aa25", ink: "#1d2a12" },
   { id: "graphite", label: "Graphite", hdr: "#2b2f36", brand: "#3d8bfd", ink: "#061a3a" },

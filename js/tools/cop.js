@@ -1902,6 +1902,9 @@ tr.copx-det td{background:var(--ax-soft)}
 .copx-tbl th{padding:8px 12px}
 .copx-tbl td{padding:8px 12px}
 .copx-trk tr.flt th.stick{z-index:3}
+.copx-ibtn.go{color:var(--ax-green);margin-left:-8px}
+.copx-ibtn.go:hover:not(:disabled){background:var(--ax-green-soft);color:var(--ax-green)}
+body.theme-dark .copx-ibtn.go{color:#66bb6a}
 `;
 
 /* Display groups for a check's stage (active steps + the audit engine's lanes). */
@@ -1962,14 +1965,14 @@ function renderCopWorkspace(container) {
 
   /* ---- page header: one quiet line — title, data-freshness dot, the three views, icon actions ---- */
   const vbtn = (v, label, n) => `<button type="button" data-v="${v}" class="${view === v ? "on" : ""}" role="tab" aria-selected="${view === v}">${esc(label)}${n === null ? "" : `<span class="c">${n}</span>`}</button>`;
-  const ico = (d) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const ico = (d, w, sz) => `<svg viewBox="0 0 24 24" width="${sz || 15}" height="${sz || 15}" fill="none" stroke="currentColor" stroke-width="${w || 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const top = el(`<header class="copx-top">
     <h1>Shipping Operations</h1>${copFreshChip(built)}
+    <button class="copx-ibtn go" id="copRefresh" type="button" title="Refresh — pull the latest from ATLAS" aria-label="Refresh from ATLAS" ${CopPull.busy ? "disabled" : ""}>${ico('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>', 3, 17)}</button>
     <div class="copx-tabs" role="tablist" aria-label="Shipment views">
       ${vbtn("active", "In progress", built.active.length)}${vbtn("tracker", "Tracker", null)}${vbtn("closed", "Closed audit", built.closed.length)}
     </div>
     <div class="acts">
-      <button class="copx-ibtn" id="copRefresh" type="button" title="Refresh — pull the latest from ATLAS" aria-label="Refresh from ATLAS" ${CopPull.busy ? "disabled" : ""}>${ico('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>')}</button>
       ${view === "tracker" ? "" : `<button class="copx-ibtn" id="copPrint" type="button" title="Print this view" aria-label="Print">${ico('<path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/>')}</button>`}
       <button class="copx-ibtn" id="${view === "tracker" ? "copTrkExport" : "copExport"}" type="button" title="Export to Excel" aria-label="Export to Excel">${ico('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/>')}</button>
     </div>
@@ -2335,7 +2338,7 @@ function copRenderTracker(root, built) {
   const tcard = el(`<section class="copx-card">
     <div class="copx-frow trk">
       <select id="copPoc" class="copx-sel" aria-label="TTI POC">${opt("", "All TTI POCs", !CopUi.poc)}${pocs.map((p) => opt(p, p, copLow(p) === copLow(CopUi.poc))).join("")}</select>
-      <div class="copx-seg">${seg("active", "In progress", nAct)}${seg("delivered", "Delivered since 1 Oct", nDel)}${seg("all", "All", xs.length)}</div>
+      <div class="copx-seg">${seg("active", "In progress", nAct)}${seg("delivered", "Delivered", nDel)}${seg("all", "All", xs.length)}</div>
       ${rows.length === inScope.length ? "" : `<span class="n">${rows.length} of ${inScope.length}</span>`}
       <button class="copx-btn sm ${CopUi.trkViewOpen ? "blue" : ""}" id="copTrkView" type="button" aria-expanded="${!!CopUi.trkViewOpen}" style="margin-left:auto">Columns</button>
       <button class="copx-btn ghost sm" id="copReset" type="button">Reset</button>
@@ -3659,6 +3662,7 @@ async function copAutoFetch(force) {
     else atlasSetStatus("");
     CopPull.busy = false;
     copRerender();
+    copHubRefreshTabs();                             // not connected → the drop box appears
     return;                                          // no ATLAS → don't try the Christmas Tree either
   }
   // Swap in only if the Metrics data (or nothing) is still what's loaded —
@@ -3669,6 +3673,7 @@ async function copAutoFetch(force) {
     await copSwapInMetrics(recs);
     atlasSetStatus(`Up to date with ATLAS as of ${copClock(CopPull.okAt)} — ${recs.length} records.`);
     copRerender();
+    copHubRefreshTabs();
   }
   // Christmas Tree SRF slot from the pull above (no extra fetch). PR / PMCT / PLS are pulled by pmAutoPull
   // when Dashboard is clicked; the WS UDQ isn't pulled while the Christmas Tree tab is hidden.
@@ -3709,7 +3714,7 @@ function copHubTabs() {
     for (const t of subs) sub.appendChild(btn(t, cur === t.id));
     wrap.appendChild(sub);
   }
-  if (drop) wrap.appendChild(copHubDropBox());
+  if (copHubDropShown()) wrap.appendChild(copHubDropBox());
   return wrap;
 }
 
@@ -3719,13 +3724,25 @@ function copHubTabs() {
    PMR / Export-Controlled, PR → Procurement, PMCT → Property, PLS → PLS (a WS UDQ
    goes to the Christmas Tree). Anything else (a single-shipment UDQ…)
    goes to the main loader, exactly as the main drop zone would take it.
-   Settings › General › "Dashboard UDQ drop box" turns it off for when the Utility
-   runs inside ATLAS and pulls the UDQs itself (every tab is then always clickable).
+   Only for working WITHOUT ATLAS (2.9.2): it shows when a pull from ATLAS hasn't
+   worked (atlas-utility.net), never once one has (copAtlasConnected — every tab is
+   then always clickable), and not while a pull is still running. Settings ›
+   General › "Dashboard UDQ drop box" switches it off altogether.
    ------------------------------------------------------------------------- */
 const COP_HUB_UDQ = { cop: "Metrics", metrics: "Metrics", pmr: "Metrics", ecm: "Metrics", proc: "PR", prop: "PMCT", pls: "PLS" };
 const CopDrop = { status: "", err: false, busy: false };
+/** A pull from ATLAS has worked this session = the Utility is running connected to ATLAS. */
+function copAtlasConnected() { return typeof AtlasLive !== "undefined" && !!AtlasLive.ok; }
+/** The drop box (and "a tab lights up once its UDQ is dropped") is only for working
+    WITHOUT ATLAS — e.g. on atlas-utility.net. Once a pull has worked it's off;
+    Settings › General can also switch it off altogether. */
 function copHubDropOn() {
+  if (copAtlasConnected()) return false;
   try { return typeof AtlasSettings === "undefined" || AtlasSettings.get().dashDrop !== false; } catch (e) { return true; }
+}
+/** Out of sight while a pull is still running, so it never flashes up inside ATLAS. */
+function copHubDropShown() {
+  return copHubDropOn() && !CopPull.busy && !(typeof PmPull !== "undefined" && PmPull.busy);
 }
 /** Does this tab's UDQ have data loaded? (Shipments and the Metrics tabs follow the Metrics UDQ.) */
 function copHubHas(id) {

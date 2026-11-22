@@ -879,7 +879,8 @@ function renderWorkspace() {
     AppState.activeTool === "xmastree" || AppState.activeTool === "invconv" ||
     AppState.activeTool === "proc" || AppState.activeTool === "prop" || AppState.activeTool === "pls" ||
     // The Dashboard has its own drop box under the tab bar (cop.js) — one drop target, not two.
-    (typeof copHubDropOn === "function" && copHubDropOn() && copHubActive()));
+    // Connected to ATLAS, the Dashboard pulls its own data: no drop zone at all.
+    (typeof copHubDropOn === "function" && copHubActive() && (copHubDropOn() || copAtlasConnected())));
   // Dashboard views keep the "Loaded …" line out of sight (errors still show) — less to read.
   document.body.classList.toggle("cop-quiet", typeof copHubActive === "function" && copHubActive());
   const offline = typeof offlineOn === "function" && offlineOn();

@@ -339,8 +339,8 @@ function openSettings() {
             <div class="settings-note">Remembers what you've typed in a tool's form (per UDQ) so it survives switching tools or an accidental reload. Turn off if a form misbehaves.</div>
             <label class="set-check"><input type="checkbox" id="setDashInfo" ${s.dashInfo !== false ? "checked" : ""}> Show &ldquo;how it's calculated&rdquo; info bubbles on the Procurement and Property dashboards</label>
             <div class="settings-note">Each card and chart gets a small &#9432; you can hover or tap to see which ATLAS fields it uses and how its numbers are worked out.</div>
-            <label class="set-check"><input type="checkbox" id="setDashDrop" ${s.dashDrop !== false ? "checked" : ""}> Dashboard UDQ drop box</label>
-            <div class="settings-note">One drop box under the Dashboard tabs: drop any Metrics, PR, PMCT or PLS UDQ export (or several at once) and each lights up its own tab. Turn off when the Utility runs inside ATLAS and pulls the UDQs itself &mdash; every tab is then always clickable.</div>
+            <label class="set-check"><input type="checkbox" id="setDashDrop" ${s.dashDrop !== false ? "checked" : ""}> Dashboard UDQ drop box (only when not connected to ATLAS)</label>
+            <div class="settings-note">One drop box under the Dashboard tabs for working without ATLAS: drop any Metrics, PR, PMCT or PLS UDQ export (or several at once) and each lights up its own tab. It hides itself once the Utility has pulled from ATLAS. Untick to never show it.</div>
           </div>
 
           <div class="settings-section" id="setAppSection">

@@ -555,3 +555,9 @@ Arrived Warehouse or the warehouse actual date is filled.
   (2) RELIEF CODES in Shipping Team Notes — that field will carry codes that relieve a shipment from a metric; the
   Utility must read them and override the flag. Code format not decided (proposal given in chat: [RELIEF: RFQ] etc.,
   mapped onto the existing acknowledge keys so it's shared by everyone instead of per browser). Nothing built yet.
+- v2.9.2 (user, 2026-11-22): Dashboard drop box is AUTOMATIC — copHubDropOn() is false once AtlasLive.ok (a pull has
+  worked = connected to ATLAS; copAtlasConnected), copHubDropShown() also hides it while CopPull / PmPull is busy.
+  Setting dashDrop = hard off. Main #dropzone is hidden on Dashboard views when the box is on OR connected. NB the
+  user says "offline version" for atlas-utility.net (not connected to ATLAS) — NOT the 2.7.0 "Offline mode" app.
+  Refresh = green icon (.copx-ibtn.go) right after the title + data-source dot. Tracker seg label "Delivered".
+  Pushed 2026-11-22.

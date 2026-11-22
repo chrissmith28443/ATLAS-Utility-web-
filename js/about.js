@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.2",
+    title: "Dashboard drop box only when not connected to ATLAS",
+    notes: [
+      "The Dashboard's \"Drop UDQs here\" box now shows only when the Utility isn't connected to ATLAS (for example on atlas-utility.net). Once a pull from ATLAS has worked it stays hidden, and it doesn't appear while a pull is still running.",
+      "Refresh is a green icon right after the title and the data-source dot.",
+      "Tracker: the \"Delivered since 1 Oct\" button is just \"Delivered\".",
+    ],
+  },
+  {
     version: "2.9.1",
     title: "A quieter Shipments dashboard",
     notes: [

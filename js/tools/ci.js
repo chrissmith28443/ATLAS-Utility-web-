@@ -21,10 +21,14 @@ function ciBuildPages(data, opts) {
   // user's own; without it the CI prints exactly as before.
   const br = brand ? {
     logo_left: brand.logoLeft || "", logo_right: brand.logoRight || "", company_name: brand.companyName || "",
+    brand_label: "", brand_sub: "",
     prepared_by: brand.preparedBy || "", declaration_text: brand.declaration || "",
     remarks_boiler: brand.boiler || "", origin_label: brand.originLabel || "ORIGIN",
   } : {
-    logo_left: LOGO_LEFT, logo_right: LOGO_RIGHT, company_name: "",
+    // 2.9.18: no logo images on the invoice — the DTRA seal (LOGO_LEFT) and the TRLS II logo
+    // (LOGO_RIGHT) are gone; a "TRLS II" text label sits at the right of the header instead.
+    logo_left: "", logo_right: "", company_name: "",
+    brand_label: "TRLS II", brand_sub: "TechTrans International",
     prepared_by: CI_PREPARED_BY, declaration_text: CI_DECLARATION,
     remarks_boiler: CI_REMARKS_BOILERPLATE, origin_label: "ORIGIN",
   };
@@ -243,12 +247,12 @@ function ciRenderPage(p, pageIdx, totalPages) {
     return `
 <div class="page"><div class="sheet">
   <div class="header">
-    <div class="header-logo left">${ciLogoHtml(p.logo_left, p.company_name)}</div>
-    <div class="header-center">
-      <div class="header-subtitle">${esc(p.declaration_text)}</div>
+    <div class="header-main">
       <div class="header-title">COMMERCIAL INVOICE</div>
+      <div class="header-subtitle">${esc(p.declaration_text)}</div>
     </div>
-    <div class="header-logo right">${ciLogoHtml(p.logo_right, "")}</div>
+    <div class="header-logos">${ciLogoHtml(p.logo_left, p.company_name)}${ciLogoHtml(p.logo_right, "")}${p.brand_label ? `
+      <div class="header-brand"><div class="hb-mark">${esc(p.brand_label)}</div>${p.brand_sub ? `<div class="hb-sub">${esc(p.brand_sub)}</div>` : ""}</div>` : ""}</div>
   </div>
 
   <div class="page-num page-num--p1">
@@ -453,6 +457,7 @@ const CI_CSS = `
   --ci-tint:  #eef2f5;   /* label bands */
   --ci-zebra: #f7f9fa;   /* alternate item rows */
   --ci-red:   #a40d0d;   /* customs declaration */
+  --ci-accent:#2f496f;   /* title + the line under the header (steel blue, as on the Packing List) */
   --ci-radius: 4px;
 }
 
@@ -529,55 +534,77 @@ body{
    PAGE 1 HEADER (LOGOS + TITLE)
    ========================= */
 .header{
-  display: grid;
-  grid-template-columns: 1.2fr 3.6fr 1.2fr;
-  align-items: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 2px 5px 2px;
   margin-bottom: 2px;
+  border-bottom: 2px solid var(--ci-accent);
 }
-.header-center{ text-align: center; line-height: 1.05; }
+.header-main{ line-height: 1.1; min-width: 0; }
+.header-title{
+  font-size: 17pt;
+  font-weight: bold;
+  color: var(--ci-accent);
+  letter-spacing: 0.1em;
+  margin: 0;
+}
 .header-subtitle{
   font-size: 7.5pt;
   font-weight: bold;
   color: var(--ci-red);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin: 0 0 1px 0;
+  margin: 3px 0 0 0;
 }
-.header-title{
-  font-size: 14pt;
+/* Right side: the "TRLS II" label (offline mode: the user's own logo or company name instead). */
+.header-brand{ text-align: right; line-height: 1; }
+.hb-mark{
+  display: inline-block;
+  background: var(--ci-accent);
+  color: #fff;
+  font-size: 13pt;
   font-weight: bold;
-  color: var(--ci-ink);
   letter-spacing: 0.14em;
-  margin: 0;
+  padding: 4px 9px 4px 12px;
+  border-radius: 4px;
 }
-.header-logo{ display: flex; align-items: center; }
-.header-logo.left{ justify-content: flex-start; }
-.header-logo.right{ justify-content: flex-end; }
-.header-logo img{
-  max-height: 60px;
-  max-width: 100%;
+.hb-sub{
+  font-size: 6.5pt;
+  font-weight: bold;
+  color: var(--ci-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  margin-top: 4px;
+}
+.header-logos{ display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex: none; }
+.header-logos img{
+  max-height: 46px;
+  max-width: 230px;
   object-fit: contain;
   display: block;
 }
-.header-coname{ font: 700 15px Arial, sans-serif; line-height: 1.15; max-width: 100%; }
+.header-coname{ font: 700 15px Arial, sans-serif; line-height: 1.15; max-width: 260px; text-align: right; }
 
 /* =========================
    CONTINUATION PAGE HEADER
    ========================= */
 .cont-header{
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 6px 0;
+  justify-content: flex-start;
+  align-items: flex-end;
+  padding: 3px 2px 4px 2px;
   margin-bottom: 0;
+  border-bottom: 2px solid var(--ci-accent);
 }
 .cont-title{
-  font-size: 14pt;
+  font-size: 13pt;
   font-weight: bold;
-  color: var(--ci-ink);
-  letter-spacing: 0.14em;
+  color: var(--ci-accent);
+  letter-spacing: 0.1em;
   line-height: 1.15;
-  text-align: center;
+  text-align: left;
 }
 
 /* =========================

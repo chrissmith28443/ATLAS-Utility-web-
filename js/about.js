@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.18",
+    title: "New Commercial Invoice header; Required Attachments is part of Audit",
+    notes: [
+      "Commercial Invoice: the DTRA symbol is gone and the header is redone — the title at the left in steel blue with the customs declaration under it, a TRLS II label at the right (no logo images), and a steel-blue line beneath. Continuation pages match. Everything below the header is unchanged.",
+      "Required Attachments is no longer a separate item in the menu. Its check is one of the Audit's checks, and that row now lists every required document as present or missing, with what is attached to the record. Copy and Export include the list.",
+    ],
+  },
+  {
     version: "2.9.17",
     title: "New RFQ email layout; Packing List, IPC and Inventory Sheet recoloured",
     notes: [

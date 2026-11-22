@@ -161,6 +161,9 @@ function raudBuild(grid) {
     if (!docs) return Object.assign(base, { state: "na", detail: "Attachment rules apply to shipping (SRF) records only." });
     if (docs.hand_carry) return Object.assign(base, { state: "na", detail: `Shipment mode is ${docs.shipment_as} — no attachment check required.` });
     if (!docs.classifiable) return Object.assign(base, { state: "unknown", detail: "Country of Origin and/or Destination is blank, so the required document set is undefined." });
+    // From here the check carries the full attachment audit (c.docs), so the page, Copy and
+    // Export can list each required document — Required Attachments is no longer its own tool.
+    base.docs = docs;
     if (docs.missing.length) {
       const c = Object.assign(base, {
         state: "fail",
@@ -306,11 +309,22 @@ function renderRecordAuditWorkspace(container) {
     return `<span class="raud-chip ${s.cls}">${s.word}</span>`;
   };
 
+  // The shipping-documents check lists every required document (what Required Attachments used to show).
+  const docsHtml = (d) => {
+    const cat = d.category ? ((typeof REQATT_CAT_LABEL !== "undefined" && REQATT_CAT_LABEL[d.category]) || d.category) : "";
+    const rule = (r) => (typeof REQATT_DOC_RULES !== "undefined" && REQATT_DOC_RULES[r.abbr]) || r.label;
+    const sub = [cat, d.shipment_as, d.is_courier ? "courier: AWB/BoL + POD only" : ""].filter(Boolean).map(esc).join(" · ");
+    const on = (d.attachment_types || []).length ? d.attachment_types.map(esc).join(", ") : "none";
+    return `
+        <div class="raud-docs">${d.required.map((r) =>
+          `<span class="raud-doc ${r.satisfied ? "ok" : "miss"}" title="${esc(rule(r))}">${r.satisfied ? "✓" : "✗"} ${esc(r.label)}</span>`).join("")}</div>
+        <div class="raud-docs-sub">${sub ? sub + " — " : ""}attached to this record: ${on}</div>`;
+  };
   const rows = a.checks.map((c) => `
     <tr class="raud-${(RAUD_STATES[c.state] || RAUD_STATES.na).cls}">
       <td class="raud-state">${chip(c.state)}</td>
       <td class="raud-label">${esc(c.label)}</td>
-      <td class="raud-detail">${esc(c.detail)}</td>
+      <td class="raud-detail">${esc(c.detail)}${c.docs ? docsHtml(c.docs) : ""}</td>
     </tr>`).join("");
 
   const redFlag = row.red_flag
@@ -341,6 +355,11 @@ function renderRecordAuditWorkspace(container) {
         td.raud-state{width:120px}
         td.raud-label{width:250px;font-weight:600}
         td.raud-detail{font-size:12.5px}
+        .raud-docs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+        .raud-doc{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;background:var(--card)}
+        .raud-doc.ok{color:var(--cleared,#1a7f37)}
+        .raud-doc.miss{color:var(--warn)}
+        .raud-docs-sub{font-size:11.5px;color:var(--steel);margin-top:5px}
       </style>
       <header>
         <h2>Audit — Close-out Checklist</h2>
@@ -405,6 +424,7 @@ function raudSummaryLines(a) {
   if (row.red_flag) lines.push(`RED FLAG: ${row.red_flag}`, "");
   for (const c of a.checks) {
     lines.push(`${(RAUD_STATES[c.state] || RAUD_STATES.na).word}\t${c.label}\t${c.detail}`);
+    if (c.docs) for (const r of c.docs.required) lines.push(`\t  ${r.label}\t${r.satisfied ? "Present" : "Missing"}`);
   }
   lines.push("");
   lines.push(a.counts.fail
@@ -436,7 +456,10 @@ function exportRecordAudit() {
       ["Submitted", raudDate(a.row.submitted_date)], ["RDD", raudDate(a.row.nlt_completion)],
       [a.row.service === "SRF" ? "Delivered" : "Completed", raudDate(a.row.delivered)],
       [], ["Result", "Check", "Detail"]];
-    for (const c of a.checks) aoa.push([(RAUD_STATES[c.state] || RAUD_STATES.na).word, c.label, c.detail]);
+    for (const c of a.checks) {
+      aoa.push([(RAUD_STATES[c.state] || RAUD_STATES.na).word, c.label, c.detail]);
+      if (c.docs) for (const r of c.docs.required) aoa.push(["", "   " + r.label, r.satisfied ? "Present" : "Missing"]);
+    }
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [{ wch: 16 }, { wch: 40 }, { wch: 80 }];
     const wb = XLSX.utils.book_new();

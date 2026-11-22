@@ -53,8 +53,9 @@ const TOOLS = [
   // "Shipping docs" card embeds this same window), so it's hidden on Metrics
   // UDQs. On an SRF UDQ it's the single-WMTR attachment audit.
   { id: "audit",    group: "Shipping",           label: "Audit",               needs: "srf", needsGrid: true, ready: true  },
-  // Listed directly under Audit (user request, 2.9.17).
-  { id: "reqatt",   group: "Shipping",           label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: "metrics", ready: true  },
+  // Not in the menu any more (2.9.18): on an SRF UDQ its check is one of the Audit's checks, which lists every
+  // required document. The entry stays so the tool id still resolves; hideOn keeps it out of the menu.
+  { id: "reqatt",   group: "Shipping",           label: "Required Attachments",needs: "srf", needsGrid: true, hideOn: ["metrics", "srf"], ready: true  },
   { id: "dd1149",   group: "Property management",label: "DD1149",              needs: "property", ready: true  },
   { id: "topdocs",  group: "Property management",label: "TOP Documents",       needs: "property", ready: true  },
   { id: "coreims",  group: "Property management",label: "CoreIMS Export",      needs: "property", ready: true  },

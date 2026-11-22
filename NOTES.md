@@ -794,3 +794,19 @@ Arrived Warehouse or the warehouse actual date is filled.
     NOT checked: the files opened in real Excel, the RFQ .eml opened in real Outlook, Save-as-PDF print of the PL.
   * Not touched (still navy / orange in places): CIV, SLI, Placards, DD1149, TOP, PO — offered.
   Pushed 2026-11-22.
+
+## v2.9.18 (2026-11-22) — CIV header redone (no DTRA seal); Required Attachments folded into Audit
+- User: "Remove the DTRA symbol from the CIV, and go ahead and update the header overall on the CIV."
+  ci.js: logo_left is "" in the standard (non-offline) build, so LOGO_LEFT no longer prints on the CIV (Placards
+  still use it). Header is now a flex row: .header-main (title 17pt steel blue #2f496f, red declaration under it)
+  + .header-logos at the right, with a 2px steel-blue rule. Mid-task the user added: "Don't use the TRLS II logo
+  image in the CIV. Just create a nice looking TRLS II label in its place." -> logo_right is "" too; the page
+  gets brand_label "TRLS II" / brand_sub "TechTrans International", drawn as .header-brand (white on a steel-blue
+  chip + small spaced caption). Offline mode passes brand_label "" and keeps the user's own logo / company name. Continuation header matches (left-aligned title + rule). Body of the invoice untouched.
+- User: "I meant to fold required attachments check under audit. It can just be another one of the audit
+  checks. Doesn't need to be its own thing in the menu." The Audit already had a "Shipping documents attached"
+  check (record_audit.js, reuses reqattAuditSrf). Now: that check carries c.docs and its row shows a chip per
+  required document (present / missing) + category, mode and what is attached; Copy and Export list them too.
+  Menu: TOOLS entry "reqatt" has hideOn ["metrics","srf"] so it never shows (entry kept so the id resolves;
+  reqatt.js is still used by the Audit and by the Metrics dashboard's shipping-docs card).
+  Pushed 2026-11-22.

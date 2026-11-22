@@ -810,3 +810,12 @@ Arrived Warehouse or the warehouse actual date is filled.
   Menu: TOOLS entry "reqatt" has hideOn ["metrics","srf"] so it never shows (entry kept so the id resolves;
   reqatt.js is still used by the Audit and by the Metrics dashboard's shipping-docs card).
   Pushed 2026-11-22.
+
+## v2.9.19 (2026-11-22) — CIV header centred
+- User on 2.9.18: doesn't like the title + "value is declared" text left-aligned while the foot of the page is
+  centred. "Keep them centered. Find a good way to cleanly incorporate the TRLS II label in there to designate
+  the contract." -> ci.js header is a centred stack: .header-brandline (the "TRLS II" steel-blue block on a
+  hairline that runs out to both sides; Offline mode puts the user's logo / company name there instead), then the
+  title, then the red declaration, then the 2px steel-blue rule. Continuation header centred again too.
+  Lesson: on the CIV keep the header symmetrical with the centred footer.
+  Pushed 2026-11-22.

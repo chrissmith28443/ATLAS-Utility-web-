@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.19",
+    title: "Commercial Invoice header centred",
+    notes: [
+      "The invoice title and the customs declaration are centred again, matching the foot of the page. The TRLS II contract label sits centred above the title on a thin line.",
+    ],
+  },
+  {
     version: "2.9.18",
     title: "New Commercial Invoice header; Required Attachments is part of Audit",
     notes: [

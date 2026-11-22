@@ -28,7 +28,7 @@ function ciBuildPages(data, opts) {
     // 2.9.18: no logo images on the invoice — the DTRA seal (LOGO_LEFT) and the TRLS II logo
     // (LOGO_RIGHT) are gone; a "TRLS II" text label sits at the right of the header instead.
     logo_left: "", logo_right: "", company_name: "",
-    brand_label: "TRLS II", brand_sub: "",
+    brand_label: "TRLS II", brand_sub: "TechTrans Intl",
     prepared_by: CI_PREPARED_BY, declaration_text: CI_DECLARATION,
     remarks_boiler: CI_REMARKS_BOILERPLATE, origin_label: "ORIGIN",
   };
@@ -248,7 +248,8 @@ function ciRenderPage(p, pageIdx, totalPages) {
 <div class="page"><div class="sheet">
   <div class="header">
     ${p.brand_label || p.logo_left || p.logo_right || p.company_name ? `<div class="header-brandline">${
-      p.brand_label ? `<span class="hb-mark">${esc(p.brand_label)}</span>`
+      p.brand_label ? `<span class="hb-pill"><span class="hb-mark">${esc(p.brand_label)}</span>${
+                          p.brand_sub ? `<span class="hb-co">${esc(p.brand_sub)}</span>` : ""}</span>`
                     : ciLogoHtml(p.logo_left, p.company_name) + ciLogoHtml(p.logo_right, "")}</div>` : ""}
     <div class="header-title">COMMERCIAL INVOICE</div>
     <div class="header-subtitle">${esc(p.declaration_text)}</div>
@@ -556,8 +557,18 @@ body{
 /* offline mode: the user's own logo or company name sits on the line instead */
 .header-brandline img{ max-height: 40px; max-width: 230px; object-fit: contain; display: block; }
 .header-coname{ font: 700 15px Arial, sans-serif; line-height: 1.15; }
+/* Two-part label: the contract on a solid block, the company beside it inside the same outline. */
+.hb-pill{
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--ci-accent);
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+}
 .hb-mark{
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   background: var(--ci-accent);
   color: #fff;
   font-size: 10.5pt;
@@ -565,7 +576,17 @@ body{
   line-height: 1;
   letter-spacing: 0.2em;
   padding: 4px 9px 4px 13px;
-  border-radius: 3px;
+}
+.hb-co{
+  display: inline-flex;
+  align-items: center;
+  color: var(--ci-accent);
+  font-size: 8.5pt;
+  font-weight: bold;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 4px 9px 4px 11px;
 }
 .header-title{
   font-size: 16pt;

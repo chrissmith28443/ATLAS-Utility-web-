@@ -101,8 +101,8 @@ function renderPlWorkspace(container) {
         </div>
         <div class="btnrow">
           <button class="btn primary" id="plPrint">Save as PDF</button>
+          <button class="btn steel" id="plInvExcel"${off ? ' style="display:none"' : ""}>Inventory Sheet</button>
           <button class="btn primary" id="plExcel">Download Excel (.xlsx)</button>
-          <button class="btn navy" id="plInvExcel"${off ? ' style="display:none"' : ""}>Inventory Sheet</button>
           <button class="btn ghost" id="plGenerate"${off ? ' style="display:none"' : ""}>Legacy spreadsheet (.xlsx)</button>
           <button class="btn ghost" id="plRefresh">Refresh preview</button>
           <span class="statusline" id="plStatus"></span>

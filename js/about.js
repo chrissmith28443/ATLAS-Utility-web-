@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.21",
+    title: "Reindeer in the Snowfall theme; invoice label names TRLS II and TechTrans Intl",
+    notes: [
+      "Christmas \u2014 Snowfall: a reindeer now pulls the sleigh at the foot of the page.",
+      "Commercial Invoice: the label above the title reads TRLS II and TechTrans Intl, side by side in one outlined block.",
+      "Packing List page: the Inventory Sheet button sits next to Save as PDF and is a lighter shade of the header blue.",
+    ],
+  },
+  {
     version: "2.9.20",
     title: "Christmas theme; blue header on the Packing List and Inventory Sheet; placards without logos",
     notes: [

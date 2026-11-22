@@ -848,3 +848,16 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Also same version: user said the PL / Inventory Sheet header bands were too tall for the overall look ->
   padding 18px -> 10px, brand 30 -> 22px, title 32 -> 23px (screen; print sizes were already small).
   Pushed 2026-11-22.
+
+## v2.9.21 (2026-11-22) — reindeer in Snowfall; CIV label; Inventory Sheet button
+- "Add the reindeer to the Snowfall theme." -> holiday.js xmas.main is now one scene: reindeer (left, facing left)
+  pulling the sleigh, joined by two rein lines; drawn 520px wide (400px under 1100px), page foot padding 230px.
+- "Make the CIV label at the top say both TRLS II and TechTrans Intl." -> ci.js brand_sub "TechTrans Intl";
+  .hb-pill = solid steel-blue "TRLS II" block + outlined "TECHTRANS INTL" beside it, centred on the hairline.
+- "Shipment Comments field in the header section should be able to expand to two rows" -> NOT changed: the CIV's
+  Shipment Comments cell already wraps to two lines (line-clamp 2, tested with a long comment). Asked him where he
+  saw it cut off — could be another field / tool.
+- "Make the Inventory Sheet button that same blue as the header, except a few shades lighter, and move it to be
+  next to the Save as PDF button." -> pl.js: #plInvExcel is class "btn steel" and now second in the row (uiLift
+  reverses the row, so it lands just left of Save as PDF). .ui2 .btn.steel = --sch mixed 76% with white.
+  Pushed 2026-11-22.

@@ -1837,10 +1837,11 @@ body.theme-dark .manifest-summary .mchip{ background:color-mix(in srgb, var(--sc
    they sit behind the content at the foot of the left menu and of the main column. ---- */
 .rail{ background-image:var(--art-rail, none); background-repeat:no-repeat; background-position:left -30px bottom -12px; background-size:240px auto; }
 .main{ background-image:var(--art-main, none), var(--art-snow, none); background-repeat:no-repeat, repeat;
-  background-position:right 30px bottom 2px, 0 0; background-size:300px auto, 620px 310px; }
+  background-position:right 30px bottom 2px, 0 0; background-size:520px auto, 620px 310px; }
 /* The artwork scrolls with the page, and a holiday scheme adds room at the foot of the page for it — so it shows
    at once on a short page and at the end of a long one, never underneath the content. */
-body[data-scheme="xmas"] .main{ background-attachment:local, local; padding-bottom:210px; }
+body[data-scheme="xmas"] .main{ background-attachment:local, local; padding-bottom:230px; }
+@media (max-width:1100px){ .main{ background-size:400px auto, 620px 310px; } body[data-scheme="xmas"] .main{ padding-bottom:185px; } }
 
 /* ---- Christmas — Snowfall (data-scheme="xmas"): white header with a candy-cane stripe, red buttons ---- */
 body[data-scheme="xmas"]:not(.theme-dark){ --paper:#f4f7fa; }
@@ -1853,3 +1854,9 @@ body[data-scheme="xmas"] .rail{ padding-bottom:100px; }   /* room for the sprig 
 body[data-scheme="xmas"]:not(.theme-dark) .manifest{ background:color-mix(in srgb, var(--sch) 5%, var(--card)); border-color:color-mix(in srgb, var(--sch) 22%, var(--line)); }
 body[data-scheme="xmas"]:not(.theme-dark) .route .lane .mode{ background:color-mix(in srgb, var(--sch) 5%, var(--card)); }
 body[data-scheme="xmas"] .rail-cop.active{ outline-color:color-mix(in srgb, #b3202f 45%, transparent); }
+
+/* A "steel" button: the header colour a few shades lighter (follows the colour scheme). First use: the
+   Inventory Sheet button on the Packing List page (2.9.21). */
+.ui2 .btn.steel{ background:color-mix(in srgb, var(--sch, #2f496f) 76%, #ffffff); color:#fff; border-color:transparent; }
+.ui2 .btn.steel:hover{ background:color-mix(in srgb, var(--sch, #2f496f) 90%, #ffffff); }
+body.theme-dark .ui2 .btn.steel{ background:color-mix(in srgb, var(--sch, #2f496f) 70%, #ffffff); }

@@ -1457,3 +1457,85 @@ body.cop-quiet #loadStatus:not(.err){ display: none; }
 .ic-map summary{ cursor: pointer; font-weight: 600; }
 .ic-map ul{ margin: 8px 0 0 18px; padding: 0; }
 .ig-pkgs{ margin-top: 10px; font-weight: 400; }
+
+/* =========================================================================
+   Dashboard look (2.9.5) — the Shipments-tab styling carried to the rest of
+   the Dashboard: the tab bar, Metrics (and PMR / Export-Controlled under it).
+   Scoped to body.cop-quiet (= a Dashboard view is showing), so nothing else in
+   the Utility changes. Procurement / Property / PLS carry their share in
+   pmdash.js (PMX_CSS). Calm cards, sentence-case headings, light table heads,
+   small tiles; explanatory small print is hidden (it's the hover text).
+   ========================================================================= */
+.cop-hub{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:4px; gap:2px; overflow:visible;
+  font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; }
+.cop-hub button{ color:var(--steel); text-transform:none; letter-spacing:0; font-size:13px; padding:8px 14px; border-radius:9px; }
+.cop-hub button:hover:not(:disabled){ color:var(--ink); background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.cop-hub button.active, .cop-hub button.active:hover{ background:#1e2a4a; color:#fff; }
+.cop-hub button:disabled{ color:color-mix(in srgb, var(--steel) 45%, transparent); }
+.cop-hub.sub, body.theme-dark .cop-hub.sub{ background:transparent; border:0; padding:0; margin-top:8px; }
+.cop-hub.sub button, body.theme-dark .cop-hub.sub button{ flex:0 1 auto; font-size:12.5px; padding:5px 11px; border-radius:7px; color:var(--steel); }
+.cop-hub.sub button:hover:not(:disabled), body.theme-dark .cop-hub.sub button:hover:not(:disabled){ color:var(--ink); background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.cop-hub.sub button.active, body.theme-dark .cop-hub.sub button.active{ background:color-mix(in srgb, #1e5aa8 13%, var(--card)); color:#1e5aa8; }
+body.theme-dark .cop-hub button.active{ background:#3d5a8c; }
+body.theme-dark .cop-hub.sub button.active{ color:#8fbaf0; }
+.cop-drop .dropzone{ border-radius:12px; }
+
+body.cop-quiet #dashboard, body.cop-quiet #workspace{ font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; font-variant-numeric:tabular-nums; }
+/* cards */
+body.cop-quiet .panel{ border-radius:14px; margin-top:14px; box-shadow:0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.07); }
+body.theme-dark.cop-quiet .panel{ box-shadow:none; }
+body.cop-quiet .panel > header{ padding:12px 16px 8px; border-bottom:0; }
+body.cop-quiet .panel > header h2{ font-family:inherit; font-size:14.5px; font-weight:650; letter-spacing:0; text-transform:none; }
+body.cop-quiet .panel > header .count{ font-family:inherit; font-size:11.5px; }
+body.cop-quiet .panel > header + .body{ padding-top:6px; }
+/* buttons */
+body.cop-quiet #dashboard .btn, body.cop-quiet #workspace .btn{ font-family:inherit; font-size:12.5px; font-weight:600; letter-spacing:0; text-transform:none; border-radius:9px; padding:7px 13px; }
+body.cop-quiet #dashboard .btn.ghost, body.cop-quiet #workspace .btn.ghost{ background:var(--card); border-color:var(--line); color:var(--ink); }
+body.cop-quiet #dashboard .btn.ghost:hover, body.cop-quiet #workspace .btn.ghost:hover{ border-color:#1e5aa8; color:#1e5aa8; }
+body.cop-quiet #dashboard .btn.primary, body.cop-quiet #workspace .btn.primary{ background:#1e2a4a; }
+body.cop-quiet #dashboard .btn.primary:hover, body.cop-quiet #workspace .btn.primary:hover{ background:#2a3a63; }
+body.theme-dark.cop-quiet #dashboard .btn.primary, body.theme-dark.cop-quiet #workspace .btn.primary{ background:#3d5a8c; }
+body.cop-quiet .mx-quick.active, body.cop-quiet .pmr-quick .btn.active{ background:color-mix(in srgb, #1e5aa8 12%, var(--card)); border-color:#1e5aa8; color:#1e5aa8; }
+/* tables */
+body.cop-quiet table.data th{ font-family:inherit; font-size:11px; font-weight:650; letter-spacing:.045em; padding:8px 10px;
+  border-bottom:1px solid var(--line); background:color-mix(in srgb, #1e5aa8 6%, var(--card)); }
+body.cop-quiet table.data td{ padding:7px 10px; border-bottom-color:color-mix(in srgb, var(--line) 60%, transparent); }
+body.cop-quiet .scrollwrap{ border:1px solid var(--line); border-radius:10px; }
+/* small stat boxes */
+body.cop-quiet .stat{ border-radius:10px; padding:8px 12px; }
+body.cop-quiet .stat .k{ font-family:inherit; font-size:11px; letter-spacing:.04em; }
+/* Metrics: quiet title line instead of the navy strip */
+body.cop-quiet .manifest.mx-manifest{ background:transparent; color:var(--ink); padding:0; margin-top:2px; border-radius:0; overflow:visible;
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; }
+body.cop-quiet .manifest.mx-manifest::after{ display:none; }
+body.cop-quiet .mx-manifest > div:empty, body.cop-quiet .mx-manifest .title{ display:none; }
+body.cop-quiet .mx-manifest .wmtr{ font-family:inherit; font-size:18px; font-weight:650; letter-spacing:-.01em; }
+body.cop-quiet .mx-manifest .badge{ border:0; padding:0; margin-left:12px; color:var(--steel); font-family:inherit; font-size:11.5px; font-weight:500; letter-spacing:0; text-transform:none; vertical-align:1px; }
+body.cop-quiet .mx-manifest .mx-windowbar{ margin:0 0 0 auto; }
+body.cop-quiet .mx-windowlabel{ font-family:inherit; letter-spacing:0; color:#1e5aa8; background:color-mix(in srgb, #1e5aa8 10%, var(--card)); border:0; }
+body.theme-dark.cop-quiet .mx-windowlabel, body.theme-dark.cop-quiet .mx-quick.active{ color:#8fbaf0; }
+body.cop-quiet .mx-control{ margin-top:10px; }
+/* Metrics: explanatory small print is hover text now */
+body.cop-quiet #dashboard .hint, body.cop-quiet .mx-dashboard > header .count{ display:none; }
+/* Metrics: smaller tiles — the name, the number and its status; the rest is the hover text */
+body.cop-quiet .mx-metricgrid{ grid-template-columns:repeat(auto-fill, minmax(168px, 1fr)); gap:8px; }
+body.cop-quiet .mx-metric-card{ border-radius:10px; border-left-width:3px; padding:9px 12px 9px; gap:2px; }
+body.cop-quiet .mx-metric-top{ min-height:0; }
+body.cop-quiet .mx-metric-k{ font-size:11.5px; letter-spacing:0; text-transform:none; font-weight:600; }
+body.cop-quiet .mx-metric-viz, body.cop-quiet .mx-metric-sub, body.cop-quiet .mx-card-viz, body.cop-quiet .mx-card-sub{ display:none; }
+body.cop-quiet .mx-metric-v{ font-family:inherit; font-size:20px; font-weight:650; letter-spacing:-.01em; }
+body.cop-quiet .mx-metric-foot{ position:absolute; right:10px; bottom:10px; }
+body.cop-quiet .mx-metric-card{ position:relative; }
+body.cop-quiet .mx-metric-card:hover, body.cop-quiet .mx-card:hover{ transform:none; box-shadow:none; border-color:#1e5aa8; }
+body.cop-quiet .mx-cardgrid{ display:flex; flex-wrap:wrap; gap:6px; }
+body.cop-quiet .mx-card{ flex-direction:row-reverse; align-items:baseline; gap:6px; border-radius:8px; padding:5px 11px; }
+body.cop-quiet .mx-card-top{ min-height:0; }
+body.cop-quiet .mx-card-k{ font-size:12px; letter-spacing:0; text-transform:none; font-weight:500; color:var(--ink-2, var(--ink)); }
+body.cop-quiet .mx-card-v{ font-family:inherit; font-size:14px; font-weight:700; }
+body.cop-quiet .mx-info-head{ margin:12px 0 6px; font-size:10.5px; }
+/* Metrics: section dividers */
+body.cop-quiet .mx-detail-sep h2, body.cop-quiet .mx-group-sep h2{ font-size:11px; font-weight:650; color:var(--steel); letter-spacing:.06em; }
+body.cop-quiet .mx-group-sep{ margin:22px 0 4px; }
+body.cop-quiet .mx-group-sep::before, body.cop-quiet .mx-group-sep::after{ height:1px; background:var(--line); opacity:1; }
+body.cop-quiet .mx-metric-sec{ border-left-width:3px; }
+body.cop-quiet .mx-secbadge{ font-family:inherit; letter-spacing:.03em; }

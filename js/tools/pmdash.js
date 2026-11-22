@@ -589,9 +589,16 @@ async function pmAutoPull(force) {
 }
 /* Green refresh button (Procurement, Property and PLS): pulls the PR, PMCT and PLS UDQs from ATLAS again. */
 function pmRefreshBtn(title) {
-  return `<button class="copx-btn ghost pmx-icon pmx-refresh" type="button" id="pmRefresh" title="${esc(title)}" aria-label="Refresh from ATLAS" ${PmPull.busy ? "disabled" : ""}>
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" class="${PmPull.busy ? "spin" : ""}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+  return `<button class="copx-ibtn go pmx-icon" type="button" id="pmRefresh" title="${esc(title)}" aria-label="Refresh from ATLAS" ${PmPull.busy ? "disabled" : ""}>
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" class="${PmPull.busy ? "spin" : ""}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4.5 10.5A7.5 7.5 0 0 1 18 7"/><path d="M18.5 3v4.5H14"/><path d="M19.5 13.5A7.5 7.5 0 0 1 6 17"/><path d="M5.5 21v-4.5H10"/></svg></button>`;
+}
+/** Where a tab's data came from, as a small dot + a word (details on hover) — same as the Shipments tab. */
+function pmSrcChip(udq, slot) {
+  if (PmPull.busy) return `<span class="copx-fresh busy" title="Pulling the ${esc(udq)} UDQ from ATLAS…"><i></i>Refreshing…</span>`;
+  return slot && slot.at
+    ? `<span class="copx-fresh ok" title="${esc(`${udq} UDQ · live from ATLAS · ${pmPulledText(slot)}`)}"><i></i>${esc(new Date(slot.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</span>`
+    : `<span class="copx-fresh file" title="${esc(`${udq} UDQ · from a dropped file${slot && slot.fileName ? " · " + slot.fileName : ""}`)}"><i></i>From file</span>`;
 }
 function pmPulledText(slot) {
   return slot && slot.at ? `pulled ${new Date(slot.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "dropped file";
@@ -822,6 +829,38 @@ body.theme-dark .pmx-tools .copx-btn.pmx-refresh{color:#81c784;border-color:#3f7
 .pmx-sedit textarea,.pmx-sedit input{width:100%;border:1px solid #c9d2de;border-radius:6px;padding:8px 10px;font:inherit;font-size:12.5px;background:var(--ax-card);color:var(--ax-ink)}
 .pmx-sedit textarea{min-height:92px;resize:vertical}
 .pmx-sedit .hint{font-size:11px;color:var(--ax-muted);margin-top:3px}
+/* ===== 2.9.5 — the Shipments-tab look on Procurement / Property / PLS: small tiles (the sub-line is the hover
+   text), quiet top line, tinted step headers, light table heads, helper lines out of the default view ===== */
+.pmx-top{border-bottom:0;align-items:center;margin-top:0;gap:8px 12px}
+.pmx-top .copx-tabs{margin-left:0}
+.pmx-tools{padding-bottom:0;gap:6px}
+.pmx-tools .copx-btn{min-height:30px;padding:4px 11px;font-size:12px}
+.pmx-tools .copx-btn.pmx-icon{padding:4px 7px}
+.pmx-tools .copx-ibtn.go{margin-left:-4px}
+.pmx-status.quiet:not(.err){display:none}
+.pmx-kpis{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.pmx-kpi{display:inline-flex;align-items:baseline;gap:6px;border-radius:8px;padding:5px 11px;font-size:12px;line-height:1.35;color:var(--ax-ink2)}
+.pmx-kpi:hover{box-shadow:none;border-color:var(--ax-blue)}
+.pmx-kpi.on{background:var(--ax-blue-soft);border-color:var(--ax-blue);box-shadow:none}
+.pmx-kpi .v{order:-1;font-size:14px;font-weight:700;line-height:1.35;margin:0;color:var(--ax-ink)}
+.pmx-kpi .k{font-size:12px;font-weight:500;color:inherit;gap:5px}
+.pmx-kpi .k .pmx-info{margin-left:2px}
+.pmx-kpi .s{display:none}
+.pmx-lanes{gap:8px;margin-bottom:14px}
+.pmx-lane{border-radius:12px;background:var(--ax-card)}
+.pmx-lane .lh{background:color-mix(in srgb,var(--ax-blue) 8%,var(--ax-card));color:var(--ax-ink);border-bottom:1px solid var(--ax-line);padding:8px 12px;font-size:12.5px;font-weight:650}
+.pmx-lane .lh .pmx-info{color:var(--ax-muted)}
+.pmx-lane .n{font-size:20px;font-weight:650}
+.pmx-panel{border-radius:12px;padding:12px 14px}
+.pmx-panel h3{font-size:14px;font-weight:650;margin-bottom:8px}
+.pmx-panel .sub:not([style]){display:none}
+.pmx-view,.pmx-wrap{border-radius:12px}
+.pmx-age{border-radius:10px}
+.pmx-filters{gap:8px 12px;margin-bottom:12px}
+.pmx-tbl th{background:var(--ax-th-bg);color:var(--ax-muted);font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.045em;padding:8px 10px;border-right:0;border-bottom:1px solid var(--ax-line)}
+.pmx-tbl th:hover{color:var(--ax-blue)}
+.pmx-tbl td{padding:7px 10px}
+.pmx-drop{border-radius:12px;border-color:var(--ax-line)}
 `;
 
 /* Shared tooltip */
@@ -870,7 +909,7 @@ function pmRenderPls(container) {
   const tabs = el(`<div class="pmx-top"><div class="copx-tabs" role="tablist">
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active PLS (${active.length - (ui.drafts ? 0 : drafts)})</button>
     <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed PLS (${closed.length})</button></div>
-    <div class="pmx-tools"><span class="pmx-src">PLS UDQ · ${esc(pmPulledText(D.plsSlot))}${PmPull.busy ? " · refreshing…" : ""}</span>
+    <div class="pmx-tools">${pmSrcChip("PLS", D.plsSlot)}
       ${pmRefreshBtn("Refresh — pull the PLS UDQ from ATLAS again")}
       ${PM_VIEW_BTN("pls")}
       <button class="copx-btn ${PmUi.slide ? "blue" : "green"}" type="button" id="pmSlideBtn">${PmUi.slide ? "Close weekly slide" : "Weekly slide"}</button></div>
@@ -883,7 +922,7 @@ function pmRenderPls(container) {
   pmWireViewBtn(tabs, "pls");
   tabs.querySelector("#pmSlideBtn").addEventListener("click", () => { PmUi.slide = !PmUi.slide; pmRerender(); });
   root.appendChild(tabs);
-  root.appendChild(el(`<div class="pmx-status ${PmPls.err ? "err" : ""}" id="pmPlsStatus" style="margin-top:-8px">${esc(PmPls.status || "")}</div>`));
+  root.appendChild(el(`<div class="pmx-status quiet ${PmPls.err ? "err" : ""}" id="pmPlsStatus" style="margin-top:-8px">${esc(PmPls.status || "")}</div>`));
   if (PmUi.viewEdit === "pls") root.appendChild(pmViewPanel("pls", isActive));
   if (PmUi.slide) root.appendChild(pmSlideCard(D));
 
@@ -1043,7 +1082,7 @@ function pmRender(container, kind) {
   const tabs = el(`<div class="pmx-top"><div class="copx-tabs" role="tablist">
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active ${noun}s (${active.length - (ui.drafts ? 0 : drafts)})</button>
     <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed ${noun}s (${closed.length})</button></div>
-    <div class="pmx-tools"><span class="pmx-src">${esc(isPr ? "PR" : "PMCT")} UDQ · ${esc(pulled)}${PmPull.busy ? " · refreshing…" : ""}</span>
+    <div class="pmx-tools">${pmSrcChip(isPr ? "PR" : "PMCT", slot)}
       ${pmRefreshBtn("Refresh — pull the PR and PMCT UDQs from ATLAS again")}
       ${PM_VIEW_BTN(kind)}
       <button class="copx-btn ${PmUi.slide ? "blue" : "green"}" type="button" id="pmSlideBtn">${PmUi.slide ? "Close weekly slide" : "Weekly slide"}</button></div>
@@ -1055,7 +1094,7 @@ function pmRender(container, kind) {
   pmWireViewBtn(tabs, kind);
   tabs.querySelector("#pmSlideBtn").addEventListener("click", () => { PmUi.slide = !PmUi.slide; pmRerender(); });
   root.appendChild(tabs);
-  root.appendChild(el(`<div class="pmx-status ${XTree.statusErr ? "err" : ""}" id="xtStatus" style="margin-top:-8px">${esc(XTree.status || "")}</div>`));
+  root.appendChild(el(`<div class="pmx-status quiet ${XTree.statusErr ? "err" : ""}" id="xtStatus" style="margin-top:-8px">${esc(XTree.status || "")}</div>`));
   if (PmUi.viewEdit === kind) root.appendChild(pmViewPanel(kind, isActive));
 
   if (PmUi.slide) root.appendChild(pmSlideCard(D));
@@ -1196,7 +1235,7 @@ function pmKpiGrid(kind, tiles) {
   const ui = PmUi[kind];
   const g = el(`<div class="pmx-kpis"></div>`);
   for (const t of tiles.filter((x) => !x.id || pmShow(kind, "t:" + x.id))) {
-    const b = el(`<button type="button" class="pmx-kpi ${ui.quick === t.key ? "on" : ""}" ${t.key ? "" : 'style="cursor:default"'}>
+    const b = el(`<button type="button" class="pmx-kpi ${ui.quick === t.key ? "on" : ""}" ${t.key ? "" : 'style="cursor:default"'} title="${esc(String(t.s || "").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim())}">
       <div class="k">${t.dot ? `<i class="pmx-dot" style="background:${t.dot}"></i>` : ""}${esc(t.label)}${pmInfo(t.info)}</div>
       <div class="v">${esc(String(t.v))}</div><div class="s">${t.s || "&nbsp;"}</div></button>`);
     if (t.key) b.addEventListener("click", () => { ui.quick = ui.quick === t.key ? "" : t.key; pmRerender(); });

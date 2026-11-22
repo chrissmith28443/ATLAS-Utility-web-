@@ -587,3 +587,14 @@ Arrived Warehouse or the warehouse actual date is filled.
   Daily column removed from Shipment Details -> bubble in Latest Daily Update (Current / Due today / Missing n /
   Relieved). Board .ch min-height 54px (equal header heights).
   Pushed 2026-11-22.
+- v2.9.5 (user, 2026-11-22: "apply the styling tweaks across the rest of the dashboard modules"): the look now covers
+  the hub tab bar (.cop-hub, app.css), Metrics + PMR + Export-Controlled (app.css block "Dashboard look (2.9.5)",
+  ALL scoped to body.cop-quiet = a Dashboard view is showing, so the rest of the Utility is untouched), and
+  Procurement / Property / PLS (block at the END of PMX_CSS in pmdash.js; pmSrcChip = data-source dot; refresh =
+  .copx-ibtn.go; .pmx-status.quiet hidden unless .err; tile sub-line -> title). Metrics: "Shipping Metrics" title line
+  replaces the navy manifest strip (file name = hover), hints hidden in #dashboard (notes moved to h2 titles), cards
+  compact (sub + mini chart hidden -> title). Nothing removed from the data; only helper text / decoration hidden.
+  NOT restyled: Christmas Tree (hidden tab), the weekly-slide card, detail drill-downs inside PMR. When the look goes
+  Utility-wide: lift these tokens into :root and drop the body.cop-quiet scope.
+  Relief legend: click a code -> copCopyText("[RELIEF: CODE] ") (clipboard API, execCommand fallback), "Copied ✓".
+  Pushed 2026-11-22.

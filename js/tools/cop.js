@@ -563,8 +563,8 @@ function copReliefLegend() {
     <span class="pop" role="tooltip"><b class="t">Relief codes</b>
       Type a tag in ATLAS › Shipping Activity › <b>Shipping Team Notes</b>, then the reason:<br>
       <code>[RELIEF: RFQ] DTRA asked for the quote before packing</code>
-      <table>${COP_RELIEF_CODES.map((d) => `<tr><td>${d[0]}</td><td>${esc(d[1])}</td></tr>`).join("")}</table>
-      <span class="ex">Several at once: <code>[RELIEF: RFQ, EEI] reason</code>. The item then shows “Relieved” with the reason, for everyone, instead of a miss.</span></span></span>`;
+      <span class="rcs">${COP_RELIEF_CODES.map((d) => `<button type="button" class="rc" data-relief="${d[0]}" title="Copy [RELIEF: ${d[0]}] to the clipboard"><b>${d[0]}</b><span>${esc(d[1])}</span><i>Copy</i></button>`).join("")}</span>
+      <span class="ex"><b>Click a code to copy its tag</b>, then paste it into Shipping Team Notes and add the reason. Several at once: <code>[RELIEF: RFQ, EEI] reason</code>. The item then shows “Relieved” with the reason, for everyone, instead of a miss.</span></span></span>`;
 }
 const COP_RELIEF_TITLE = "ATLAS field: Shipping Team Notes. Relief codes — [RELIEF: CODE] reason — " + COP_RELIEF_CODES.map((d) => `${d[0]} = ${d[1]}`).join("; ");
 
@@ -2013,9 +2013,13 @@ body.theme-dark .copx-ibtn.go{color:#66bb6a}
 .copx-help:hover .pop,.copx-help:focus .pop,.copx-help:focus-within .pop{display:block}
 .copx-help .pop b.t{display:block;font-size:13px;margin-bottom:4px}
 .copx-help .pop code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:var(--ax-soft);border:1px solid var(--ax-line2);border-radius:5px;padding:1px 5px}
-.copx-help .pop table{border-collapse:collapse;margin:8px 0;width:100%}
-.copx-help .pop td{padding:2px 10px 2px 0;vertical-align:top;font-size:12px;border:0}
-.copx-help .pop td:first-child{font-weight:700;white-space:nowrap}
+.copx-help .pop .rcs{display:flex;flex-direction:column;gap:2px;margin:8px 0}
+.copx-help .pop .rc{display:grid;grid-template-columns:56px 1fr auto;gap:8px;align-items:baseline;width:100%;text-align:left;border:1px solid transparent;background:transparent;color:var(--ax-ink);
+  border-radius:7px;padding:4px 8px;font:inherit;font-size:12px;cursor:pointer}
+.copx-help .pop .rc:hover,.copx-help .pop .rc:focus-visible{background:var(--ax-blue-soft);border-color:var(--ax-blue);outline:none}
+.copx-help .pop .rc i{font-style:normal;font-size:10.5px;font-weight:600;color:var(--ax-muted);opacity:0}
+.copx-help .pop .rc:hover i,.copx-help .pop .rc:focus-visible i,.copx-help .pop .rc.done i{opacity:1}
+.copx-help .pop .rc.done{background:var(--ax-green-soft);border-color:var(--ax-green)} .copx-help .pop .rc.done i{color:var(--ax-green)}
 .copx-help .pop .ex{display:block;color:var(--ax-muted)}
 `;
 
@@ -2145,8 +2149,29 @@ function copFreshChip(built) {
   if (CopPull.err) return `<span class="copx-fresh err" title="${esc(`The last refresh didn't go through — ${CopPull.err} Showing the ATLAS pull from ${at ? copClock(CopPull.okAt) : "earlier"}.`)}"><i></i>${esc(when)} · not refreshed</span>`;
   return `<span class="copx-fresh ok" title="${esc(`Live from ATLAS${at ? ` · pulled ${copClock(CopPull.okAt)}` : ""} · ${copPlural(n, "request")}`)}"><i></i>${esc(when)}</span>`;
 }
+/** Put text on the clipboard (async API, with the old selection trick as a fallback). */
+async function copCopyText(text) {
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (e) { /* fall through */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
 /** View switch + Refresh (shared by every view). */
 function copWireTop(root) {
+  // Relief-codes legend: click a code -> its tag is on the clipboard, ready to paste into ATLAS.
+  root.querySelectorAll(".copx-help .rc").forEach((b) => b.addEventListener("click", async () => {
+    const ok = await copCopyText(`[RELIEF: ${b.dataset.relief}] `);
+    const tag = b.querySelector("i");
+    root.querySelectorAll(".copx-help .rc").forEach((x) => { x.classList.remove("done"); x.querySelector("i").textContent = "Copy"; });
+    b.classList.toggle("done", ok);
+    tag.textContent = ok ? "Copied ✓" : "Couldn't copy";
+    setTimeout(() => { b.classList.remove("done"); tag.textContent = "Copy"; }, 2500);
+  }));
   root.querySelectorAll(".copx-tabs button").forEach((b) => b.addEventListener("click", () => {
     if (CopUi.view === b.dataset.v) return;
     CopUi.view = b.dataset.v; CopUi.hit = ""; CopUi.quick = ""; CopUi.focus = ""; copRerender();

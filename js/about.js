@@ -13,6 +13,18 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.5",
+    title: "The new look across the whole Dashboard",
+    notes: [
+      "The Shipments-tab styling now covers the rest of the Dashboard: the tab bar, Procurement, Property (TOP), PLS, Metrics, PMR and Export-Controlled.",
+      "Tiles are small everywhere \u2014 a number and a name. The line that used to sit under each one is its hover text.",
+      "Explanatory small print is out of the default view on these tabs too (panel sub-titles, the reporting-window note, section notes, \"Loaded \u2026\" lines). Hover a heading to read it. Errors still show.",
+      "Each tab shows where its data came from as a small dot and a time, or \"From file\" \u2014 hover for the details. Refresh is the same green icon as on Shipments.",
+      "Metrics: the navy strip is a plain title line, cards are smaller, tables and buttons match the Shipments tab.",
+      "Relief codes: click a code in the \"Relief codes\" list to copy its tag (for example [RELIEF: RFQ]) to the clipboard, then paste it into Shipping Team Notes and add the reason.",
+    ],
+  },
+  {
     version: "2.9.4",
     title: "Relieved shipments pass their metric; RDD and Daily tidy-up",
     notes: [

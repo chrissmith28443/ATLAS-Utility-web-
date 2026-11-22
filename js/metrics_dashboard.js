@@ -266,7 +266,7 @@ function mxRenderDailyUpdateSection(dash, precomputed) {
   const panel = el(`
     <div class="panel mx-daily" id="mxsec-daily">
       <header>
-        <h2>Daily Update Check</h2>
+        <h2 title="A daily entry is expected for every business day from the business day after a request leaves Draft until it's delivered — weekends and US federal holidays are skipped. A WMTR is flagged when a business day with no entry falls inside the reporting window.">Daily Update Check</h2>
         <span class="count">${countLabel}</span>
       </header>
       <div class="body" id="mxDailyBody"></div>
@@ -416,10 +416,10 @@ function renderMetricsDashboard(dash) {
 
   /* ---- Manifest strip + reporting-window control ---- */
   const manifest = el(`
-    <div class="manifest mx-manifest">
+    <div class="manifest mx-manifest" title="${esc(AppState.fileName || "Metrics UDQ")}">
       <div>
-        <span class="wmtr">METRICS DATASET</span>
-        <span class="badge">Metrics · ${recordCount} SRF record${recordCount === 1 ? "" : "s"}</span>
+        <span class="wmtr">Shipping Metrics</span>
+        <span class="badge">${recordCount} SRF record${recordCount === 1 ? "" : "s"}</span>
       </div>
       <div></div><div></div>
       <div class="title">${esc(AppState.fileName || "Metrics UDQ")}</div>
@@ -433,7 +433,7 @@ function renderMetricsDashboard(dash) {
     <div class="panel mx-control">
       <div class="body">
         <div class="mx-quickrow">
-          <label class="pmr-qlabel">Reporting window</label>
+          <label class="pmr-qlabel" title="Fiscal year starts Oct 1. All time counts every delivered WMTR, ignoring dates. These figures use the same engine as the PMR export.">Reporting window</label>
           <div class="btnrow" style="flex-wrap:wrap;gap:6px;">
             <button class="btn ghost mx-quick" data-q="all">All time</button>
             <button class="btn ghost mx-quick" data-q="cfy">Current FY</button>
@@ -1127,7 +1127,7 @@ function mxRenderDashboardCards(host, r, err, daily, consolCount) {
         ? `type="button" data-target="${c.target}" aria-label="${esc(c.k)}: ${esc(String(c.v))} — ${esc(MX_STATUS_LABEL[c.status] || "")} — open detail"`
         : `role="group" aria-label="${esc(c.k)}: ${esc(String(c.v))} — ${esc(MX_STATUS_LABEL[c.status] || "")}"`;
       mg.appendChild(el(`
-        <${tag} class="mx-metric-card is-${c.status}${c.target ? "" : " mx-static"}" ${attrs}>
+        <${tag} class="mx-metric-card is-${c.status}${c.target ? "" : " mx-static"}" ${attrs} title="${esc(c.sub || "")}">
           <div class="mx-metric-top">
             <span class="mx-metric-k">${esc(c.k)}</span>
             <span class="mx-metric-viz">${c.viz}</span>
@@ -1148,7 +1148,7 @@ function mxRenderDashboardCards(host, r, err, daily, consolCount) {
     const ig = el(`<div class="mx-cardgrid"></div>`);
     for (const c of infoCards) {
       ig.appendChild(el(`
-        <button class="mx-card" type="button" data-target="${c.target}" aria-label="${esc(c.k)}: ${esc(String(c.v))} — open detail">
+        <button class="mx-card" type="button" data-target="${c.target}" title="${esc(c.sub || "")}" aria-label="${esc(c.k)}: ${esc(String(c.v))} — open detail">
           <div class="mx-card-top">
             <span class="mx-card-k">${esc(c.k)}</span>
             <span class="mx-card-viz">${c.viz}</span>
@@ -1418,7 +1418,7 @@ function mxMetricSectionShell(host, opts) {
     : `<tr><td colspan="${opts.colspan}" style="color:var(--steel)">${esc(opts.emptyMsg)}</td></tr>`;
   host.appendChild(el(`
     <div class="panel mx-metric-sec is-${status}" id="${opts.id}">
-      <header><h2>${esc(opts.title)}</h2><span class="count">${countTxt} ${badge}</span></header>
+      <header><h2 title="${esc(String(opts.note || "").replace(/<[^>]+>/g, ""))}">${esc(opts.title)}</h2><span class="count">${countTxt} ${badge}</span></header>
       <div class="body">
         ${opts.note ? `<div class="hint" style="margin-bottom:10px;">${opts.note}</div>` : ""}
         <div class="scrollwrap" style="max-height:320px;">

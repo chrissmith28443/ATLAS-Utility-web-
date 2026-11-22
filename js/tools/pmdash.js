@@ -46,7 +46,9 @@ const PM_VIEW_KEY = "atlas.pmdash.view";
 const PM_VIEW_OFF = {
   proc: ["t:rdd"],
   prop: ["t:flag"],
-  pls: ["t:ended", "p:actions"],          // p:actions = the "Trip ended, still In Progress" list
+  // t:open and t:dtra repeat what the step cards already show (total in the card heading; "Estimate with DTRA"
+  // is its own step card), so they're off by default (user, 2026-11-22) — still available under View settings.
+  pls: ["t:open", "t:dtra", "t:ended", "p:actions"],          // p:actions = the "Trip ended, still In Progress" list
 };
 const PM_VIEW_ITEMS = {
   proc: { tiles: [["open", "Open PRs"], ["est", `Estimates due ≤ ${PM_SOON_DAYS} days`], ["po", `POs expected ≤ ${PM_SOON_DAYS} days`], ["rdd", "Past RDD"], ["big", "Over $100K"], ["attn", "Need attention"]],
@@ -131,12 +133,18 @@ function pmTopLane(status, sigSent) {
   return "approved";
 }
 /* PLS (Personnel Logistics Services) steps — same blue ramp. */
+/* PLS step colours: four clearly different hues (violet / yellow / blue / green), not four shades of
+   blue — the dark blues couldn't be told apart at a glance (user, 2026-11-22). Checked for colour-blind
+   separation (worst neighbouring pair dE 23) on the light card and, with the darker set, on the dark card.
+   `color` picks the light- or dark-theme value when it's read. */
+const pmDarkTheme = () => typeof document !== "undefined" && !!document.body && document.body.classList.contains("theme-dark");
+const pmLaneDef = (id, label, lt, dk) => ({ id, label, lt, dk, get color() { return pmDarkTheme() ? this.dk : this.lt; } });
 const PM_PLS_LANES = [
-  { id: "draft",    label: "Draft",                  color: "#aab4c3" },
-  { id: "review",   label: "DTRA program review",    color: "#5598e7" },
-  { id: "estimate", label: "TTI estimate prep",      color: "#2a78d6" },
-  { id: "approval", label: "Estimate with DTRA",     color: "#184f95" },
-  { id: "booked",   label: "Approved / in progress", color: "#1e2a4a" },
+  pmLaneDef("draft",    "Draft",                  "#aab4c3", "#6b7888"),
+  pmLaneDef("review",   "DTRA program review",    "#6250d6", "#9085e9"),
+  pmLaneDef("estimate", "TTI estimate prep",      "#eda100", "#c98500"),
+  pmLaneDef("approval", "Estimate with DTRA",     "#2a78d6", "#3987e5"),
+  pmLaneDef("booked",   "Approved / in progress", "#1baf7a", "#199e70"),
 ];
 function pmPlsLane(status) {
   const s = norm(status).toLowerCase();
@@ -861,6 +869,14 @@ body.theme-dark .pmx-tools .copx-btn.pmx-refresh{color:#81c784;border-color:#3f7
 .pmx-tbl th:hover{color:var(--ax-blue)}
 .pmx-tbl td{padding:7px 10px}
 .pmx-drop{border-radius:12px;border-color:var(--ax-line)}
+/* PLS trips timeline: drawn at screen size (see pmPlsTimeline) */
+.pmx-tl{width:100%;overflow:hidden}
+.pmx-svg.tl{width:auto;max-width:100%;height:auto}
+.pmx-svg.tl .nm{font-size:11px} .pmx-svg.tl .ax{font-size:10px}
+/* table header tools (PLS): small search box + column picker; filter row under the headings */
+.copx-hd .acts .pmx-q{width:210px;min-height:30px;padding:5px 9px;border-radius:8px;border-color:var(--ax-line);font-size:12.5px}
+.pmx-tbl tr.flt th{background:var(--ax-card);padding:4px 6px;cursor:default;text-transform:none;letter-spacing:0;border-bottom:1px solid var(--ax-line)}
+.pmx-tbl .copx-cf{width:100%;min-width:64px;font:inherit;font-size:11.5px;font-weight:400;padding:4px 6px;border:1px solid var(--ax-line);border-radius:6px;background:var(--ax-card);color:var(--ax-ink)}
 `;
 
 /* Shared tooltip */
@@ -927,7 +943,8 @@ function pmRenderPls(container) {
   if (PmUi.slide) root.appendChild(pmSlideCard(D));
 
   const base = isActive ? active.filter((r) => ui.drafts || r.lane !== "draft") : pmClosedWindow(closed, ui.period);
-  const rows = pmFilter(base, ui, "pls");
+  const preCf = pmFilter(base, ui, "pls");
+  const rows = pmColFilter("pls", preCf, isActive);          // + the table's own column filters
   const card = el(`<section class="copx-card">
     <div class="copx-hd"><h2>${isActive ? "Personnel Logistics Services — Active PLS" : "Personnel Logistics Services — Closed PLS"}</h2>
       <span class="n">${rows.length === base.length ? `${base.length} PLS` : `${rows.length} of ${base.length} PLS`} · ${pmMoney(pmSum(rows, "cost"))}</span>
@@ -941,10 +958,16 @@ function pmRenderPls(container) {
     card.appendChild(pmPlsKpis(viewBase));
     pmPanels(card, "pls", () => pmLanes(viewBase, ui, "pls"), () => pmPlsTimeline(viewBase), () => pmPlsActions(viewBase));
   }
-  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2>${isActive ? "PLS details" : "Closed"}${pmInfo(PM_INFO.plsTable)}</h2>
-    <span class="n">Click a row for travel, services and milestones · click a header to sort</span></div><div class="copx-rule"></div></section>`);
+  const tcard = el(`<section class="copx-card"><div class="copx-hd"><h2 title="Click a row for travel, services and milestones · click a header to sort">${isActive ? "PLS details" : "Closed"}${pmInfo(PM_INFO.plsTable)}</h2>
+    ${rows.length === preCf.length ? "" : `<span class="n">${rows.length} of ${preCf.length}</span>`}
+    <div class="acts"><input type="search" id="pmQ" class="copx-in pmx-q" placeholder="Search" title="PLS number, team / event, country, city, DTR…" aria-label="Search PLS" value="${esc(ui.q)}">
+      ${typeof copColsBtn === "function" ? copColsBtn("pmColsBtn", ui.colsOpen) : ""}</div></div></section>`);
   root.appendChild(tcard);
-  tcard.appendChild(pmTable("pls", rows, isActive));
+  if (ui.colsOpen) tcard.appendChild(pmColsPicker("pls", isActive));
+  tcard.appendChild(pmTable("pls", rows, isActive, { cf: true, pool: preCf }));
+  pmWireSearch(tcard, "pls");
+  const colsBtn = tcard.querySelector("#pmColsBtn");
+  if (colsBtn) colsBtn.addEventListener("click", () => { ui.colsOpen = !ui.colsOpen; pmRerender(); });
   pmWireTips(root);
 }
 function pmPlsEmptyCard() {
@@ -980,36 +1003,56 @@ function pmPlsKpis(rows) {
 function pmTripSoon(r, today, days) { return !!r.start && pmDays(today, r.start) >= 0 && pmDays(today, r.start) <= days; }
 /* Trips — next 30 / 60 / 90 days (the "Trips in next" pick): one bar per open PLS from Start Date to End Date, coloured by step. */
 function pmPlsTimeline(rows) {
-  const today = pmToday(), SPAN = PmUi.pls.tripDays, MAXR = 18;
+  const today = pmToday(), SPAN = PmUi.pls.tripDays;
   const panel = el(`<div class="pmx-panel"><h3>Trips — next ${SPAN} days${pmInfo(PM_INFO.plsTimeline)}</h3>
     <div class="sub">Start to end date · coloured by step · click a bar to open it in the table</div>
     <div class="pmx-legend">${PM_PLS_LANES.filter((l) => l.id !== "draft").map((l) => `<span><i class="pmx-dot" style="background:${l.color}"></i>${esc(l.label)}</span>`).join("")}</div></div>`);
+  // Every trip in the window is drawn — no cap, no "+N more".
   const trips = rows.filter((r) => r.start && pmDays(today, r.start) <= SPAN && (r.end ? pmDays(today, r.end) >= 0 : pmDays(today, r.start) >= 0))
     .sort((a, b) => a.start - b.start || (a.end || a.start) - (b.end || b.start));
   if (!trips.length) { panel.appendChild(el(`<div class="pmx-empty">No trips in the next ${SPAN} days in this view.</div>`)); return panel; }
-  const shown = trips.slice(0, MAXR);
-  const W = 720, L = 190, R = 12, T = 22, RH = 20, H = T + shown.length * RH + 6;
-  const x = (d) => L + Math.max(0, Math.min(SPAN, d)) / SPAN * (W - L - R);
-  let svg = "";
-  for (let d = 0; d <= SPAN; d += SPAN > 60 ? 14 : 7) {
-    const day = xtAddDays(today, d);
-    svg += `<line class="gl" x1="${x(d)}" x2="${x(d)}" y1="${T - 4}" y2="${H - 4}"/><text class="ax" x="${x(d)}" y="${T - 8}" text-anchor="middle">${esc(pmFmt(day))}</text>`;
-  }
-  shown.forEach((r, i) => {
-    const y = T + i * RH;
-    const s = pmDays(today, r.start), e = pmDays(today, r.end || r.start);
-    const lane = PM_PLS_LANES.find((l) => l.id === r.lane) || PM_PLS_LANES[0];
-    const x1 = x(s), x2 = Math.max(x(e + 1), x1 + 4);
-    const lbl = `${r.num} · ${r.title}`;
-    const tip = `<b>${esc(r.num)} · ${esc(r.title)}</b><br>${esc(r.dest)}<br>${esc(pmFmt(r.start, true))} – ${esc(pmFmt(r.end, true))} · ${pmPlural(r.travelers, "traveler")}<br>${esc(r.status)} · ${pmMoney(r.cost, true)} · ${esc(r.poc)}`;
-    svg += `<text class="nm" x="${L - 8}" y="${y + 13}" text-anchor="end">${esc(lbl.length > 30 ? lbl.slice(0, 29) + "…" : lbl)}</text>
-      <g class="tb" data-num="${esc(r.num)}" data-tip="${esc(tip)}"><rect x="0" y="${y}" width="${W}" height="${RH}" fill="transparent"/>
-      <rect x="${x1}" y="${y + 5}" width="${x2 - x1}" height="10" rx="4" fill="${lane.color}"/></g>`;
-  });
-  svg += `<line class="now" x1="${x(0)}" x2="${x(0)}" y1="${T - 4}" y2="${H - 4}"/>`;
-  panel.appendChild(el(`<svg class="pmx-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Trips in the next ${SPAN} days">${svg}</svg>`));
-  if (trips.length > MAXR) panel.appendChild(el(`<div class="sub" style="margin-top:6px">+${trips.length - MAXR} more — see the table</div>`));
-  panel.querySelectorAll(".tb").forEach((g) => g.addEventListener("click", () => pmOpenRow("pls", g.dataset.num)));
+  /* Drawn 1:1 (one SVG unit = one screen pixel) at the panel's real width, so the
+     text is the same size as the text around it. It used to be a fixed 720-wide
+     drawing stretched to fit, which blew the labels up on a wide screen. */
+  const T = 18, RH = 17, BAR = 7, H = T + trips.length * RH + 4;
+  const draw = (W) => {
+    const L = Math.min(300, Math.max(170, Math.round(W * 0.26))), R = 10;
+    const maxCh = Math.floor((L - 10) / 5.9);                       // label characters that fit at 11px
+    const x = (d) => L + Math.max(0, Math.min(SPAN, d)) / SPAN * (W - L - R);
+    let svg = "";
+    for (let d = 0; d <= SPAN; d += SPAN > 60 ? 14 : 7) {
+      const day = xtAddDays(today, d);
+      svg += `<line class="gl" x1="${x(d)}" x2="${x(d)}" y1="${T - 3}" y2="${H - 3}"/><text class="ax" x="${x(d)}" y="${T - 7}" text-anchor="middle">${esc(pmFmt(day))}</text>`;
+    }
+    trips.forEach((r, i) => {
+      const y = T + i * RH;
+      const s = pmDays(today, r.start), e = pmDays(today, r.end || r.start);
+      const lane = PM_PLS_LANES.find((l) => l.id === r.lane) || PM_PLS_LANES[0];
+      const x1 = x(s), x2 = Math.max(x(e + 1), x1 + 4);
+      const lbl = `${r.num} · ${r.title}`;
+      const tip = `<b>${esc(r.num)} · ${esc(r.title)}</b><br>${esc(r.dest)}<br>${esc(pmFmt(r.start, true))} – ${esc(pmFmt(r.end, true))} · ${pmPlural(r.travelers, "traveler")}<br>${esc(r.status)} · ${pmMoney(r.cost, true)} · ${esc(r.poc)}`;
+      svg += `<text class="nm" x="${L - 8}" y="${y + 12}" text-anchor="end">${esc(lbl.length > maxCh ? lbl.slice(0, maxCh - 1) + "…" : lbl)}</text>
+        <g class="tb" data-num="${esc(r.num)}" data-tip="${esc(tip)}"><rect x="0" y="${y}" width="${W}" height="${RH}" fill="transparent"/>
+        <rect x="${x1}" y="${y + (RH - BAR) / 2}" width="${x2 - x1}" height="${BAR}" rx="3" fill="${lane.color}"/></g>`;
+    });
+    svg += `<line class="now" x1="${x(0)}" x2="${x(0)}" y1="${T - 3}" y2="${H - 3}"/>`;
+    return `<svg class="pmx-svg tl" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${trips.length} trips in the next ${SPAN} days">${svg}</svg>`;
+  };
+  const host = el(`<div class="pmx-tl"></div>`);
+  panel.appendChild(host);
+  let drawn = 0;
+  const paint = () => {
+    const w = Math.max(360, Math.floor(host.clientWidth || 0) || 900);
+    if (w === drawn) return;
+    drawn = w;
+    host.innerHTML = draw(w);
+    host.querySelectorAll(".tb").forEach((g) => g.addEventListener("click", () => pmOpenRow("pls", g.dataset.num)));
+    pmWireTips(host);
+  };
+  host.innerHTML = draw(900);                        // placeholder until it's on the page and can be measured
+  requestAnimationFrame(paint);
+  setTimeout(paint, 60);
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { if (host.isConnected) paint(); }).observe(host);
   return panel;
 }
 function pmPlsActions(rows) {
@@ -1210,7 +1253,7 @@ function pmFilterBar(kind, pool, isActive, drafts) {
   const bar = el(`<div class="pmx-filters">
     <div class="copx-f"><label for="pmPoc">${kind === "proc" ? "Buyer (TTI POC)" : kind === "pls" ? "TTI POC" : "Owner (TTI POC)"}</label>
       <select id="pmPoc">${opt("", "Everyone", !ui.poc)}${pocs.map((p) => opt(p, p, p === ui.poc)).join("")}</select></div>
-    <div class="copx-f q"><label for="pmQ">Search</label><input type="search" id="pmQ" placeholder="${kind === "pls" ? "PLS number, team / event, country, city, DTR…" : "WMTR, title, country, note…"}" value="${esc(ui.q)}"></div>
+    ${kind === "pls" ? "" : `<div class="copx-f q"><label for="pmQ">Search</label><input type="search" id="pmQ" placeholder="WMTR, title, country, note…" value="${esc(ui.q)}"></div>`}
     ${isActive ? `<label class="copx-chk"><input type="checkbox" id="pmAttn" ${ui.attn ? "checked" : ""}> Needs attention only</label>
       <label class="copx-chk"><input type="checkbox" id="pmDrafts" ${ui.drafts ? "checked" : ""}> Show drafts (${drafts})</label>
       ${kind === "pls" ? `<div class="copx-f"><label for="pmTripDays">Trips in next</label><select id="pmTripDays">
@@ -1220,15 +1263,21 @@ function pmFilterBar(kind, pool, isActive, drafts) {
     ${ui.quick ? `<button class="copx-btn blue" type="button" id="pmClearQuick">Clear tile filter</button>` : ""}
   </div>`);
   bar.querySelector("#pmPoc").addEventListener("change", (e) => { ui.poc = e.target.value; pmRerender(); });
-  const qi = bar.querySelector("#pmQ");
-  let t = null;
-  qi.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { ui.q = qi.value; pmRerender(); const n = document.getElementById("pmQ"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); });
+  pmWireSearch(bar, kind);
   const a = bar.querySelector("#pmAttn"); if (a) a.addEventListener("change", () => { ui.attn = a.checked; pmRerender(); });
   const d = bar.querySelector("#pmDrafts"); if (d) d.addEventListener("change", () => { ui.drafts = d.checked; pmRerender(); });
   const p = bar.querySelector("#pmPeriod"); if (p) p.addEventListener("change", () => { ui.period = p.value; pmRerender(); });
   const td = bar.querySelector("#pmTripDays"); if (td) td.addEventListener("change", () => { ui.tripDays = parseInt(td.value, 10) || 30; pmRerender(); });
   const c = bar.querySelector("#pmClearQuick"); if (c) c.addEventListener("click", () => { ui.quick = ""; pmRerender(); });
   return bar;
+}
+
+/** The tab's search box (#pmQ) — in the filter bar, or in the table header on PLS. */
+function pmWireSearch(root, kind) {
+  const ui = PmUi[kind], qi = root.querySelector("#pmQ");
+  if (!qi) return;
+  let t = null;
+  qi.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { ui.q = qi.value; pmRerender(); const n = document.getElementById("pmQ"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); });
 }
 
 function pmKpiGrid(kind, tiles) {
@@ -1514,23 +1563,102 @@ function pmCell(kind, r, c, today) {
     default: { const v = r[c.k]; return `<td>${v instanceof Date ? pmFmt(v) : esc(v == null ? "" : v)}</td>`; }
   }
 }
-function pmTable(kind, rows, isActive) {
-  const ui = PmUi[kind];
-  const cols = pmCols(kind, isActive).filter((c) => PM_VIEW_LOCKED.indexOf(c.k) !== -1 || pmShow(kind, "c:" + c.k));
+/* Column filters (opts.cf — PLS for now): a row of boxes under the headings. Pick-lists for the
+   few columns with a short set of values, "contains" boxes for the rest. State: PmUi[kind].cf. */
+const PM_CF_PICK = ["poc", "lane", "status", "dest"];
+/** Plain text of a table cell — what a "contains" filter matches. */
+function pmCellText(kind, r, c, today) {
+  const d = document.createElement("div");
+  d.innerHTML = pmCell(kind, r, c, today).replace(/<br\s*\/?>/gi, " ").replace(/^\s*<td[^>]*>|<\/td>\s*$/g, "");
+  return normWs(d.textContent || "");
+}
+function pmCfValue(kind, r, c, today) {
+  if (c.k === "poc") return r.poc || "";
+  if (c.k === "status") return r.status || "";
+  if (c.k === "dest") return r.country || "";
+  if (c.k === "lane") { const l = pmLanesFor(kind).find((x) => x.id === r.lane); return l ? l.label : ""; }
+  return pmCellText(kind, r, c, today);
+}
+function pmVisibleCols(kind, isActive) {
+  return pmCols(kind, isActive).filter((c) => PM_VIEW_LOCKED.indexOf(c.k) !== -1 || pmShow(kind, "c:" + c.k));
+}
+/** Rows that pass the table's column filters (hidden columns don't filter). */
+function pmColFilter(kind, rows, isActive) {
+  const cf = PmUi[kind].cf || {};
+  const cols = pmVisibleCols(kind, isActive).filter((c) => cf[c.k]);
+  if (!cols.length) return rows;
   const today = pmToday();
-  if (!rows.length) return el(`<div class="pmx-empty">Nothing matches the filters.</div>`);
+  return rows.filter((r) => cols.every((c) => {
+    const v = pmCfValue(kind, r, c, today);
+    return PM_CF_PICK.indexOf(c.k) !== -1 ? v === cf[c.k] : v.toLowerCase().includes(String(cf[c.k]).toLowerCase());
+  }));
+}
+/** Column picker under the table header (same saved choices as View settings). */
+function pmColsPicker(kind, isActive) {
+  const cols = pmCols(kind, isActive).filter((c) => PM_VIEW_LOCKED.indexOf(c.k) === -1);
+  const p = el(`<div class="copx-colpick"><div><div class="k">Columns</div>${cols.map((c) =>
+    `<label class="copx-chk"><input type="checkbox" data-vid="c:${esc(c.k)}" ${pmShow(kind, "c:" + c.k) ? "checked" : ""}> ${esc(c.l)}</label>`).join("")}</div>
+    <div class="ft"><button class="lnk" type="button" id="pmColsReset">Recommended columns</button></div></div>`);
+  p.querySelectorAll("input[data-vid]").forEach((cb) => cb.addEventListener("change", () => {
+    pmViewSet(kind, cb.dataset.vid, cb.checked);
+    if (!cb.checked && PmUi[kind].cf) delete PmUi[kind].cf[cb.dataset.vid.slice(2)];
+    pmRerender();
+  }));
+  p.querySelector("#pmColsReset").addEventListener("click", () => {
+    for (const c of cols) pmViewSet(kind, "c:" + c.k, (PM_VIEW_OFF[kind] || []).indexOf("c:" + c.k) === -1);
+    pmRerender();
+  });
+  return p;
+}
+function pmTable(kind, rows, isActive, opts) {
+  const ui = PmUi[kind];
+  const cfOn = !!(opts && opts.cf);
+  const cols = pmVisibleCols(kind, isActive);
+  const today = pmToday();
+  if (!rows.length && !cfOn) return el(`<div class="pmx-empty">Nothing matches the filters.</div>`);
   const head = cols.map((c) => `<th data-k="${c.k}" class="${c.num ? "num" : ""}">${esc(c.l)}${ui.sort.k === c.k ? (ui.sort.d > 0 ? " ▲" : " ▼") : ""}</th>`).join("");
+  let fil = "";
+  if (cfOn) {
+    const cf = ui.cf || (ui.cf = {});
+    const pool = (opts && opts.pool) || rows;
+    const opt = (v, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(v || "All")}</option>`;
+    fil = `<tr class="flt">${cols.map((c) => {
+      const v = cf[c.k] || "";
+      if (PM_CF_PICK.indexOf(c.k) === -1) return `<th><input type="search" class="copx-cf" data-cf="${esc(c.k)}" value="${esc(v)}" placeholder="Filter" aria-label="Filter ${esc(c.l)}"></th>`;
+      const vals = Array.from(new Set(pool.map((r) => pmCfValue(kind, r, c, today)).filter(Boolean)));
+      if (v && vals.indexOf(v) === -1) vals.push(v);
+      vals.sort((a, b) => a.localeCompare(b));
+      return `<th><select class="copx-cf" data-cf="${esc(c.k)}" aria-label="Filter ${esc(c.l)}">${opt("", !v)}${vals.map((x) => opt(x, x === v)).join("")}</select></th>`;
+    }).join("")}</tr>`;
+  }
   const body = rows.map((r) => {
     const open = ui.open.has(r.num);
     return `<tr class="row ${open ? "open" : ""}" data-num="${esc(r.num)}">${cols.map((c) => pmCell(kind, r, c, today)).join("")}</tr>` +
       (open ? `<tr class="pmx-det"><td colspan="${cols.length}">${kind === "proc" ? pmPrDetail(r) : kind === "pls" ? pmPlsDetail(r) : pmTopDetail(r)}</td></tr>` : "");
-  }).join("");
-  const wrap = el(`<div class="pmx-wrap"><table class="pmx-tbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`);
-  wrap.querySelectorAll("th").forEach((th) => th.addEventListener("click", () => {
+  }).join("") || `<tr><td colspan="${cols.length}" class="pmx-empty">Nothing matches the filters.</td></tr>`;
+  const wrap = el(`<div class="pmx-wrap"><table class="pmx-tbl"><thead><tr class="hd">${head}</tr>${fil}</thead><tbody>${body}</tbody></table></div>`);
+  wrap.querySelectorAll("tr.hd th").forEach((th) => th.addEventListener("click", () => {
     const k = th.dataset.k;
     ui.sort = ui.sort.k === k ? (ui.sort.d > 0 ? { k, d: -1 } : { k: "", d: 1 }) : { k, d: 1 };
     pmRerender();
   }));
+  if (cfOn) {
+    let t = null;
+    wrap.querySelectorAll(".copx-cf").forEach((inp) => {
+      const k = inp.dataset.cf;
+      const apply = () => {
+        ui.cf[k] = inp.value; pmRerender();
+        if (inp.tagName === "INPUT") {
+          const n = document.querySelector(`.pmx-tbl .copx-cf[data-cf="${CSS.escape(k)}"]`);
+          if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+        }
+      };
+      if (inp.tagName === "SELECT") inp.addEventListener("change", apply);
+      else inp.addEventListener("input", () => { clearTimeout(t); t = setTimeout(apply, 300); });
+    });
+    // keep the filter row pinned just under the headings
+    setTimeout(() => { const h = wrap.querySelector("tr.hd"); if (h) wrap.querySelectorAll("tr.flt th").forEach((th) => { th.style.top = h.offsetHeight + "px"; }); }, 0);
+  }
   wrap.querySelectorAll("tr.row").forEach((tr) => tr.addEventListener("click", () => {
     const n = tr.dataset.num;
     if (ui.open.has(n)) ui.open.delete(n); else ui.open.add(n);

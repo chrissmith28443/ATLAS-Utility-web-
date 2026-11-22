@@ -13,6 +13,18 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.8",
+    title: "PLS chart, colours and table tools; simpler Metrics date picker",
+    notes: [
+      "The \"Trips \u2014 next 30 days\" chart on the PLS tab now shows every trip in the window. It used to stop at 18 and say \"+N more\".",
+      "The chart is drawn at screen size, so its labels are the same size as the text around it and the rows are slimmer. On a wide screen the labels also show more of each trip's name.",
+      "Metrics: the reporting window is a few picks instead of seven buttons and two date boxes \u2014 fiscal year (current or previous), then Full year / Half / Quarter, then which half or quarter. All time and Custom sit at the right; the date boxes only appear for Custom. It opens on the current fiscal year's current half.",
+      "PLS step colours are four clearly different colours now (violet, yellow, blue, green) instead of four shades of blue, on the step cards, the trips chart and the table.",
+      "PLS: the small \"Open PLS\" and \"Estimate with DTRA\" tiles are off by default — the step cards already show both. The three that add something (trips coming up, traveling now, need attention) stay. View settings can bring the others back.",
+      "PLS details table: a filter row under the headings (pick-lists for TTI POC, step, status and destination; type-to-filter boxes for the rest), a small search box at the right of the table heading, and a columns icon beside it to choose which columns show.",
+    ],
+  },
+  {
     version: "2.9.7",
     title: "Courier shipments need a pack date and RFQ date",
     notes: [

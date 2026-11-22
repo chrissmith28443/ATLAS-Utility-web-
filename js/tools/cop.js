@@ -3819,7 +3819,7 @@ async function copSwapInMetrics(recs, label) {
   const keep = AppState.activeTool;
   const prev = AppState.udqType === "metrics" && typeof MetricsUi !== "undefined"
     ? { tool: AppState.activeTool, collapsed: AppState.dashCollapsed,
-        mx: { start: MetricsUi.start, end: MetricsUi.end, label: MetricsUi.label, quick: MetricsUi.quick } } : null;
+        mx: { start: MetricsUi.start, end: MetricsUi.end, label: MetricsUi.label, quick: MetricsUi.quick, sel: MetricsUi.sel } } : null;
   await atlasLoadMetricsRecords(recs, label);
   if (prev) {
     AppState.activeTool = prev.tool; AppState.dashCollapsed = prev.collapsed;

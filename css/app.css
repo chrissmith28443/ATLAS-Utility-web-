@@ -1539,3 +1539,13 @@ body.cop-quiet .mx-group-sep{ margin:22px 0 4px; }
 body.cop-quiet .mx-group-sep::before, body.cop-quiet .mx-group-sep::after{ height:1px; background:var(--line); opacity:1; }
 body.cop-quiet .mx-metric-sec{ border-left-width:3px; }
 body.cop-quiet .mx-secbadge{ font-family:inherit; letter-spacing:.03em; }
+/* Metrics reporting window: a few chip groups (fiscal year / period / which one), dates only for Custom */
+.mx-pick{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-bottom:10px; }
+.mx-pks{ display:inline-flex; gap:2px; padding:3px; border-radius:10px; background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.mx-pks.end{ margin-left:auto; }
+.mx-pk{ border:0; background:transparent; border-radius:7px; padding:5px 11px; font:inherit; font-size:12.5px; font-weight:600; color:var(--steel); cursor:pointer; white-space:nowrap; }
+.mx-pk:hover{ color:var(--ink); }
+.mx-pk.on{ background:var(--card); color:#1e5aa8; box-shadow:0 1px 2px rgba(16,24,40,.14); }
+body.theme-dark .mx-pk.on{ color:#8fbaf0; }
+.mx-pk:focus-visible{ outline:2px solid #1e5aa8; outline-offset:1px; }
+.mx-pick .mx-customrow{ flex-basis:100%; grid-template-columns:minmax(150px,200px) minmax(150px,200px) auto; margin-top:2px; }

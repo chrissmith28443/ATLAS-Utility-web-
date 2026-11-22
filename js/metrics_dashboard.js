@@ -61,12 +61,37 @@ const MX_SRF_METRIC_META = {
    whichever fiscal half we're currently in (FY starts Oct 1: First Half = Oct–Mar,
    Second Half = Apr–Sep). The user can switch to any other window, and that choice
    persists for the rest of the session. */
-function mxCurrentHalfDefault() {
+/* Reporting window = a few picks (2.9.8): fiscal year (current or previous) ->
+   Full year / Half / Quarter -> which half or quarter; or All time; or Custom
+   (the only pick that shows date boxes). sel = { fy, span, part }:
+   span "year" | "half" | "qtr" | "all" | "custom"; part = 1-2 (half) or 1-4 (quarter).
+   Fiscal year N runs 1 Oct N-1 .. 30 Sep N. Opens on the current FY's current half. */
+function mxCurrentSel() {
   const m = pmrToday().mo;                 // 1–12
-  const firstHalf = (m >= 10 || m <= 3);   // Oct–Mar
-  const quick = firstHalf ? "h1" : "h2";
-  const info = firstHalf ? pmrFirstHalfDates() : pmrSecondHalfDates();
-  return { quick, start: info.start, end: info.end, label: mxWindowLabel(quick, info.start, info.end) };
+  return { fy: pmrCurrentFiscalYear(), span: "half", part: (m >= 10 || m <= 3) ? 1 : 2 };
+}
+function mxCurrentQuarter() { const m = pmrToday().mo; return m >= 10 ? 1 : m <= 3 ? 2 : m <= 6 ? 3 : 4; }
+/** sel -> { start, end, label, quick } (ISO dates; null/null = All time). Custom keeps the dates already set. */
+function mxWindowFor(sel, cur) {
+  const fy = sel.fy, iso = (y, mo, d) => `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  if (sel.span === "all") return { start: null, end: null, label: "All time", quick: "all" };
+  if (sel.span === "custom") {
+    const s = cur && cur.start, e = cur && cur.end;
+    return { start: s || null, end: e || null, label: s && e ? `${s} → ${e}` : "Custom dates", quick: "custom" };
+  }
+  if (sel.span === "year") return { start: iso(fy - 1, 10, 1), end: iso(fy, 9, 30), label: `FY${fy}`, quick: `fy${fy}` };
+  if (sel.span === "half") {
+    return sel.part === 2
+      ? { start: iso(fy, 4, 1), end: iso(fy, 9, 30), label: `FY${fy} · 2nd half`, quick: fy === pmrCurrentFiscalYear() ? "h2" : `fy${fy}h2` }
+      : { start: iso(fy - 1, 10, 1), end: iso(fy, 3, 31), label: `FY${fy} · 1st half`, quick: fy === pmrCurrentFiscalYear() ? "h1" : `fy${fy}h1` };
+  }
+  const q = [null, [fy - 1, 10, 1, fy - 1, 12, 31], [fy, 1, 1, fy, 3, 31], [fy, 4, 1, fy, 6, 30], [fy, 7, 1, fy, 9, 30]][sel.part] || [fy - 1, 10, 1, fy - 1, 12, 31];
+  return { start: iso(q[0], q[1], q[2]), end: iso(q[3], q[4], q[5]), label: `FY${fy} · Q${sel.part || 1}`, quick: `fy${fy}q${sel.part || 1}` };
+}
+function mxCurrentHalfDefault() {
+  const sel = mxCurrentSel();
+  const w = mxWindowFor(sel);
+  return { quick: w.quick, start: w.start, end: w.end, label: w.label, sel };
 }
 
 const _mxDefaultWindow = mxCurrentHalfDefault();
@@ -74,7 +99,8 @@ const MetricsUi = {
   start: _mxDefaultWindow.start,
   end: _mxDefaultWindow.end,
   label: _mxDefaultWindow.label,
-  quick: _mxDefaultWindow.quick,   // which quick button is active
+  quick: _mxDefaultWindow.quick,   // legacy key ("h1" / "h2" for the current FY's halves; other tools read it)
+  sel: _mxDefaultWindow.sel,       // { fy, span, part } — what's picked in the reporting-window chips
   ignoreOpen: false,               // shared "Ignored" box open state (PMR/Metrics)
   repaint: null,                   // set by renderMetricsDashboard so the Ignore UI can refresh
 };
@@ -432,24 +458,7 @@ function renderMetricsDashboard(dash) {
   const control = el(`
     <div class="panel mx-control">
       <div class="body">
-        <div class="mx-quickrow">
-          <label class="pmr-qlabel" title="Fiscal year starts Oct 1. All time counts every delivered WMTR, ignoring dates. These figures use the same engine as the PMR export.">Reporting window</label>
-          <div class="btnrow" style="flex-wrap:wrap;gap:6px;">
-            <button class="btn ghost mx-quick" data-q="all">All time</button>
-            <button class="btn ghost mx-quick" data-q="cfy">Current FY</button>
-            <button class="btn ghost mx-quick" data-q="pfy">Previous FY</button>
-            <button class="btn ghost mx-quick" data-q="cq">Current Qtr</button>
-            <button class="btn ghost mx-quick" data-q="pq">Previous Qtr</button>
-            <button class="btn ghost mx-quick" data-q="h1">FY First Half</button>
-            <button class="btn ghost mx-quick" data-q="h2">FY Second Half</button>
-          </div>
-        </div>
-        <div class="mx-customrow">
-          <div class="field"><label for="mxStart">Custom start</label><input type="date" id="mxStart"></div>
-          <div class="field"><label for="mxEnd">Custom end</label><input type="date" id="mxEnd"></div>
-          <div class="field mx-applycell"><button class="btn primary" id="mxApply">Apply range</button></div>
-          <div class="hint mx-windowhint">Fiscal year starts Oct 1. "All time" counts every delivered WMTR, ignoring dates. These figures use the same engine as the PMR tool, so they match the PMR export.</div>
-        </div>
+        <div class="mx-pick" id="mxPick" title="Fiscal year starts Oct 1. All time counts every delivered WMTR, ignoring dates. These figures use the same engine as the PMR export."></div>
         <div class="btnrow mx-exportrow" style="margin-top:8px;">
           <button class="btn" id="mxExportSummary">Export summary (.xlsx)</button>
           <button class="btn ghost" id="mxIgnoredBtn" type="button" title="Manage acknowledged / hidden flags">Ignored</button>
@@ -531,16 +540,61 @@ function renderMetricsDashboard(dash) {
   mxRenderDocsSection(hDocs);
   mxRenderConsolSection(hConsol);
 
-  /* ---- wire window controls ---- */
-  const setActiveQuick = () => {
-    control.querySelectorAll(".mx-quick").forEach((b) =>
-      b.classList.toggle("active", b.dataset.q === MetricsUi.quick));
-  };
-  setActiveQuick();
+  /* ---- reporting-window chips ---- */
+  function drawPicker() {
+    const host = control.querySelector("#mxPick");
+    const sel = MetricsUi.sel || (MetricsUi.sel = mxCurrentSel());
+    const cfy = pmrCurrentFiscalYear();
+    const dated = sel.span === "year" || sel.span === "half" || sel.span === "qtr";
+    const chip = (attr, val, label, on, title) => `<button type="button" class="mx-pk ${on ? "on" : ""}" data-${attr}="${val}" aria-pressed="${!!on}" ${title ? `title="${esc(title)}"` : ""}>${esc(label)}</button>`;
+    const group = (label, html) => `<div class="mx-pks" role="group" aria-label="${esc(label)}">${html}</div>`;
+    host.innerHTML =
+      group("Fiscal year", chip("fy", cfy, `FY${cfy}`, dated && sel.fy === cfy, "Current fiscal year") + chip("fy", cfy - 1, `FY${cfy - 1}`, dated && sel.fy === cfy - 1, "Previous fiscal year")) +
+      group("Period", chip("span", "year", "Full year", sel.span === "year") + chip("span", "half", "Half", sel.span === "half") + chip("span", "qtr", "Quarter", sel.span === "qtr")) +
+      (sel.span === "half" ? group("Which half", chip("part", 1, "1st half", sel.part === 1, "October – March") + chip("part", 2, "2nd half", sel.part === 2, "April – September")) : "") +
+      (sel.span === "qtr" ? group("Which quarter", [["Q1", "October – December"], ["Q2", "January – March"], ["Q3", "April – June"], ["Q4", "July – September"]]
+        .map(([l, t], i) => chip("part", i + 1, l, sel.part === i + 1, t)).join("")) : "") +
+      `<div class="mx-pks end" role="group" aria-label="Other ranges">${chip("span", "all", "All time", sel.span === "all")}${chip("span", "custom", "Custom", sel.span === "custom", "Pick your own start and end dates")}</div>` +
+      (sel.span === "custom" ? `<div class="mx-customrow">
+          <div class="field"><label for="mxStart">Start</label><input type="date" id="mxStart" value="${esc(MetricsUi.start || "")}"></div>
+          <div class="field"><label for="mxEnd">End</label><input type="date" id="mxEnd" value="${esc(MetricsUi.end || "")}"></div>
+          <div class="field mx-applycell"><button class="btn primary" id="mxApply" type="button">Apply</button></div>
+          ${MetricsUi._warn ? `<div class="statusline err" style="grid-column:1 / -1">${esc(MetricsUi._warn)}</div>` : ""}
+        </div>` : "");
+    const pick = (next) => {
+      const s = Object.assign({}, sel, next);
+      if (s.span === "year" || s.span === "half" || s.span === "qtr") {
+        if (!dated && next.fy === undefined) s.fy = cfy;                       // coming back from All time / Custom
+        // Switching between Half and Quarter (or coming from All time / Custom) starts on the current one
+        // for the current FY, the first one for the previous FY. Changing only the year keeps the pick.
+        if (s.span !== sel.span || !dated) {
+          if (s.span === "half") s.part = s.fy === cfy ? mxCurrentSel().part : 1;
+          if (s.span === "qtr") s.part = s.fy === cfy ? mxCurrentQuarter() : 1;
+        }
+        if (next.part) s.part = next.part;
+      }
+      MetricsUi.sel = s; MetricsUi._warn = "";
+      const w = mxWindowFor(s, MetricsUi);
+      Object.assign(MetricsUi, { start: w.start, end: w.end, label: w.label, quick: w.quick });
+      repaint();
+    };
+    host.querySelectorAll("[data-fy]").forEach((b) => b.addEventListener("click", () => pick({ fy: Number(b.dataset.fy), span: dated ? sel.span : "half" })));
+    host.querySelectorAll("[data-span]").forEach((b) => b.addEventListener("click", () => pick({ span: b.dataset.span })));
+    host.querySelectorAll("[data-part]").forEach((b) => b.addEventListener("click", () => pick({ part: Number(b.dataset.part) })));
+    const ap = host.querySelector("#mxApply");
+    if (ap) ap.addEventListener("click", () => {
+      const s = host.querySelector("#mxStart").value, e = host.querySelector("#mxEnd").value;
+      if (!s || !e) { MetricsUi._warn = "Pick both a start and an end date."; drawPicker(); return; }
+      if (s > e) { MetricsUi._warn = "Start date is after end date."; drawPicker(); return; }
+      MetricsUi._warn = "";
+      Object.assign(MetricsUi, { quick: "custom", start: s, end: e, label: s + " → " + e });
+      repaint();
+    });
+  }
 
   const repaint = () => {
     document.getElementById("mxWindowLabel").textContent = MetricsUi.label;
-    setActiveQuick();
+    drawPicker();
     let res = null, err = "";
     try { res = pmrRun(AppState.grid, MetricsUi.start, MetricsUi.end); }
     catch (e) { err = e.message || String(e); }
@@ -587,47 +641,6 @@ function renderMetricsDashboard(dash) {
     if (ib) { const n = (typeof pmrmxCount === "function") ? pmrmxCount() : 0; ib.textContent = n ? `Ignored (${n})` : "Ignored"; }
   };
   MetricsUi.repaint = repaint;
-
-  const quickMap = {
-    all: () => ({ start: null, end: null }),
-    cfy: () => pmrCurrentFyDates(),
-    pfy: () => pmrPreviousFyDates(),
-    cq:  () => pmrCurrentQtrDates(),
-    pq:  () => pmrPreviousQtrInfo(),
-    h1:  () => pmrFirstHalfDates(),
-    h2:  () => pmrSecondHalfDates(),
-  };
-
-  control.querySelectorAll(".mx-quick").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const q = btn.dataset.q;
-      const info = quickMap[q]();
-      MetricsUi.quick = q;
-      MetricsUi.start = info.start || null;
-      MetricsUi.end = info.end || null;
-      MetricsUi.label = mxWindowLabel(q, MetricsUi.start, MetricsUi.end);
-      // Mirror the chosen range into the custom inputs (blank for All time).
-      control.querySelector("#mxStart").value = MetricsUi.start || "";
-      control.querySelector("#mxEnd").value = MetricsUi.end || "";
-      repaint();
-    });
-  });
-
-  control.querySelector("#mxApply").addEventListener("click", () => {
-    const s = control.querySelector("#mxStart").value;
-    const e = control.querySelector("#mxEnd").value;
-    if (!s || !e) { MetricsUi._warn = "Pick both a start and an end date."; repaint(); return; }
-    if (s > e) { MetricsUi._warn = "Start date is after end date."; repaint(); return; }
-    MetricsUi._warn = "";
-    MetricsUi.quick = "custom";
-    MetricsUi.start = s; MetricsUi.end = e;
-    MetricsUi.label = s + " → " + e;
-    repaint();
-  });
-
-  // Seed custom inputs from current state.
-  control.querySelector("#mxStart").value = MetricsUi.start || "";
-  control.querySelector("#mxEnd").value = MetricsUi.end || "";
 
   control.querySelector("#mxExportSummary").addEventListener("click", mxExportSummary);
   control.querySelector("#mxIgnoredBtn").addEventListener("click", mxOpenIgnoreModal);

@@ -199,6 +199,7 @@ async function loadFile(file, preGrid) {
         }
         MetricsUi.start = def.start; MetricsUi.end = def.end;
         MetricsUi.label = def.label; MetricsUi.quick = def.quick; MetricsUi._warn = "";
+        if (def.sel) MetricsUi.sel = def.sel;            // the reporting-window chips (fiscal year / half / quarter)
       }
       let wmtrCount = 0;
       for (let r = 1; r <= gridMaxRow(grid); r++) {

@@ -615,3 +615,26 @@ Arrived Warehouse or the warehouse actual date is filled.
 - v2.9.7 (user, 2026-11-22): hand carry is the ONLY exemption from the Date Packed / RFQ Sent Date flags — courier
   shipments DO need both (supersedes my 2.9.6 assumption). Columns buttons (#copCols, #copTrkView) are an icon now
   (copColsBtn, a columns glyph; user was offered three dots / the pmdash sliders icon as alternatives). Pushed 2026-11-22.
+- v2.9.8 (user, 2026-11-22): PLS "Trips — next N days" chart (pmPlsTimeline): no 18-row cap / "+N more" — every trip
+  shows; drawn 1:1 at the panel's measured width (draw(W) + rAF paint + ResizeObserver; tips re-wired with
+  pmWireTips(host)) so text is 11px like its surroundings (the old fixed 720-wide viewBox was stretched ~1.6x on a
+  wide screen). Rows 17px, bars 7px. The Procurement dot plot / Property bars still use stretched viewBoxes — same
+  fix would apply if he says they look oversized.
+  PLS details table (same request): pmTable(kind, rows, isActive, { cf: true, pool }) adds a column filter row
+  (PmUi[kind].cf; PM_CF_PICK = pick-lists for poc / lane / status / dest, text for the rest; pmColFilter runs in the
+  PLS render so the count + Excel export follow it); search box moved from the filter bar into the table header
+  (pmWireSearch); columns icon (copColsBtn) + pmColsPicker write the same "c:<col>" keys as View settings. Generic
+  by `kind` but switched on for PLS only — Procurement / Property tables are unchanged until he asks.
+  PLS step colours (user: dark blues indistinguishable): PM_PLS_LANES now 4 hues — review violet #6250d6, estimate
+  yellow #eda100, approval blue #2a78d6, booked green #1baf7a (dark theme: #9085e9 / #c98500 / #3987e5 / #199e70 via
+  the `color` getter, pmLaneDef). Validated with the dataviz skill's validate_palette.py (python -I -X utf8) on
+  #ffffff and #17212c. PR lanes (PM_PR_LANES) still use the blue ramp — same change would apply if he asks.
+  PLS tiles: PM_VIEW_OFF.pls += t:open, t:dtra (duplicates of the step cards; user: no need for both). Anyone who
+  already customised their PLS view keeps their own choices.
+  METRICS reporting window (user, same day): chips — FY (current / previous) -> Full year / Half / Quarter -> which
+  half / quarter; All time + Custom at the right; date boxes only for Custom. MetricsUi.sel = { fy, span, part };
+  mxWindowFor(sel) -> { start, end, label, quick }; default mxCurrentSel() = current FY, current half. quick stays
+  "h1" / "h2" for the current FY's halves (xmastree reads mxCurrentHalfDefault().quick). app.js load-default and
+  cop.js copSwapInMetrics carry `sel`. He first asked to rename "FY First/Second Half" to "Current / Previous FY
+  Half" — superseded by the chips in the same message.
+  Pushed 2026-11-22.

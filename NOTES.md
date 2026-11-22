@@ -185,7 +185,7 @@ Arrived Warehouse or the warehouse actual date is filled.
 - v2.6.6: Active tab: no Metric hits filter (Needs attention covers it); no DPS check (field unused);
   no draft-AWB gate (always uploaded pre-transit). Cost over DTRA-approved flags only when >10%
   over (COP only — Christmas Tree's own reapproval flag is unchanged).
-- v2.6.7: Daily-update entry is MOCKUP-ONLY: COP_MOCKUP.editUpdates = false in the Utility (
+- v2.6.7: Daily-update entry is MOCKUP-ONLY: COP_MOCKUP.editUpdates = false in the Utility (no
   form, no sheet, drafts ignored). The mockup sets it true; its sheet has one "Save daily updates"
   button (top + bottom) that saves every filled row via copSaveDailyUpdate. Table = COP column
   defs (copColDefs): header-click sort, per-column filter row, Columns picker (prefs.cols per
@@ -480,7 +480,7 @@ Arrived Warehouse or the warehouse actual date is filled.
 ## v2.8.11 Service worker fix (2026-11-10)
 - sw.js APP_SHELL had apple-touch-icon.png and favicon-32.png listed twice since at
   least the July repo flatten. Cache.addAll() rejects duplicate requests, so EVERY
-  new service worker failed to install (went "redundant") -> no offline shell and 
+  new service worker failed to install (went "redundant") -> no offline shell and no
   "new version" toast. Keep APP_SHELL free of duplicates.
 - Navigations now fetch with cache:"no-cache" (always revalidate index.html) and the
   install precache uses cache:"reload", so a server that lets index.html sit in the
@@ -503,7 +503,7 @@ Arrived Warehouse or the warehouse actual date is filled.
   active + closed delivered on/after 1 Oct (cancelled left out). copTimeline(rec): submitted = Date Submitted (always <=
   first non-Draft stamp in the sample), toDtra = first "DTRA Program Review", compliance = "DTRA Compliance Review
   (Approved)", quoteSub = first "DTRA Estimate Review", quoteAppr = "... (Approved)", departed = Departure from Origin
-  Act. Date. RFQ status: due = 1 business day after later(compliance, packed); active past Estimate Preparation with 
+  Act. Date. RFQ status: due = 1 business day after later(compliance, packed); active past Estimate Preparation with no
   RFQ date = "Not recorded" (not overdue). EEI: US export, not hand carry — filed / hold (in Execution) / later / missed.
   Tiles = COP_TRK_PICK filters; step strip = COP_TL_STEPS average business days + longest shipment.
 - In progress view: KPI tiles (copTodayStrip) incl. new quick filters rfq / eei (COP_QUICK).

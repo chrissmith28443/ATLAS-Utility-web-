@@ -512,27 +512,22 @@ function validationBanner() {
   const counts = { error: 0, warning: 0, info: 0 };
   for (const f of findings) if (counts[f.sev] != null) counts[f.sev]++;
 
-  const { error, warning, info } = counts;
-  let cls, icon, text;
-  if (error) {
-    cls = "vb-error"; icon = "\u2715";
-    text = `${error} error${error === 1 ? "" : "s"}` +
-      (warning ? `, ${warning} warning${warning === 1 ? "" : "s"}` : "");
-  } else if (warning) {
-    cls = "vb-warn"; icon = "\u26A0";
-    text = `${warning} warning${warning === 1 ? "" : "s"}` +
-      (info ? `, ${info} note${info === 1 ? "" : "s"}` : "");
-  } else {
-    cls = "vb-ok"; icon = "\u2713";
-    text = info ? `All clear · ${info} note${info === 1 ? "" : "s"}` : "All clear — no issues found";
-  }
+  // All clear (notes only, or nothing) → nothing on screen. Something flagged → one small
+  // chip (app.js puts it in the request bar); click it for the details.
+  const { error, warning } = counts;
+  if (!error && !warning) return null;
+  const parts = [];
+  if (error) parts.push(`${error} error${error === 1 ? "" : "s"}`);
+  if (warning) parts.push(`${warning} warning${warning === 1 ? "" : "s"}`);
+  const text = parts.join(" · ");
   const node = el(`
-    <div class="valbanner ${cls}" role="status">
-      <span class="vb-ico">${icon}</span>
-      <span class="vb-text">Pre-flight: ${esc(text)}</span>
-      <button class="btn ghost vb-open" type="button">View details</button>
-    </div>`);
-  node.querySelector(".vb-open").addEventListener("click", () => {
+    <button class="valbanner ${error ? "vb-error" : "vb-warn"}" type="button"
+            title="Pre-flight check: ${esc(parts.join(", "))} — click for the details"
+            aria-label="Pre-flight check: ${esc(parts.join(", "))}. View details.">
+      <span class="vb-ico" aria-hidden="true">!</span>
+      <span class="vb-text">${esc(text)}</span>
+    </button>`);
+  node.addEventListener("click", () => {
     AppState.activeTool = "validate";
     renderRail();
     renderWorkspace();

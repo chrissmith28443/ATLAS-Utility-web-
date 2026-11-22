@@ -699,3 +699,32 @@ Arrived Warehouse or the warehouse actual date is filled.
   tool in the left menu was unreadable (peach box, light text) — fixed with one rule in app.css.
 - Not checked by me: real mouse hover on the "i" marks (preview tab is in the background), Save as PDF print window.
   Pushed 2026-11-22.
+
+## v2.9.12 (2026-11-22) — new look everywhere outside the Dashboard hub; quiet pre-flight; update-message fix
+- User liked the CIV restyle ("great") and asked for it on the rest of the tools, plus the header, left menu and the
+  dark blue request bar; possum smaller; pre-flight banner gone when all clear, inconspicuous when flagged.
+- HOW THE LOOK IS APPLIED (app.js, block above loadFile): uiApply(root, isTool) adds class "ui2" to every panel;
+  for tool pages it also runs uiLift (moves the first plain .btnrow into the header as .ui-acts: status, Refresh as
+  an icon, buttons reversed so the main one is far right; rows with an id or non-button children stay put) and
+  uiQuiet (.hint -> "i" on the field label; a page's .note -> one "i" at the end of the heading; skips anything with
+  an id, hidden, holding a control, or a note that is the page's only content; content is MOVED so links keep
+  working). Called at the end of renderWorkspace (not for hub tools) and from renderDashboard (now a wrapper around
+  renderDashboardInner). uiWatch = MutationObserver that gives late-drawn panels the class. A new tool gets the
+  look automatically if it uses the usual .panel > header + .body > .formgrid/.btnrow/.note/.previewwrap layout.
+- Styles: block "2.9.12" at the end of app.css (header, rail, drop zone, request bar .manifest, .valbanner chip,
+  .panel.ui2, Fetch pop-up). Header is now light (was navy + orange stripe); Fetch / Dashboard buttons navy
+  #1e2a4a, active things blue #1e5aa8 (dark mode #8fbaf0 / #3d5a8c). Orange --accent is unchanged as a variable
+  and still used inside dialogs, the Dashboard hub and the output documents.
+- Pre-flight (validate.js validationBanner): returns null unless there is an error or warning (notes-only = clear);
+  otherwise a small chip button "N errors · N warnings" that renderDashboard moves into .manifest-head. Click =
+  the Pre-flight validation page, as before.
+- "A new version is available" kept showing: a plain refresh loads the newest page (navigation is network-first)
+  but leaves the new service worker waiting — only the toast's Reload button activated it. Now pwa.js asks the
+  waiting worker its version (sw.js answers "GET_VERSION" with CACHE): same as the page (or no answer = pre-2.9.12
+  worker) -> it takes over quietly, no toast, no reload; newer than the page -> toast as before. Tested both
+  paths locally by temporarily renaming CACHE.
+- Tested in the preview with real exports: every Shipping tool, Packet, Audit, Required Attachments, Pre-flight
+  page, Inventory Crosswalk, all Property tools (DD1149, TOP, CoreIMS, Deltek, Inventory Sheet, Inventory List
+  Export, PO), IR request view, dark mode, and the Dashboard hub (unchanged). NOT checked: Offline mode pages
+  (couldn't switch it on from the test), AWB page, real mouse hover, live site.
+  Pushed 2026-11-22.

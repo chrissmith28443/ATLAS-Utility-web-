@@ -18,29 +18,66 @@
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("sw.js").then(function (reg) {
-        // If an updated worker is already waiting (e.g. from a previous visit), prompt now.
-        if (reg.waiting && navigator.serviceWorker.controller) showUpdateToast(reg);
+        // If an updated worker is already waiting (e.g. from a previous visit), deal with it now.
+        if (reg.waiting && navigator.serviceWorker.controller) updateReady(reg, reg.waiting);
         // Watch for a new worker installing.
         reg.addEventListener("updatefound", function () {
           var nw = reg.installing;
           if (!nw) return;
           nw.addEventListener("statechange", function () {
             // "installed" while a controller exists means an update is ready (not first install).
-            if (nw.state === "installed" && navigator.serviceWorker.controller) showUpdateToast(reg);
+            if (nw.state === "installed" && navigator.serviceWorker.controller) updateReady(reg, nw);
           });
         });
       }).catch(function (e) {
         console.warn("Service worker registration failed:", e);
       });
 
-      // When the new worker takes control, reload once so the page runs fresh assets.
+      // When the new worker takes control, reload once so the page runs fresh assets —
+      // unless the page is already on that release (quietSwap), where there is nothing to reload for.
       var reloaded = false;
       navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (quietSwap) { quietSwap = false; return; }
         if (reloaded) return;
         reloaded = true;
         window.location.reload();
       });
     });
+  }
+
+  /* A new worker is ready. A plain refresh already loads the newest page (the
+     page itself always comes from the network), so the worker left waiting is
+     usually the SAME release the page is showing — prompting then is a "new
+     version" message that never goes away, because only its Reload button, not
+     a refresh, lets the worker take over. So: ask the worker which release it
+     carries. Same as the page → let it take over quietly, no prompt, no reload.
+     Newer than the page (released while the app was open) → show the prompt. */
+  var quietSwap = false;
+  function verOf(s) { var m = /(\d+\.\d+\.\d+)/.exec(String(s || "")); return m ? m[1] : ""; }
+  function updateReady(reg, worker) {
+    var pageVer = verOf(typeof APP_VERSION !== "undefined" ? APP_VERSION : "");
+    var done = false;
+    var finish = function (workerVer) {
+      if (done) return;
+      done = true;
+      // No answer = a worker from before 2.9.12 left waiting by an earlier visit: it can take over
+      // quietly too (the browser's own update check then brings in the current one the same way).
+      if (!workerVer || (pageVer && pageVer === workerVer)) {
+        quietSwap = true;
+        setTimeout(function () { quietSwap = false; }, 10000);   // never swallow a later, real reload
+        try { worker.postMessage("SKIP_WAITING"); } catch (e) { quietSwap = false; showUpdateToast(reg); return; }
+        var old = document.getElementById("updateToast");
+        if (old) old.remove();
+      } else {
+        showUpdateToast(reg);
+      }
+    };
+    try {
+      var ch = new MessageChannel();
+      ch.port1.onmessage = function (e) { finish(verOf(e.data)); };
+      worker.postMessage("GET_VERSION", [ch.port2]);
+    } catch (e) { finish(""); return; }
+    setTimeout(function () { finish(""); }, 1500);   // an older worker doesn't answer
   }
 
   function showUpdateToast(reg) {
@@ -57,6 +94,7 @@
       '<button id="updateDismiss" aria-label="Dismiss" style="background:none;border:0;color:#9fb0c2;font-size:18px;line-height:1;cursor:pointer;">&times;</button>';
     document.body.appendChild(t);
     document.getElementById("updateReload").addEventListener("click", function () {
+      quietSwap = false;   // this one is meant to reload
       if (reg.waiting) reg.waiting.postMessage("SKIP_WAITING");
       else window.location.reload();
     });

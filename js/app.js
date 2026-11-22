@@ -231,43 +231,109 @@ function appShipmentPicker(full) {
 }
 
 /* -------------------------------------------------------------------------
-   NEW-LOOK TOOL PAGES ("ui2", 2.9.11 — the Commercial Invoice is the first).
-   A tool opts in by giving its panel the class "ui2" (styles in app.css) and
-   calling uiQuiet(panel): every .hint / .note line of small print becomes an
-   "i" you hover, hung on the label it explains; a one- or two-word hint
-   ("Optional") becomes a quiet word after the label instead.
+   THE NEW LOOK ("ui2") — every tool page and the request details (2.9.12;
+   the Commercial Invoice was first, in 2.9.11). Styles are at the end of
+   app.css. Nothing here changes what a tool does or the documents it makes:
+     uiApply(root, true)  after a tool has drawn itself (renderWorkspace):
+                          marks its panels, lifts the main button row into the
+                          heading (uiLift) and tucks the small print away (uiQuiet).
+     uiApply(root, false) for the request details above the tools (renderDashboard).
+   The Dashboard hub (Shipments / Procurement / Property / PLS / Metrics) has
+   its own look and is left alone.
    ------------------------------------------------------------------------- */
 function uiTipHtml(html) { return `<span class="ui-tip" tabindex="0" role="note">i<span class="pop">${html}</span></span>`; }
+const UI_REFRESH_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>';
+
+/** Small print → hover. A .hint under a field hangs an "i" on that field's label (a one- or
+ *  two-word hint like "Optional" becomes a quiet word after the label); a page's explanatory
+ *  .note becomes one "i" at the end of the heading. Left as they are: anything with an id
+ *  (the tool writes to it), anything hidden, anything holding a control, and a note that is
+ *  all the page shows ("Load an SRF UDQ…"). Content is moved, not copied, so links keep working. */
 function uiQuiet(root) {
   if (!root) return;
+  const head = root.querySelector(":scope > header");
+  const body = root.querySelector(":scope > .body");
+  const addTip = (host, n) => {
+    let tip = Array.from(host.children).find((c) => c.classList.contains("ui-tip"));
+    if (!tip) { host.insertAdjacentHTML("beforeend", uiTipHtml("")); tip = host.lastElementChild; }
+    const pop = tip.querySelector(".pop");
+    const part = document.createElement("div");
+    if (pop.childNodes.length) part.style.marginTop = "8px";
+    while (n.firstChild) part.appendChild(n.firstChild);
+    pop.appendChild(part);
+    n.remove();
+  };
   root.querySelectorAll(".hint, .note").forEach((n) => {
-    if (n.id || n.closest(".ui-tip")) return;
+    if (n.id || n.closest(".ui-tip") || n.style.display === "none" || n.querySelector("input, select, textarea, button")) return;
     const txt = n.textContent.replace(/\s+/g, " ").trim();
-    if (!txt || n.style.display === "none") { n.remove(); return; }
+    if (!txt) { n.remove(); return; }
     const field = n.closest(".field");
     let host = field ? field.querySelector("label") : null;
-    for (let p = n.previousElementSibling; p && !host; p = p.previousElementSibling) if (p.matches("label, .btnrow, h2, h3, h4")) host = p;
-    if (!host) host = root.querySelector("header h2");
+    if (!host && n.classList.contains("note") && head && body && n.parentElement === body) {
+      const rest = Array.from(body.children).filter((c) => c !== n && c.tagName !== "STYLE" && !c.classList.contains("note"));
+      if (!rest.length) return;
+      host = head.querySelector(".ui-acts");
+      if (!host) { host = el('<span class="ui-acts"></span>'); head.appendChild(host); }
+    }
+    for (let p = n.previousElementSibling; p && !host; p = p.previousElementSibling) if (p.matches('label, h3, h4, [class$="head"]')) host = p;
     if (!host) return;
     if (field && txt.length <= 12) {
       const o = document.createElement("span");
       o.className = "ui-opt"; o.textContent = txt.toLowerCase();
       host.appendChild(o);
-    } else {
-      const had = Array.from(host.children).find((c) => c.classList.contains("ui-tip"));
-      if (had) had.querySelector(".pop").innerHTML += '<div style="margin-top:8px">' + n.innerHTML + "</div>";
-      else host.insertAdjacentHTML("beforeend", uiTipHtml(n.innerHTML));
-    }
-    n.remove();
+      n.remove();
+    } else addTip(host, n);
   });
   root.querySelectorAll(".ui-tip").forEach((tip) => {
+    tip.setAttribute("aria-label", tip.querySelector(".pop").textContent.replace(/\s+/g, " ").trim());
     if (tip._uiWired) return;
     tip._uiWired = true;
-    tip.setAttribute("aria-label", tip.querySelector(".pop").textContent.replace(/\s+/g, " ").trim());
-    tip.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
-    const place = () => tip.classList.toggle("r", tip.getBoundingClientRect().left > window.innerWidth - 340);
+    tip.addEventListener("click", (e) => { if (e.target.closest("a")) return; e.preventDefault(); e.stopPropagation(); });
+    const place = () => tip.classList.toggle("r", tip.getBoundingClientRect().left > window.innerWidth - 400);
     tip.addEventListener("mouseenter", place); tip.addEventListener("focus", place);
   });
+}
+
+/** The tool's main button row moves up into the heading: status, Refresh (as an icon), then the
+ *  buttons with the main one at the far right. Same buttons, same ids, same wiring — only where
+ *  they sit. Only a plain row of buttons is moved (rows the tool shows / hides by id stay put). */
+function uiLift(panel) {
+  const head = panel.querySelector(":scope > header"), body = panel.querySelector(":scope > .body");
+  if (!head || !body || head.querySelector(".ui-acts")) return;
+  const row = Array.from(body.children).find((c) => c.classList.contains("btnrow") && !c.id);
+  if (!row) return;
+  const kids = Array.from(row.children);
+  if (!kids.length || kids.some((k) => !(k.tagName === "BUTTON" || k.classList.contains("statusline")))) return;
+  const acts = el('<span class="ui-acts"></span>');
+  const btns = kids.filter((k) => k.tagName === "BUTTON");
+  const isRefresh = (b) => /^refresh( preview)?$/i.test(b.textContent.trim());
+  kids.filter((k) => k.tagName !== "BUTTON").forEach((k) => acts.appendChild(k));
+  btns.filter(isRefresh).forEach((b) => {
+    b.title = "Refresh the preview"; b.setAttribute("aria-label", "Refresh the preview");
+    b.innerHTML = UI_REFRESH_SVG; b.classList.add("icon");
+    acts.appendChild(b);
+  });
+  btns.filter((b) => !b.classList.contains("icon")).reverse().forEach((b) => acts.appendChild(b));
+  head.appendChild(acts);
+  row.remove();
+}
+
+function uiHubShowing() { return typeof copHubActive === "function" && copHubActive(); }
+function uiApply(root, isTool) {
+  if (!root) return;
+  Array.from(root.children).forEach((c) => { if (c.tagName !== "STYLE") c.classList.add("ui2"); });
+  root.querySelectorAll(".panel").forEach((p) => p.classList.add("ui2"));
+  if (isTool) root.querySelectorAll(":scope > .panel").forEach((p) => { uiLift(p); uiQuiet(p); });
+}
+/* Panels a tool draws later (results, a second table) pick the look up too. */
+let _uiWatch = null;
+function uiWatch(ws) {
+  if (_uiWatch || !ws || typeof MutationObserver === "undefined") return;
+  _uiWatch = new MutationObserver(() => {
+    if (uiHubShowing()) return;
+    ws.querySelectorAll(".panel:not(.ui2)").forEach((p) => p.classList.add("ui2"));
+  });
+  _uiWatch.observe(ws, { childList: true, subtree: true });
 }
 
 async function loadFile(file, preGrid) {
@@ -428,7 +494,7 @@ function atlasCollapsibleDetails(panel, toolId, keepSelectors) {
   const head = el(`
     <button type="button" class="fg-head" aria-expanded="false">
       <span class="fg-chev" aria-hidden="true"></span>
-      <span class="fg-title">Step 1 &middot; Enter details</span>
+      <span class="fg-title">Details</span>
       <span class="fg-hint"></span>
     </button>`);
   grid.insertBefore(head, grid.firstChild);
@@ -539,6 +605,15 @@ function wireDashToggle(dash) {
 }
 
 function renderDashboard() {
+  renderDashboardInner();
+  const dash = document.getElementById("dashboard");
+  if (dash.classList.contains("hidden") || AppState.udqType === "metrics") return;   // the hub keeps its own look
+  uiApply(dash, false);
+  // The pre-flight chip (only there when something is flagged) rides in the request bar, beside the request number.
+  const vb = dash.querySelector(":scope > .valbanner"), mh = dash.querySelector(".manifest-head");
+  if (vb && mh) mh.insertBefore(vb, mh.querySelector(".manifest-toggle"));
+}
+function renderDashboardInner() {
   const dash = document.getElementById("dashboard");
   dash.innerHTML = "";
   // The Christmas Tree is a standalone tool — the loaded shipping/PR/Metrics UDQ
@@ -1038,6 +1113,10 @@ function renderWorkspace() {
   // title bar (styled dark in app.css) — makes the working section easy to find.
   const leadPanel = ws.querySelector(":scope > .panel");
   if (leadPanel) leadPanel.classList.add("ws-lead");
+
+  // The new look for every tool page (not the Dashboard hub, which has its own).
+  if (!uiHubShowing()) uiApply(ws, true);
+  uiWatch(ws);
 }
 
 /* ---- Commercial Invoice workspace ---- */

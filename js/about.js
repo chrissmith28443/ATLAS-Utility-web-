@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.12",
+    title: "New look for every tool, the header, the left menu and the request bar; quieter pre-flight",
+    notes: [
+      "Every tool page now has the Commercial Invoice look: a quiet heading with the buttons at its right (Refresh is an icon), tidier fields, and the small print behind hover \"i\" marks. The documents the tools make are unchanged.",
+      "Header, left menu and the request bar restyled to match — lighter, smaller type, fewer colours. The Atomic Possum is smaller.",
+      "Pre-flight no longer shows when everything is clear. When something is flagged, a small chip appears beside the request number; click it for the details.",
+      "Fixed: the \"A new version of ATLAS Utility is available\" message kept coming back after a refresh even though the app was already on the latest version.",
+    ],
+  },
+  {
     version: "2.9.11",
     title: "Pick a shipment out of the full SRF UDQ; new look for the Commercial Invoice page",
     notes: [

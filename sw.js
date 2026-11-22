@@ -4,21 +4,21 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.9.11-civ-look";
+const CACHE = "atlas-cache-v2.9.12-tools-look";
 const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
-  "css/app.css?v=100",
-  "js/app.js?v=116",
+  "css/app.css?v=101",
+  "js/app.js?v=117",
   "js/assets.js?v=64",
-  "js/about.js?v=199",
+  "js/about.js?v=200",
   "js/a11y.js?v=61",
   "js/backup.js?v=69",
-  "js/constants.js?v=190",
+  "js/constants.js?v=191",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=93",
-  "js/pwa.js?v=62",
+  "js/pwa.js?v=63",
   "js/audit.js?v=62",
   "js/formcache.js?v=65",
   "js/compare.js?v=65",
@@ -62,7 +62,7 @@ const APP_SHELL = [
   "js/tools/sli_template.js?v=61",
   "js/tools/topdocs.js?v=61",
   "js/tools/topdocs_template.js?v=61",
-  "js/tools/validate.js?v=70",
+  "js/tools/validate.js?v=71",
   "js/tools/xmastree.js?v=49",
   "js/tools/record_audit.js?v=3",
   "js/tools/cop.js?v=49",
@@ -85,6 +85,9 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("message", (e) => {
   if (e.data === "SKIP_WAITING") self.skipWaiting();
+  // pwa.js asks a waiting worker which release it carries: when the page is
+  // already on that release, the worker takes over quietly (no "new version" prompt).
+  if (e.data === "GET_VERSION" && e.ports && e.ports[0]) e.ports[0].postMessage(CACHE);
 });
 
 self.addEventListener("activate", (e) => {

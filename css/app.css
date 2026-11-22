@@ -1631,3 +1631,189 @@ body.theme-dark .ui-tip:hover, body.theme-dark .ui-tip:focus{ color:#8fbaf0; }
   border-radius:10px; box-shadow:0 10px 28px rgba(20,30,60,.22); padding:10px 12px; font:400 12px/1.5 Inter,"Segoe UI",system-ui,sans-serif; text-align:left; white-space:normal; cursor:default; }
 .ui-tip.r .pop{ left:auto; right:-6px; }
 .ui-tip:hover .pop, .ui-tip:focus .pop{ display:block; }
+
+/* =========================================================================
+   2.9.12 — the new look everywhere outside the Dashboard hub: header, left
+   menu, request bar, pre-flight chip, and every tool page (class "ui2", set
+   by app.js uiApply). Same language as the Settings window: white cards,
+   quiet type, navy / blue actions, small print behind a hover "i".
+   ========================================================================= */
+
+/* ---- header ---- */
+.topbar{ background:var(--card); color:var(--ink); align-items:center; gap:10px; padding:8px 18px; border-bottom:1px solid var(--line); }
+.topbar .brand{ font:650 15.5px/1.2 Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; color:var(--ink); }
+.topbar .brandlogo{ width:26px; height:26px; margin-right:-2px; }
+.topbar .ver{ font-family:Inter,"Segoe UI",system-ui,sans-serif; font-size:11px; letter-spacing:.02em; color:var(--steel); }
+.topbar .ver:hover{ color:var(--ink); background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.topbar .tagline{ color:var(--steel); }
+.topbar .rail-toggle, .topbar .gear, .topbar .hist-btn{ color:var(--steel); opacity:1; border-radius:8px; }
+.topbar .rail-toggle:hover{ color:var(--ink); background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.topbar .gear:hover, .topbar .hist-btn:hover{ color:var(--ink); }
+.topbar .rail-toggle svg, .topbar .gear svg{ width:18px; height:18px; }
+body.rail-collapsed .topbar .rail-toggle{ color:#1e5aa8; }
+.topbar .ver:focus-visible, .topbar .rail-toggle:focus-visible, .topbar .gear:focus-visible, .topbar .hist-btn:focus-visible,
+.topbar #compareBtn:focus-visible, .topbar .install-btn:focus-visible, .topbar .fetchbtn:focus-visible{ outline:2px solid #1e5aa8; outline-offset:2px; }
+.topbar .fetchbtn{ font:600 12.5px/1 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; gap:7px;
+  background:#1e2a4a; color:#fff; border-radius:9px; padding:8px 14px; box-shadow:none; }
+.topbar .fetchbtn svg{ width:14px; height:14px; }
+.topbar .fetchbtn:hover, .topbar .fetchbtn[aria-expanded="true"]{ background:#2a3a63; box-shadow:none; }
+body.theme-dark .topbar .fetchbtn{ background:#3d5a8c; }
+body.theme-dark .topbar .fetchbtn:hover, body.theme-dark .topbar .fetchbtn[aria-expanded="true"]{ background:#4a6aa3; }
+body.theme-purple .topbar .fetchbtn{ background:var(--accent); }
+
+/* ---- left menu ---- */
+.layout{ grid-template-columns:232px 1fr; }
+@media (max-width:900px){ .layout{ grid-template-columns:1fr; } }
+body.rail-collapsed .layout{ grid-template-columns:1fr; }
+.rail{ padding:14px 12px 16px; }
+.rail h3, .rail .railhead h3{ font:650 10.5px/1 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.07em; color:var(--steel); }
+.rail h3{ margin:20px 8px 6px; }
+.rail .railhead{ margin:20px 4px 6px 8px; }
+.rail .railhead h3{ margin:0; }
+.toolbtn{ border:0; border-radius:8px; padding:7px 10px; font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; font-size:13px; }
+.toolbtn .dot{ display:none; }
+.toolbtn:hover:not(:disabled){ background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.toolbtn.active, body.theme-dark .toolbtn.active{ background:color-mix(in srgb, #1e5aa8 11%, var(--card)); color:#1e5aa8; font-weight:600; }
+body.theme-dark .toolbtn.active{ color:#8fbaf0; }
+.toolbtn:focus-visible{ outline:2px solid #1e5aa8; outline-offset:1px; }
+.rail-cop{ margin:0 0 4px; padding:8px 12px; gap:9px; background:#1e2a4a; border-radius:10px; box-shadow:none; }
+.rail-cop:hover{ background:#2a3a63; }
+.rail-cop.active{ outline:0; background:#1e5aa8; }
+.rail-cop:focus-visible{ outline:2px solid #1e5aa8; outline-offset:2px; }
+.rail-cop svg{ width:16px; height:16px; }
+.rail-cop .t{ font:600 13.5px/1.2 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; }
+body.theme-dark .rail-cop{ background:#3d5a8c; }
+body.theme-dark .rail-cop:hover{ background:#4a6aa3; }
+body.theme-dark .rail-cop.active{ background:#2f6fc0; }
+body.theme-purple .rail-cop, body.theme-purple .rail-cop.active{ background:var(--accent); }
+.rail-packet{ background:transparent; color:#1e5aa8; border:1px solid color-mix(in srgb, #1e5aa8 35%, transparent); border-radius:999px; box-shadow:none;
+  padding:3px 10px; font:600 11.5px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.rail-packet:hover{ background:color-mix(in srgb, #1e5aa8 9%, transparent); }
+.rail-packet.active{ outline:0; background:#1e5aa8; border-color:#1e5aa8; color:#fff; }
+.rail-packet svg{ width:12px; height:12px; }
+body.theme-dark .rail-packet{ color:#8fbaf0; border-color:color-mix(in srgb, #8fbaf0 40%, transparent); }
+body.theme-dark .rail-packet.active{ background:#2f6fc0; border-color:#2f6fc0; color:#fff; }
+/* the Atomic Possum, smaller */
+.rail-team{ padding-top:18px; }
+.rail-team-frame{ width:92px; margin:0 auto; }
+.rail-team-logo{ border-radius:14px; }
+
+/* ---- main column: drop zone and the "Loaded …" line ---- */
+.main{ padding:18px 24px 60px; }
+.dropzone{ border:1px dashed color-mix(in srgb, var(--steel) 45%, transparent); border-radius:12px; padding:16px 22px; }
+.dropzone.dragover{ border-color:#1e5aa8; background:color-mix(in srgb, #1e5aa8 6%, var(--card)); }
+.dropzone:focus-visible{ outline:2px solid #1e5aa8; outline-offset:2px; }
+.dropzone .dz-title{ font:650 14px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.dropzone .dz-sub{ font-size:12.5px; margin-top:3px; }
+.dropzone.compact{ padding:7px 14px; gap:10px; }
+.dropzone.compact > div{ display:flex; align-items:baseline; gap:10px; min-width:0; }
+.dropzone.compact .dz-title{ font-size:12.5px; white-space:nowrap; }
+.dropzone.compact .dz-sub{ font-size:12px; opacity:0; transition:opacity .12s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dropzone.compact:hover .dz-sub, .dropzone.compact:focus-visible .dz-sub, .dropzone.compact.dragover .dz-sub{ opacity:1; }
+.dz-file{ font-size:11px; background:color-mix(in srgb, var(--ink) 5%, transparent); border:0; border-radius:999px; padding:3px 10px; }
+#loadStatus{ font-family:Inter,"Segoe UI",system-ui,sans-serif; font-size:11.5px; margin-top:6px; }
+.udq-actions .linkbtn{ color:#1e5aa8; font:600 12px Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; }
+body.theme-dark .udq-actions .linkbtn{ color:#8fbaf0; }
+
+/* ---- request bar (was the dark blue strip) ---- */
+.manifest{ margin-top:12px; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:14px; padding:13px 18px 14px; gap:5px 20px;
+  box-shadow:0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.07); overflow:visible;
+  font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; }
+.manifest::after{ content:none; }
+.manifest .manifest-head{ gap:10px; flex-wrap:wrap; }
+.manifest .wmtr{ font-size:15px; font-weight:500; letter-spacing:.02em; }
+.manifest .badge{ margin-left:0; vertical-align:0; border:0; border-radius:999px; padding:2px 10px; background:color-mix(in srgb, #1e5aa8 9%, var(--card)); color:#1e5aa8;
+  font:600 11px/1.5 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.01em; text-transform:none; }
+body.theme-dark .manifest .badge{ color:#8fbaf0; }
+.manifest .title{ color:var(--steel); margin-top:0; }
+.route{ margin-top:8px; gap:12px; font:650 12.5px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.04em; }
+.route .lane{ border-top:1px dashed color-mix(in srgb, var(--steel) 50%, transparent); }
+.route .lane .mode{ top:-9px; background:var(--card); color:var(--steel); font-family:inherit; font-size:11px; font-weight:500; letter-spacing:.02em; }
+.manifest-toggle{ margin-right:0; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:5px 11px;
+  font:600 12px/1.2 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.manifest-toggle:hover{ background:var(--card); border-color:#1e5aa8; color:#1e5aa8; }
+.manifest-toggle:focus-visible{ outline:2px solid #1e5aa8; outline-offset:1px; }
+.manifest-summary{ margin-top:10px; gap:6px; }
+.manifest-summary .mchip{ font-family:inherit; font-size:11.5px; letter-spacing:0; color:var(--steel); background:color-mix(in srgb, var(--ink) 5%, transparent); border:0; border-radius:999px; padding:2px 10px; }
+#dashboard.dash-collapsed .manifest{ padding-bottom:13px; }
+.stats{ gap:10px; }
+.stat{ border-radius:12px; padding:10px 14px; }
+.stat .k{ font:650 10.5px/1.2 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.05em; }
+.stat .v{ font-size:15px; margin-top:4px; }
+.stat .v.mono{ font-size:13.5px; }
+.party .plabel{ font:650 10.5px/1.2 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.05em; color:var(--steel); margin-bottom:5px; }
+
+/* ---- pre-flight: nothing when all clear; a small chip in the request bar when something is flagged ---- */
+.valbanner{ display:inline-flex; align-items:center; gap:6px; margin:0 0 10px; padding:2px 10px 2px 3px; border:1px solid; border-radius:999px; cursor:pointer;
+  font:600 11.5px/1.5 Inter,"Segoe UI",system-ui,sans-serif; }
+.manifest-head .valbanner{ margin:0; }
+.valbanner .vb-ico{ width:15px; height:15px; font-size:10px; font-weight:800; }
+.valbanner .vb-text{ font-weight:600; }
+.valbanner.vb-warn{ color:#8a5a00; background:rgba(210,153,34,.13); border-color:rgba(210,153,34,.5); }
+.valbanner.vb-warn .vb-ico{ background:#c98a00; }
+.valbanner.vb-error{ color:#a31515; background:rgba(176,0,0,.06); border-color:rgba(176,0,0,.38); }
+.valbanner.vb-error .vb-ico{ background:#c62828; }
+.valbanner:hover{ filter:brightness(.96); text-decoration:underline; }
+.valbanner:focus-visible{ outline:2px solid #1e5aa8; outline-offset:2px; }
+body.theme-dark .valbanner.vb-warn{ color:#f3cf77; background:rgba(228,178,60,.14); border-color:rgba(228,178,60,.45); }
+body.theme-dark .valbanner.vb-error{ color:#ffa1a1; background:rgba(255,107,107,.12); border-color:rgba(255,107,107,.45); }
+
+/* ---- every panel with the new look (tool pages + request details) ---- */
+.panel.ui2 > header, .workspace > .panel.ui2.ws-lead > .panel-head, .panel.ui2 > .panel-head{ background:transparent; color:var(--ink); border-bottom:1px solid var(--line);
+  border-radius:14px 14px 0 0; padding:12px 18px; gap:10px; flex-wrap:wrap; }
+.panel.ui2 > header h2, .workspace > .panel.ui2.ws-lead > .panel-head h2, .panel.ui2 > .panel-head h2{ font:650 15px/1.2 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:-.005em; text-transform:none; color:var(--ink); }
+.workspace > .panel.ui2.ws-lead > header h2, .workspace > .panel.ui2.ws-lead > .panel-head h2{ font-size:16px; }
+.panel.ui2 > header .count, .workspace > .panel.ui2.ws-lead > .panel-head .count{ font-family:var(--mono); font-size:11.5px; color:var(--steel); }
+.workspace > .panel.ui2.ws-lead > .panel-head .xt-icon-btn{ border-color:var(--line); color:var(--steel); }
+.workspace > .panel.ui2.ws-lead > .panel-head .xt-icon-btn:hover{ border-color:#1e5aa8; color:#1e5aa8; }
+.ui2 .ui-acts{ flex-wrap:wrap; justify-content:flex-end; row-gap:6px; }
+.ui2 .ui-acts .statusline{ text-align:right; }
+/* one main button (far right); the other "primary" ones step back to an outline */
+.ui2 .ui-acts .btn.primary:not(:last-of-type), .ui2 .ui-acts .btn.navy:not(:last-of-type){ background:var(--card); color:#1e2a4a; border-color:color-mix(in srgb, #1e2a4a 40%, transparent); }
+.ui2 .ui-acts .btn.primary:not(:last-of-type):hover, .ui2 .ui-acts .btn.navy:not(:last-of-type):hover{ background:var(--card); border-color:#1e5aa8; color:#1e5aa8; }
+body.theme-dark .ui2 .ui-acts .btn.primary:not(:last-of-type), body.theme-dark .ui2 .ui-acts .btn.navy:not(:last-of-type){ color:#c9d8ee; border-color:#4a6aa3; background:var(--card); }
+.ui2 .btn.navy{ background:#1e2a4a; color:#fff; }
+.ui2 .btn.navy:hover{ background:#2a3a63; }
+body.theme-dark .ui2 .btn.navy{ background:#3d5a8c; }
+.ui2 .btn.ghost.active{ border-color:#1e5aa8; color:#1e5aa8; background:color-mix(in srgb, #1e5aa8 8%, var(--card)); }
+.ui2 .btn:focus-visible{ outline:2px solid #1e5aa8; outline-offset:2px; }
+.ui2 .btnrow{ margin-top:12px; gap:8px; }
+.workspace .panel.ui2 .formgrid::before{ content:none; display:none; }
+.ui2 .note{ font-size:12px; margin-top:0; }
+.ui2 .note + *, .ui2 .formgrid + .statusline{ margin-top:10px; }
+.ui2 .field .hint{ font-size:11.5px; }
+.ui2 .field .checkrow label.inline{ font-family:inherit; font-size:13px; }
+.ui2 .field .checkrow input[type=checkbox], .ui2 .field .checkrow input[type=radio]{ accent-color:#1e5aa8; }
+.ui2 .field input[type=number], .ui2 .field input[type=email], .ui2 .field input[type=tel]{ width:100%; font-family:inherit; font-size:13px; color:var(--ink);
+  background:var(--card); border:1px solid var(--line); border-radius:9px; padding:7px 10px; }
+.ui2 table.data th{ font:650 11px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.045em; padding:8px 10px; border-bottom:1px solid var(--line);
+  background:color-mix(in srgb, var(--ink) 3%, var(--card)); }
+.ui2 table.data td{ padding:7px 10px; border-bottom-color:color-mix(in srgb, var(--line) 60%, transparent); }
+.ui2 .scrollwrap{ border-radius:0 0 14px 14px; }
+.ui-tip::after{ content:""; position:absolute; left:-8px; right:-8px; top:100%; height:8px; }   /* keeps the note open while the mouse moves down into it */
+.ui-acts > .ui-tip .pop{ width:360px; }
+/* file picker + the Packet page, same look */
+.ui2 .filepick-btn{ background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:6px 12px; box-shadow:none;
+  font:600 12.5px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.ui2 .filepick-btn:hover{ background:var(--card); border-color:#1e5aa8; color:#1e5aa8; }
+.ui2 .filepick-name{ font-size:12px; }
+.ui2.pktwrap .pkt-signer label{ font:650 11px/1.2 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase; color:var(--steel); }
+.ui2.pktwrap .pkt-signer select, .ui2.pktwrap .pkt-sli-grid select{ font-family:inherit; font-size:13px; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:9px; padding:7px 10px; }
+.ui2.pktwrap .pkt-actions .btn:not(.primary){ background:var(--card); border-color:var(--line); color:var(--ink); }
+.ui2.pktwrap .pkt-actions .btn:not(.primary):hover{ border-color:#1e5aa8; color:#1e5aa8; }
+.ui2 .filepick-btn svg{ color:#1e5aa8; }
+/* the Fetch / UDQ pop-up under the header, same look */
+.atlas-pop{ border-radius:14px; font-family:Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif; }
+.atlas-pop .ap-label, .atlas-pop .ap-wmtr label{ font:650 10.5px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.06em; color:var(--steel); }
+.atlas-pop .ap-type{ font:600 12.5px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; border-radius:9px; box-shadow:none; }
+.atlas-pop .ap-type:hover{ box-shadow:none; }
+.atlas-pop .ap-wmtr input{ font-family:inherit; font-size:13px; border:1px solid var(--line); border-radius:9px; }
+.atlas-pop .ap-wmtr input:focus{ border-color:#1e5aa8; box-shadow:0 0 0 2px color-mix(in srgb, #1e5aa8 30%, transparent); }
+.atlas-pop .ap-wmtr .btn{ font:600 12.5px/1 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; border-radius:9px; background:#1e2a4a; color:#fff; }
+.atlas-pop .ap-wmtr .btn:hover{ background:#2a3a63; }
+body.theme-dark .atlas-pop .ap-wmtr .btn{ background:#3d5a8c; }
+.atlas-pop .ap-drop{ border-radius:12px; }
+.atlas-pop .ap-drop:hover, .atlas-pop .ap-drop.dragover{ border-color:#1e5aa8; background:color-mix(in srgb, #1e5aa8 6%, var(--card)); }
+.atlas-pop .ap-drop svg{ color:#1e5aa8; }
+.atlas-pop .ap-drop-title{ font:650 13px/1.3 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.atlas-pop .ap-foot input{ accent-color:#1e5aa8; }

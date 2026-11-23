@@ -807,11 +807,10 @@ function copEvaluate(rec, ctx) {
     const g = copDailyGaps(rec.daily.map((x) => x.date), start, end);
     const lastTxt = xrow.last_activity ? ` Last update ${copFmt(xrow.last_activity)}.` : " No updates yet.";
     if (g.missed.length) {
-      const shown = g.missed.slice(-6);
       add("daily", "general", "req", label, {
         state: "fail",
         detail: `${copPlural(g.missed.length, "business day")} without an update since ${copFmt(start)}` +
-          ` (${g.missed.length > shown.length ? "latest: " : ""}${xtFmtDayList(shown)}).${lastTxt}`,
+          ` (${xtFmtDayList(g.missed)}).${lastTxt}`,                  // every missed day, not just the latest
       }, ["activity"]);
     } else if (g.dueToday) {
       add("daily", "general", "req", label, { state: "due", detail: `Today's update is still due.${lastTxt}` }, ["activity"]);
@@ -1015,15 +1014,10 @@ function copEvaluate(rec, ctx) {
   if (copLow(li.status) === "delivered - pending pod" && hasDoc("pod")) {
     add("podstatus", "delivered", "rec", "Status updated to POD Received", { state: "warn", detail: "POD is attached but the status is still \"Delivered - Pending POD\"." });
   }
-  // Delivered after the RDD is only an audit hit when "Monitor this RDD" is ticked in ATLAS (2.9.10) — same switch
-  // as the In progress view. (The Metrics tab's on-time delivery % is a separate figure and still counts every RDD.)
-  if (!copIsYes(rec.ship[COP_SHIP_FIELDS.monitor])) {
-    if (delivered && rdd) add("late", "delivered", "req", "Delivered on or before RDD", { met: "na", detail: `RDD not monitored in ATLAS — delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
-  } else {
-    for (const h of xHit("delivery")) add("late", "delivered", "req", "Delivered on or before RDD",
-      { state: "fail", detail: `${h.label} — delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
-    if (delivered && rdd && !xHit("delivery").length) add("late", "delivered", "req", "Delivered on or before RDD", { state: "ok", detail: `Delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
-  }
+  // Delivered after the RDD is an audit hit on every request, whether or not "Monitor this RDD" is ticked (2.9.26).
+  for (const h of xHit("delivery")) add("late", "delivered", "req", "Delivered on or before RDD",
+    { state: "fail", detail: `${h.label} — delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
+  if (delivered && rdd && !xHit("delivery").length) add("late", "delivered", "req", "Delivered on or before RDD", { state: "ok", detail: `Delivered ${copFmt(delivered)}, RDD ${copFmt(rdd)}.` }, ["delivery"]);
 
   /* ---- roll-up ---- */
   // Closed before the 1 Oct 2025 measurement cutoff: shown for reference, not scored
@@ -1279,26 +1273,25 @@ function copActiveEvaluate(rec, ctx) {
     const g = copDailyGaps(rec.daily.map((x) => x.date).concat(pend), start, end);
     daily.missed = g.missed; daily.dueToday = g.dueToday;
     if (g.missed.length) {
-      const shown = g.missed.slice(-5);
       add("daily", "general", label, "fail",
-        `Missing ${copPlural(g.missed.length, "business day")} (${g.missed.length > shown.length ? "latest: " : ""}${xtFmtDayList(shown)}). ${lastTxt}`, ["activity"]);
+        `Missing ${copPlural(g.missed.length, "business day")} (${xtFmtDayList(g.missed)}). ${lastTxt}`, ["activity"]);   // every missed day
     } else if (g.dueToday) add("daily", "general", label, "todo", `Today's update isn't in yet. ${lastTxt}`, ["activity"]);
     else add("daily", "general", label, "ok", `Up to date. ${lastTxt}`, ["activity"]);
   })();
 
-  // RDD. Requestors set it without validation and it's routinely moved to
-  // the delivery date afterwards, so it isn't checked at all unless a request
-  // with a firm date (training event, travellers) is switched to RDD
-  // monitoring in its details — then it's amber 5 business days out and red
-  // once passed, at any step.
-  const rddWatch = copIsYes(rec.ship[COP_SHIP_FIELDS.monitor]);   // ATLAS "Monitor this RDD" — the only switch (2.9.4)
-  if (rddWatch && !delivered && si.low !== "delivered - pending pod") {
+  // RDD. A passed RDD is red on every request, at any step (2.9.26). The early
+  // warnings — amber 5 business days out, and "no RDD" — stay limited to
+  // requests with "Monitor this RDD" ticked in ATLAS, since requestors set the
+  // RDD without validation.
+  const rddWatch = copIsYes(rec.ship[COP_SHIP_FIELDS.monitor]);   // ATLAS "Monitor this RDD"
+  if (!delivered && si.low !== "delivered - pending pod" && rdd && rdd.getTime() < today.getTime()) {
+    const ago = copPlural(copCalDays(rdd, today), "day");
+    add("rdd", "general", rddWatch ? "Monitored RDD" : "RDD", "fail", `RDD ${copFmt(rdd)} passed ${ago} ago.`, null,
+      `RDD passed ${copFmt(rdd)}${rddWatch ? " (monitored)" : ""}`);
+  } else if (rddWatch && !delivered && si.low !== "delivered - pending pod") {
     const tag = "Monitored RDD";
     if (!rdd) add("rdd", "general", tag, "unknown", "No NLT Completion Date (RDD) on the request.");
-    else if (rdd.getTime() < today.getTime()) {
-      const ago = copPlural(copCalDays(rdd, today), "day");
-      add("rdd", "general", tag, "fail", `RDD ${copFmt(rdd)} passed ${ago} ago.`, null, `RDD passed ${copFmt(rdd)} (monitored)`);
-    } else {
+    else {
       const bd = copBizDaysBetween(today, rdd);
       add("rdd", "general", tag, bd <= COP_RDD_WARN_BDAYS ? "warn" : "ok",
         `RDD ${copFmt(rdd)} (${copPlural(bd, "business day")} away).`,
@@ -2717,7 +2710,9 @@ function copAuditItems(r) {
     switch (c.id) {
       case "daily": {
         m = /^(\d+) business days?/.exec(d);
-        out.push({ cls, cat: "Daily updates", text: m ? `Daily updates: ${m[1]} day${m[1] === "1" ? "" : "s"} missed` : "Daily updates missed" }); break;
+        const days = /\(([^)]*)\)/.exec(d);                           // the missed dates, e.g. "Nov 3, 4; Dec 1"
+        out.push({ cls, cat: "Daily updates", text: (m ? `Daily updates: ${m[1]} day${m[1] === "1" ? "" : "s"} missed` : "Daily updates missed") +
+          (days ? ` — ${days[1]}` : "") }); break;
       }
       case "rfq":
         m = /^Sent (\S+), after the (\S+) due date/.exec(d);
@@ -2739,13 +2734,13 @@ function copAuditItems(r) {
       case "cost":
         out.push({ cls, cat: "Cost variance", text: d.replace(/ \(approved.*$/, "") }); break;
       case "rejected":
-        out.push({ cls, cat: "Rejected in review", text: "Rejected in review" }); break;
+        out.push({ cls, cat: "Rejected in review", text: d ? `Rejected in review: ${d}` : "Rejected in review" }); break;
       case "manual":
         out.push({ cls, cat: "Manual flag", text: d }); break;
       case "rti": case "invoiced":
         out.push({ cls, cat: "Invoicing", text: d }); break;
       default:
-        out.push({ cls, cat: c.label, text: c.label });
+        out.push({ cls, cat: c.label, text: d ? `${c.label}: ${d}` : c.label });
     }
   }
   return out;
@@ -2790,8 +2785,8 @@ function copColDefs(isActive) {
   const rddCat = (r) => !r.rdd ? "No RDD" : r.rddDays === null ? "Delivered" : r.rddDays < 0 ? "Past RDD" : r.rddDays <= 7 ? "Within 7 days" : r.rddDays <= 30 ? "8–30 days" : "More than 30 days";
   const rdd = { id: "rdd", label: "RDD", opt: true, sort: (r) => r.rdd ? r.rdd.getTime() : null, fv: rddCat,
     td: (r) => {
-      // Coloured only when the RDD is monitored in ATLAS — otherwise it's just a date.
-      const cls = !isActive || !r.rddWatch || r.rddDays === null ? "" : r.rddDays < 0 ? "copx-red" : r.rddDays <= 7 ? "copx-amber" : "";
+      // A passed RDD is always red; the amber "within 7 days" only when the RDD is monitored in ATLAS.
+      const cls = !isActive || r.rddDays === null ? "" : r.rddDays < 0 ? "copx-red" : r.rddWatch && r.rddDays <= 7 ? "copx-amber" : "";
       return `<td class="nw ${cls}">${r.rdd ? esc(copFmt(r.rdd)) : "—"}${isActive && r.rddDays !== null ? `<br><small class="d" style="color:var(--ax-muted)">${r.rddDays < 0 ? `${-r.rddDays}d past` : `${r.rddDays}d`}</small>` : ""}</td>`;
     } };
   // Reference fields — off by default, picked under Columns.
@@ -3016,9 +3011,8 @@ function copHoverHtml(r) {
   const open = r.checks.filter((c) => c.state === "fail" || c.state === "warn")
     .sort((a, b) => copStateMeta(a.state).rank - copStateMeta(b.state).rank);
   const miss = r.daily.missed || [];
-  const shown = miss.slice(-8);
-  const dailyLine = miss.length
-    ? `<div class="bad">⚠ Missing ${copPlural(miss.length, "daily update")}: ${esc(xtFmtDayList(shown))}${miss.length > shown.length ? " (latest 8)" : ""}</div>`
+  const dailyLine = miss.length                                     // every missed day, not just the latest
+    ? `<div class="bad">⚠ Missing ${copPlural(miss.length, "daily update")}: ${esc(xtFmtDayList(miss))}</div>`
     : r.daily.dueToday ? `<div style="color:var(--ax-purple,#7b4fc9);font-weight:600">● Today's daily update isn't in yet.</div>` : `<div class="ok">✓ Daily updates current</div>`;
   const others = open.filter((c) => c.id !== "daily");
   return `<div class="h">${esc(r.last5)} · ${esc(r.status || "—")}</div>
@@ -3030,7 +3024,8 @@ function copHoverHtml(r) {
     <div class="k">Daily update</div>${dailyLine}
     ${(r.pending || []).length ? `<div class="s" style="margin:4px 0 0">${copPlural(r.pending.length, "update")} entered here, pending until in ATLAS</div>` : ""}
     <div class="k">Other open items</div>${others.length
-      ? `<ul>${others.slice(0, 4).map((c) => `<li class="${c.state === "fail" ? "r" : "a"}">${esc(c.brief || c.label)}</li>`).join("")}</ul>${others.length > 4 ? `<div>…and ${others.length - 4} more</div>` : ""}`
+      // Every open item, with its details: the short summary where the check has one, otherwise label + detail.
+      ? `<ul>${others.map((c) => `<li class="${c.state === "fail" ? "r" : "a"}">${esc(c.brief && c.brief !== c.label ? c.brief : c.detail ? `${c.label} — ${c.detail}` : c.label)}</li>`).join("")}</ul>`
       : `<div class="ok">None</div>`}`;
 }
 

@@ -13,6 +13,24 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.27",
+    title: "Every flag shows its details; all missed daily-update dates listed",
+    notes: [
+      "Dashboard › Closed audit: \"Daily updates: N days missed\" now lists the exact dates (e.g. Nov 3, 4; Dec 1). Rejected in review shows the reason, and any other flag shows what's wrong, not just its name.",
+      "Missed daily updates list every missed day, not just the latest few — in the Closed audit, the shipment details and the In progress hover card.",
+      "In progress hover card: Other open items lists every item with its details (it used to stop at 4).",
+    ],
+  },
+  {
+    version: "2.9.26",
+    title: "Missed RDDs flagged whether or not Monitor this RDD is ticked",
+    notes: [
+      "Dashboard › In progress: a shipment whose RDD has passed is flagged red and counts toward Need attention, whether or not \"Monitor this RDD\" is ticked in ATLAS. Its date in the RDD column turns red too.",
+      "Closed audit: \"Delivered after the RDD\" is flagged on every request, not only monitored ones.",
+      "The early warnings (amber within 5 business days of the RDD, and \"no RDD on the request\") still appear only when Monitor this RDD is ticked.",
+    ],
+  },
+  {
     version: "2.9.25",
     title: "Dashboard tiles stay in view at zero",
     notes: [

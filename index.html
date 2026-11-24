@@ -17,18 +17,21 @@
 
 <link rel="stylesheet" href="css/app.css?v=108">
 
-<!-- Excel + Zip engines.
-     Load BUNDLED local copies first (js/vendor/) so the app is fully offline-
-     capable without any CDN; if those files aren't present, fall back to the CDN.
-     The inline checks use document.write during parse to keep load order intact
-     so app scripts always see XLSX / JSZip defined. To bundle the libraries,
-     run download-offline-libs.ps1 (or see js/vendor/README.txt). -->
-<script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.XLSX||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/scr'+'ipt>');</script>
-<script src="js/vendor/jszip.min.js"></script>
-<script>window.JSZip||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"><\/scr'+'ipt>');</script>
-<script src="js/vendor/pdf-lib.min.js"></script>
-<script>window.PDFLib||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"><\/scr'+'ipt>');</script>
+<!-- Excel, Zip and PDF engines.
+     Bundled local copies in js/vendor/ load first, so the app works offline and
+     doesn't depend on a CDN. The CDN copy is only a fallback when a local file
+     is missing. Every copy (local and CDN) carries an SRI "integrity" hash: the
+     browser refuses to run a file whose content doesn't match, so a changed or
+     tampered library can't run inside ATLAS. When you update a library, replace
+     the file in js/vendor/ and update its hash here (and in pmdash.js for
+     PptxGenJS). SheetJS 0.20.3 comes from cdn.sheetjs.com (cdnjs stops at 0.18.5,
+     which has known security bugs). -->
+<script src="js/vendor/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT"></script>
+<script>window.XLSX||document.write('<scr'+'ipt src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"><\/scr'+'ipt>');</script>
+<script src="js/vendor/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"></script>
+<script>window.JSZip||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"><\/scr'+'ipt>');</script>
+<script src="js/vendor/pdf-lib.min.js" integrity="sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI"></script>
+<script>window.PDFLib||document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" integrity="sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI" crossorigin="anonymous"><\/scr'+'ipt>');</script>
 </head>
 <body>
 
@@ -76,23 +79,23 @@
 </div>
 
 <script src="js/constants.js?v=206"></script>
-<script src="js/util.js?v=69"></script>
+<script src="js/util.js?v=70"></script>
 <script src="js/a11y.js?v=61"></script>
 <script src="js/settings.js?v=78"></script>
-<script src="js/backup.js?v=70"></script>
+<script src="js/backup.js?v=71"></script>
 <script src="js/about.js?v=215"></script>
 <script src="js/audit.js?v=62"></script>
 <script src="js/formcache.js?v=65"></script>
 <script src="js/udq.js?v=72"></script>
 <script src="js/udq_tools.js?v=64"></script>
 <script src="js/assets.js?v=64"></script>
-<script src="js/tools/ci.js?v=71"></script>
+<script src="js/tools/ci.js?v=72"></script>
 <script src="js/tools/pl_templates.js?v=61"></script>
-<script src="js/tools/pl.js?v=75"></script>
+<script src="js/tools/pl.js?v=76"></script>
 <script src="js/tools/inventory.js?v=8"></script>
 <script src="js/tools/manual_parents.js?v=5"></script>
 <script src="js/tools/manual_details.js?v=5"></script>
-<script src="js/tools/placards.js?v=64"></script>
+<script src="js/tools/placards.js?v=65"></script>
 <script src="js/tools/sli_template.js?v=61"></script>
 <script src="js/tools/sli.js?v=70"></script>
 <script src="js/tools/rfq_template.js?v=72"></script>
@@ -127,13 +130,13 @@
 <script src="js/tools/xmastree.js?v=49"></script>
 <script src="js/tools/record_audit.js?v=4"></script>
 <script src="js/tools/cop.js?v=52"></script>
-<script src="js/tools/pmdash.js?v=15"></script>
+<script src="js/tools/pmdash.js?v=16"></script>
 <script src="js/tools/invconv.js?v=4"></script>
 <script src="js/tools/invgen.js?v=3"></script>
 <script src="js/consol.js?v=9"></script>
 <script src="js/item_split.js?v=7"></script>
 <script src="js/tools/awb.js?v=1"></script>
-<script src="js/offline.js?v=3"></script>
+<script src="js/offline.js?v=4"></script>
 <script src="js/holiday.js?v=2"></script>
 <script src="js/app.js?v=125"></script>
 <script src="js/compare.js?v=65"></script>

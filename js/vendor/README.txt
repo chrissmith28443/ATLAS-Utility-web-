@@ -30,7 +30,7 @@ Option A — run the helper (needs internet, run once):
     Mac/Linux: bash download-offline-libs.sh
 
 Option B — download manually in a browser, then Save As into this folder:
-    https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js
+    https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
     https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
     https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js
     https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js

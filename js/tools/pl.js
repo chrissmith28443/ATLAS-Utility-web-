@@ -443,7 +443,7 @@ function plRenderHtml(data, opts) {
 <div class="pl-doc">
   <div class="pl-head">
     <div class="pl-brand">
-      ${br.logo ? `<span class="pl-brand-logo"><img src="${br.logo}" alt=""></span>` : ""}
+      ${br.logo ? `<span class="pl-brand-logo"><img src="${esc(safeImgSrc(br.logo))}" alt=""></span>` : ""}
       <span class="pl-brand-1${br.logo || br.top.length > 14 ? " sm" : ""}">${esc(br.top)}</span>
       ${br.sub ? `<span class="pl-brand-2">${esc(br.sub)}</span>` : ""}
     </div>

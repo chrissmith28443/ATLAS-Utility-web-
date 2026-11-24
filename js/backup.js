@@ -150,12 +150,30 @@ function atlasMergeByKey(existing, incoming, keyFn) {
   return out;
 }
 
+/* Settings that decide WHERE the Utility sends requests (the ATLAS API address,
+   the UDQ IDs and the daily-status save addresses). A backup file must never
+   change these: a shared or edited file could otherwise point ATLAS calls (and
+   the notes people save) at another server. They always stay as this browser
+   has them; change them by hand in Settings ▸ ATLAS data source. */
+const ATLAS_BACKUP_LOCAL_ONLY = ["udqApi", "udqIds", "dailyStatus"];
+
+/** The imported settings with the local-only keys taken from `current`
+ *  (or left out when this browser has none). */
+function atlasKeepLocalSettings(current, incoming) {
+  const cur = (current && typeof current === "object") ? current : {};
+  const out = Object.assign({}, (incoming && typeof incoming === "object") ? incoming : {});
+  for (const k of ATLAS_BACKUP_LOCAL_ONLY) {
+    if (k in cur) out[k] = cur[k]; else delete out[k];
+  }
+  return out;
+}
+
 /** Merge an incoming settings object into the current one:
  *  - scalar prefs: incoming overrides (it's the explicit import)
  *  - customSigners / customForwarders: union by name (case-insensitive) */
 function atlasMergeSettings(current, incoming) {
   const cur = (current && typeof current === "object") ? current : {};
-  const inc = (incoming && typeof incoming === "object") ? incoming : {};
+  const inc = atlasKeepLocalSettings(cur, incoming);
   const merged = Object.assign({}, cur, inc);
   const nameKey = (r) => String((r && r.name) || "").trim().toLowerCase();
   merged.customSigners = atlasMergeByKey(cur.customSigners, inc.customSigners, nameKey)
@@ -229,7 +247,12 @@ function atlasApplyBackup(obj, mode) {
     // replace
     for (const spec of ATLAS_BACKUP_SPEC) {
       if (!(spec.key in data)) continue;
-      const val = data[spec.key];
+      let val = data[spec.key];
+      if (spec.key === "atlas.settings") {
+        let cur = {};
+        try { cur = JSON.parse(_bkGet("atlas.settings") || "{}") || {}; } catch (e) { cur = {}; }
+        val = atlasKeepLocalSettings(cur, val);
+      }
       if (spec.kind === "json") writeJson(spec.key, val);
       else if (_bkSet(spec.key, String(val))) applied.push(spec.key);
     }

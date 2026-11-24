@@ -35,6 +35,7 @@ const PM_BIG_PR = 100000;          // CT Program > $100K
 const PM_AUTO_PULL_MIN = 10;       // don't re-pull within this many minutes
 const PM_SLIDE_KEY = "atlas.pmdash.slide";
 const PM_PPTX_SRC = ["js/vendor/pptxgen.min.js", "https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.min.js"];
+const PM_PPTX_SRI = "sha384-MKtHyQQnXtUFOKSavqQmtt5Qvk6cGeMJekOw28rk1RHMaEeFU5t0sG2KxvlG4Zue";   // same hash for the local and CDN copy
 
 const PM_TOOLS = ["proc", "prop", "pls"];
 const PM_PLS_SOON_DAYS = 14;       // slide: "Trips starting ≤ 14 days" list
@@ -2158,6 +2159,8 @@ function pmSlideHtml(m, S) {
 function pmLoadScript(src) {
   return new Promise((res, rej) => {
     const s = document.createElement("script");
+    // SRI: the browser won't run the file if its content isn't the expected PptxGenJS 3.12.0.
+    s.integrity = PM_PPTX_SRI; s.crossOrigin = "anonymous";
     s.src = src; s.onload = () => res(); s.onerror = () => rej(new Error(`Couldn't load ${src}`));
     document.head.appendChild(s);
   });

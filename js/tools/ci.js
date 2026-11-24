@@ -238,7 +238,7 @@ function ciItemsTable(lineItems) {
 
 /* Header logo slot: the image, or (offline mode, no logo) the company name. */
 function ciLogoHtml(src, name) {
-  if (src) return `<img src="${src}" alt="">`;
+  if (src) return `<img src="${esc(src)}" alt="">`;
   return name ? `<div class="header-coname">${esc(name)}</div>` : "";
 }
 

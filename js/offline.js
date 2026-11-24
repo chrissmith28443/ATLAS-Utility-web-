@@ -189,7 +189,13 @@ function offlineOn() { return !!_offPrefs().on; }
 
 function offlineCompany() {
   const c = _offPrefs().company;
-  return (c && typeof c === "object") ? c : {};
+  if (!c || typeof c !== "object") return {};
+  // The logo may come from an imported backup file, so only keep a real image
+  // data URL (what the logo upload saves). Anything else is dropped.
+  const out = Object.assign({}, c);
+  const logo = safeImgSrc(c.logo);
+  if (logo) out.logo = logo; else { delete out.logo; delete out.logoW; delete out.logoH; }
+  return out;
 }
 
 /** What the documents print in place of the TTI / DTRA markings. null when
@@ -655,7 +661,7 @@ function renderOfflineShipWorkspace(container) {
               <div class="hint">Printed on the CIV, Packing List, Placards and as the issuing agent on the Air Waybill.</div></div>
             <div class="field"><label>Logo</label>
               <div class="off-logo">
-                <span class="off-logo-prev" id="offLogoPrev">${c.logo ? `<img src="${c.logo}" alt="Company logo">` : "No logo"}</span>
+                <span class="off-logo-prev" id="offLogoPrev">${c.logo ? `<img src="${esc(safeImgSrc(c.logo))}" alt="Company logo">` : "No logo"}</span>
                 <button class="btn ghost btn-sm" type="button" id="offLogoPick">${c.logo ? "Replace" : "Upload logo"}</button>
                 ${c.logo ? `<button class="btn ghost btn-sm" type="button" id="offLogoDel">Remove</button>` : ""}
                 <input type="file" id="offLogoInput" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" data-fc-skip>

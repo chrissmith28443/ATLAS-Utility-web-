@@ -255,7 +255,7 @@ function _pkRenderPage(p) {
 
   const b = p.brand;
   const head = b
-    ? `<div class="pk-logo left">${b.logo ? `<img src="${b.logo}" alt="">` : ""}</div>
+    ? `<div class="pk-logo left">${b.logo ? `<img src="${esc(safeImgSrc(b.logo))}" alt="">` : ""}</div>
       <div class="pk-head-mid"><div class="pk-sub">${esc(b.name)}</div></div>
       <div class="pk-logo right"></div>`
     // 2.9.20: no logo images on the placard — the DTRA seal and the TRLS II logo are gone; the line stays centred.

@@ -4,17 +4,21 @@
    runtime-caches the CDN libraries (SheetJS, JSZip) and Google Fonts on
    first online load. Bump CACHE on every release to refresh the cache.
    ========================================================================= */
-const CACHE = "atlas-cache-v2.9.27-flag-details";
-const RUNTIME_HOSTS = ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
+// Renamed for the security fix: activate deletes every older cache, which also
+// removes any ATLAS API responses an earlier version had stored.
+const CACHE = "atlas-cache-v2.9.27-sec-fix";
+const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
+const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
   "./", "./index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
   "css/app.css?v=108",
+  "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
   "js/app.js?v=125",
   "js/assets.js?v=64",
   "js/about.js?v=215",
   "js/a11y.js?v=61",
-  "js/backup.js?v=70",
+  "js/backup.js?v=71",
   "js/constants.js?v=206",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=93",
@@ -24,7 +28,7 @@ const APP_SHELL = [
   "js/compare.js?v=65",
   "js/json_udq.js?v=34",
   "js/settings.js?v=78",
-  "js/tools/ci.js?v=71",
+  "js/tools/ci.js?v=72",
   "js/tools/coreims.js?v=62",
   "js/tools/coreims_template.js?v=61",
   "js/tools/deltek.js?v=5",
@@ -38,16 +42,16 @@ const APP_SHELL = [
   "js/tools/mct.js?v=61",
   "js/tools/mct_template.js?v=61",
   "js/tools/packet.js?v=64",
-  "js/tools/pl.js?v=75",
+  "js/tools/pl.js?v=76",
   "js/tools/inventory.js?v=8",
   "js/tools/pl_templates.js?v=61",
   "js/tools/manual_parents.js?v=5",
   "js/consol.js?v=9",
   "js/item_split.js?v=7",
   "js/tools/manual_details.js?v=5",
-  "js/tools/placards.js?v=64",
+  "js/tools/placards.js?v=65",
   "js/tools/awb.js?v=1",
-  "js/offline.js?v=3",
+  "js/offline.js?v=4",
   "js/holiday.js?v=2",
   "js/tools/pmr.js?v=87",
   "js/tools/pmr_template.js?v=61",
@@ -67,12 +71,12 @@ const APP_SHELL = [
   "js/tools/xmastree.js?v=49",
   "js/tools/record_audit.js?v=4",
   "js/tools/cop.js?v=52",
-  "js/tools/pmdash.js?v=15",
+  "js/tools/pmdash.js?v=16",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",
   "js/udq.js?v=72",
   "js/udq_tools.js?v=64",
-  "js/util.js?v=69",
+  "js/util.js?v=70",
 ];
 
 self.addEventListener("install", (e) => {
@@ -122,6 +126,12 @@ self.addEventListener("fetch", (e) => {
   }
 
   if (!sameOrigin && !isRuntime) return; // let anything else hit the network normally
+
+  // Only the Utility's own files are cached. Same-origin calls outside this
+  // folder (the ATLAS API: /api/UDQ, daily status, ...) always go to the network,
+  // so ATLAS data is never kept in the cache, never shown stale, and never
+  // handed to someone without an ATLAS session on a shared computer.
+  if (sameOrigin && !url.pathname.startsWith(SCOPE_PATH)) return;
 
   // Cache-first for shell + CDN; populate the runtime cache on success.
   e.respondWith(

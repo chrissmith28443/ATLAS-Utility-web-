@@ -145,7 +145,17 @@ function esc(v) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** An image address that is safe to put in <img src="...">: only a base64
+ *  data: URL of a PNG / JPEG / GIF / WebP image. Anything else (a web link, a
+ *  "javascript:" address, text with quotes or tags from an edited backup file)
+ *  comes back as "". */
+function safeImgSrc(v) {
+  const s = String(v ?? "").trim();
+  return /^data:image\/(?:png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(s) ? s : "";
 }
 
 /** Escape, then convert newlines to <br/> (for remarks/comments). */
@@ -157,6 +167,6 @@ function escBr(v) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     norm, normWs, normKey, hasRealValue, toFloat, roundHalfUp, fmtMoney, fmtWeight, fmtVolume,
-    cityStateZip, safeLines, parseDimsIn, wmtrLast5, todayISO, fileStamp, esc, escBr,
+    cityStateZip, safeLines, parseDimsIn, wmtrLast5, todayISO, fileStamp, esc, escBr, safeImgSrc,
   };
 }

@@ -930,3 +930,11 @@ Arrived Warehouse or the warehouse actual date is filled.
   button; app.css .rail-pick / .rail-back styles. The 2.9.11 About entry stays as history.
 - Tested: full UDQ -> Dashboard, details open with no Create documents link, Dashboard button OK, a single
   fetched shipment loads as SRF. Don't bring this back unless asked.
+
+## LATER — "active only" Dashboard pull (parked 2026-11-24)
+- User wants the Dashboard fetch to pull only active requests (Status not Cancelled / Completed / Ready To
+  Invoice / Invoiced) to speed it up, like ?requestNumber= does for one shipment. Must be filtered by ATLAS:
+  (1) an active-only copy of the Metrics UDQ with a Status filter (user can build UDQs) -> point the Dashboard
+  fetch at its ID, or (2) ask Benson for an API option (e.g. ?activeOnly=true). Closed tab, Closed audit,
+  Metrics and PMR need closed records -> pull the full UDQ only when one of those is opened. User: "We'll worry
+  about the active only filter later."

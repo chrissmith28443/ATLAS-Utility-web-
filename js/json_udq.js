@@ -113,17 +113,18 @@ const ATLAS_UDQ_CONFIG = {
 
   // COP daily-update write-back — the ONLY thing the Utility writes to ATLAS:
   // Daily Status History entries (Date + Notes/Comments) — add a new one, or
-  // edit an existing one. Saving stays OFF until both `url` and `requestIdField`
-  // are filled in (TTI devs, once the API exists); editing also needs `editUrl`.
+  // edit an existing one. Saving is on when both `url` and `requestIdField`
+  // are filled in; editing also needs `editUrl`.
   // Only works inside ATLAS (same-origin, the ATLAS session cookie) — on
   // atlas-utility.net the COP stays read-only.
+  // 2.9.29: filled in from the ATLAS CR 401 API notes (Benson, 2026-11-24). The
+  // user needs Shipping & Delivery "Modify" + "Daily Status Add" (or "Edit/Archive"),
+  // plus "Restricted Access" once a request is past DTRA Compliance Review.
+  // Errors come back as { "message": "..." }, shown in the "Not saved" line.
   dailyStatus: {
-    url: "",             // POST (add) address; {requestId} is replaced, e.g. "/api/wmtr/{requestId}/daily-status".
-                         // Body sent: { "date": "YYYY-MM-DD", "notes": "..." }; the saved entry's "id" is read back.
-    editUrl: "",         // PUT (edit) address; {requestId} and {entryId} are replaced,
-                         // e.g. "/api/wmtr/{requestId}/daily-status/{entryId}". Same body.
-                         // {entryId} = the entry's "id" in the UDQ's dailyPOCList.
-    requestIdField: "",  // JSON field on each UDQ record holding the request's unique ID, e.g. "RequestId"
+    url: "/api/wmtr/{requestId}/daily-status",                // POST (add); body { "date": "YYYY-MM-DD", "notes": "..." }; the new entry's "id" is read back.
+    editUrl: "/api/wmtr/{requestId}/daily-status/{entryId}",  // PUT (edit); same body. {entryId} = the entry's "id" in dailyPOCList.
+    requestIdField: "Id",                                     // the request's unique ID on each UDQ record ("Request ID" column)
     requestUrl: "/wmtr/request/edit/{requestId}/SRF",   // request page the WMTR number links to
   },
 };

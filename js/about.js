@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.29",
+    title: "Daily updates save straight to ATLAS",
+    notes: [
+      "Inside ATLAS, the Dashboard's daily-update box now saves each update to the request's Daily Status History in ATLAS, and past updates can be edited from the History pop-up. On atlas-utility.net the Dashboard stays read-only.",
+      "Saving needs the same ATLAS rights as the request page: Shipping & Delivery Modify plus Daily Status Add (or Edit/Archive), and Restricted Access once a request is past DTRA Compliance Review. If ATLAS refuses, its reason is shown.",
+      "Inside ATLAS, each WMTR number on the Dashboard links to its request.",
+    ],
+  },
+  {
     version: "2.9.28",
     title: "Reads UDQ exports with the new Request ID column",
     notes: [

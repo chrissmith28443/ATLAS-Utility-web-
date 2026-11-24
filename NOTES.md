@@ -891,3 +891,20 @@ Arrived Warehouse or the warehouse actual date is filled.
 - The Excel export's Daily Status History still has only Date + Notes/Comments (no entry ID) — editing an entry
   needs the JSON fetch's dailyPOCList id. dailyStatus url / editUrl / requestIdField still blank: waiting on
   Benson's CR 401 details (add/edit URLs + methods, body, JSON field name for Request ID).
+
+## v2.9.29 (2026-11-24) — daily-update write-back switched on (CR 401)
+- Benson's API notes: Downloads\wmtr_api_atlass_utility_help.md. QA base https://qa-atlas.azurewebsites.net, same
+  ATLAS sign-in as the UDQ API. POST /api/wmtr/{requestId}/daily-status and PUT .../daily-status/{entryId}, body
+  { date: "YYYY-MM-DD", notes } (notes required, <= 3000 chars, trimmed); 200 returns { id, pocDate, pocDate_UDQ,
+  pocNotesComments, createdDate }. No delete. Errors: JSON { message } — 400 bad body / entry not in request,
+  401 not signed in, 403 no rights or past DTRA Compliance Review without Restricted Access, 404 unknown id.
+  Rights: Shipping & Delivery Modify + Daily Status Add (or Edit/Archive); Restricted Access past Compliance Review;
+  sign out/in after a role change. requestId = UDQ JSON "Id" (= Excel "Request ID" column).
+- The Utility's existing code (json_udq.js atlasSendDailyStatus, cop.js copSaveDailyUpdate / copEditDailyUpdate)
+  already matched this exactly — only ATLAS_UDQ_CONFIG.dailyStatus was filled in: url, editUrl, requestIdField "Id".
+  Side effect (planned): fetched grids now carry "Request ID" at the end, so inside ATLAS COP WMTR numbers link to
+  /wmtr/request/edit/{Id}/SRF.
+- Tested in the local preview with the 10097 JSON sample and a stubbed ATLAS: POST / PUT go to the right URLs with
+  the right body and credentials, the new id is kept and the entry is editable, a 403 shows ATLAS's message.
+  NOT yet tested against real ATLAS QA — needs Benson to load 2.9.29 into QA. Same paths assumed for prod.
+- Utility note boxes still cap at 1000 characters (maxlength in cop.js); the API allows 3000.

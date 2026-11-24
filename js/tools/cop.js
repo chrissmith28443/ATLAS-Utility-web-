@@ -359,9 +359,25 @@ function copReadDaily(grid, rr, rEnd) {
     const d = xtParseDate(c);
     if (!d) { if (!c && !norm(gridCell(grid, k, 4))) continue; break; }
     // cols E/F: entry ID + when entered (fetched from ATLAS only; used to edit an entry)
-    out.push({ date: d, note: norm(gridCell(grid, k, 4)), id: norm(gridCell(grid, k, 5)), created: xtParseDate(gridCell(grid, k, 6)) });
+    out.push({ date: d, note: norm(gridCell(grid, k, 4)), id: norm(gridCell(grid, k, 5)), created: copParseStamp(gridCell(grid, k, 6)) });
   }
   return out;
+}
+/** When an entry was entered, WITH the time ("2026-11-23T10:10:03.8820321Z"), so
+    several updates on the same day can be told apart (2.9.30). Date-only if no time. */
+function copParseStamp(v) {
+  const s = norm(v);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return xtParseDate(s);
+  const d = new Date(s.replace(/(\.\d{3})\d+/, "$1"));
+  return isNaN(d) ? xtParseDate(s) : d;
+}
+let _copFresh = 0;   // order of updates saved from here this session (copSaveDailyUpdate)
+/** Sort daily updates newest first: by date, then (same day) one just saved from
+    here on top, then by when entered. (ATLAS's "entered" times may be in another
+    time zone than this PC's clock, so a just-saved entry isn't compared by clock.) */
+function copDailyNewer(a, b) {
+  return (b.date - a.date) || ((b.fresh || 0) - (a.fresh || 0))
+    || ((b.created ? b.created.getTime() : 0) - (a.created ? a.created.getTime() : 0));
 }
 
 /** Parse the whole Metrics UDQ. Returns { records[], ds{} }. */
@@ -1040,7 +1056,7 @@ function copEvaluate(rec, ctx) {
     const cur = stageWorst[c.stage];
     if (!cur || COP_STATES[c.state].rank < COP_STATES[cur].rank) stageWorst[c.stage] = c.state;
   }
-  const latest = rec.daily.length ? rec.daily.slice().sort((a, b) => b.date - a.date)[0] : null;
+  const latest = rec.daily.length ? rec.daily.slice().sort(copDailyNewer)[0] : null;
   const consol = rec.linked.filter((l) => /consol/i.test(l["linkage type"] || "")).map((l) => xtWmtrNumber(l["request number"]))
     .filter((n) => n !== Number.MAX_SAFE_INTEGER);
   const stuckCheck = checks.find((c) => c.id === "stuck");
@@ -1521,7 +1537,7 @@ function copActiveEvaluate(rec, ctx) {
     else if (c.state === "warn") counts.amber++;
     else if (c.state === "todo") counts.todo++;
   }
-  const latest = rec.daily.length ? rec.daily.slice().sort((a, b) => b.date - a.date)[0] : null;
+  const latest = rec.daily.length ? rec.daily.slice().sort(copDailyNewer)[0] : null;
   const consol = rec.linked.filter((l) => /consol/i.test(l["linkage type"] || "")).map((l) => xtWmtrNumber(l["request number"]))
     .filter((n) => n !== Number.MAX_SAFE_INTEGER);
   return {
@@ -2354,7 +2370,7 @@ function copTrackerRows(built) {
     const haz = items.some((x) => /(^|\b)(un\s*)?\d{4}\b/i.test(norm(copInv(x, /^un code/)))
       || (/\d/.test(norm(copInv(x, /^hazmat/))) && !COP_NA_RE.test(norm(copInv(x, /^hazmat/)))));
     const temp = !COP_NA_RE.test(norm(rec.f["temperature-control requirements"] || ""));
-    const note = rec.daily.length ? rec.daily.slice().sort((a, b) => b.date - a.date)[0] : null;
+    const note = rec.daily.length ? rec.daily.slice().sort(copDailyNewer)[0] : null;
     return { r, active, tl, sc, m, rfq, eei, eeiWhy, marad, packMissing, changed, slip: changed ? copCalDays(tl.origRdd, tl.rdd) : 0, haz, temp, note,
       whInv: xtParseDate(m.whInv), shipInv: xtParseDate(m.shipInv) };
   };
@@ -3073,7 +3089,8 @@ async function copSaveDailyUpdate(wmtr, dateIso, note, r) {
     const id = copRequestId(r);
     if (!id) throw new Error(`${wmtr} has no ATLAS request ID in the data, so it can't be saved from here. Add the update on the request page.`);
     const entryId = await atlasPostDailyStatus(id, dateIso, String(note).trim());
-    r.rec.daily.push({ date: xtParseDate(dateIso), note: String(note).trim(), id: entryId, created: new Date() });
+    _copFresh = Math.max(Date.now(), _copFresh + 1);   // always rises, even for two saves in the same millisecond
+    r.rec.daily.push({ date: xtParseDate(dateIso), note: String(note).trim(), id: entryId, created: new Date(), fresh: _copFresh });
     return;
   }
   const d = copGetDrafts();
@@ -3133,9 +3150,9 @@ function copPruneDrafts(records) {
 }
 /** Every update for a row, newest first: ATLAS entries + pending ones. */
 function copUpdatesFor(r) {
-  const atlas = ((r.rec && r.rec.daily) || []).map((x) => ({ date: x.date, note: x.note, pending: false, created: x.created, src: x }));
+  const atlas = ((r.rec && r.rec.daily) || []).map((x) => ({ date: x.date, note: x.note, pending: false, created: x.created, fresh: x.fresh, src: x }));
   const pend = (r.pending || []).map((x) => ({ date: xtParseDate(x.date), note: x.note, pending: true, at: x.at }));
-  return atlas.concat(pend).filter((x) => x.date).sort((a, b) => (b.date - a.date) || (a.pending === b.pending ? 0 : a.pending ? -1 : 1));
+  return atlas.concat(pend).filter((x) => x.date).sort((a, b) => (b.date - a.date) || (a.pending === b.pending ? 0 : a.pending ? -1 : 1) || copDailyNewer(a, b));
 }
 function copUpdatedOn(r, iso) { return copUpdatesFor(r).some((x) => xtIso(x.date) === iso); }
 

@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.30",
+    title: "Same-day daily updates listed newest first",
+    notes: [
+      "Daily update History: when a day has more than one update, the newest one is now at the top of that day (by the time it was entered in ATLAS). An update you've just saved goes straight to the top. The \"latest update\" shown on the Dashboard follows the same order.",
+    ],
+  },
+  {
     version: "2.9.29",
     title: "Daily updates save straight to ATLAS",
     notes: [

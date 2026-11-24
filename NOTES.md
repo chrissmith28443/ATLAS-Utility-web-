@@ -908,3 +908,15 @@ Arrived Warehouse or the warehouse actual date is filled.
   the right body and credentials, the new id is kept and the entry is editable, a 403 shows ATLAS's message.
   NOT yet tested against real ATLAS QA — needs Benson to load 2.9.29 into QA. Same paths assumed for prod.
 - Utility note boxes still cap at 1000 characters (maxlength in cop.js); the API allows 3000.
+- User can test 2.9.29's write-back on QA's 2.9.27 now: Settings > ATLAS data source > Adjust API settings, enter
+  the two addresses + Request ID field "Id", save, fetch again (browser-only override; clear once 2.9.29 is in QA).
+
+## v2.9.30 (2026-11-24) — same-day daily updates newest first
+- User (testing write-back in QA): several updates on one day — History didn't put the newest at the top.
+  Cause: copReadDaily parsed "Entered" (dailyPOCList createdDate) with xtParseDate = date only, so same-day
+  entries tied and kept list order; a just-saved entry was pushed at the end of the day.
+- Fix (cop.js): copParseStamp keeps the time; copDailyNewer = date desc, then entries saved from here this session
+  (fresh, a rising counter) first, then Entered desc. Used by copUpdatesFor and the 3 "latest update" spots.
+  Just-saved entries aren't compared by clock because ATLAS's createdDate may be UTC without a "Z".
+  Excel drops have no Entered column -> same-day order stays as ATLAS lists it.
+- Tested with synthetic same-day entries (with and without "Z") + stubbed saves: newest first in every case.

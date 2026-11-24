@@ -920,3 +920,13 @@ Arrived Warehouse or the warehouse actual date is filled.
   Just-saved entries aren't compared by clock because ATLAS's createdDate may be UTC without a "Z".
   Excel drops have no Entered column -> same-day order stays as ATLAS lists it.
 - Tested with synthetic same-day entries (with and without "Z") + stubbed saves: newest first in every case.
+
+## v2.9.31 (2026-11-24) — "Open a shipment" removed
+- User: "we don't need to have the feature where you can open a shipment from Dashboard. That was only needed for
+  testing outside of ATLAS. Pulling a single shipment is always easier doing it directly from the fetch button."
+- Removed the whole 2.9.11 feature: app.js AppFull / appShipmentList / appFullUdq / appOpenShipment /
+  appBackToFull / appShipmentPicker (+ the rail box in renderRail and the _keepFull reset in loadFile); cop.js
+  "Create documents" link in shipment details + its click handler + the appBackToFull step on the Dashboard
+  button; app.css .rail-pick / .rail-back styles. The 2.9.11 About entry stays as history.
+- Tested: full UDQ -> Dashboard, details open with no Create documents link, Dashboard button OK, a single
+  fetched shipment loads as SRF. Don't bring this back unless asked.

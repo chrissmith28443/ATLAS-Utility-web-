@@ -1560,16 +1560,6 @@ body.cop-quiet .mx-metric-card.is-good .mx-metric-badge{ background:color-mix(in
 body.cop-quiet .mx-metric-card.is-warn .mx-metric-badge{ background:color-mix(in srgb, var(--mx-warn-bd) 24%, var(--card)); color:var(--mx-warn-fg); }
 body.cop-quiet .mx-metric-card.is-issue .mx-metric-badge{ background:color-mix(in srgb, var(--mx-issue-bd) 12%, var(--card)); color:var(--mx-issue-fg); }
 
-/* ---- "Open a shipment" box in the left menu (a full SRF UDQ is loaded) ---- */
-.rail-pick{ margin:10px 0 6px; display:flex; flex-direction:column; gap:5px; }
-.rail-pick label{ font:650 10.5px/1 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:.06em; text-transform:uppercase; color:var(--steel); }
-.rail-pick input{ width:100%; border:1px solid var(--line); border-radius:9px; padding:7px 10px; font:500 13px Inter,"Segoe UI",system-ui,sans-serif; background:var(--card); color:var(--ink); }
-.rail-pick input:focus{ outline:2px solid color-mix(in srgb, #1e5aa8 30%, transparent); border-color:#1e5aa8; }
-.rail-back{ border:0; background:none; padding:2px 0; text-align:left; font:600 12px Inter,"Segoe UI",system-ui,sans-serif; color:#1e5aa8; cursor:pointer; }
-.rail-back:hover{ text-decoration:underline; }
-body.theme-dark .rail-back{ color:#8fbaf0; }
-.rail-pick-msg{ font-size:11.5px; color:var(--warn); }
-.rail-pick-msg:empty{ display:none; }
 /* dark mode: the highlighted tool in the left menu stays readable */
 body.theme-dark .toolbtn.active{ background:color-mix(in srgb, var(--accent) 20%, transparent); }
 

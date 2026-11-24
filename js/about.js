@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.31",
+    title: "\"Open a shipment\" removed from the Dashboard",
+    notes: [
+      "The \"Open a shipment\" box in the left menu and the \"Create documents\" link in a shipment's details are gone. To make a shipment's documents, pull that one shipment with the Fetch button.",
+    ],
+  },
+  {
     version: "2.9.30",
     title: "Same-day daily updates listed newest first",
     notes: [

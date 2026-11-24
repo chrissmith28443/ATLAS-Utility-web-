@@ -156,101 +156,6 @@ async function appMaybeDashboardUdq(file) {
 /* preGrid: a grid fetched from ATLAS (json_udq.js), already in the exact shape a
    read .xlsx gives — loaded as-is, with no workbook to read. `file` then only
    needs a name. */
-/* -------------------------------------------------------------------------
-   ONE SHIPMENT OUT OF A FULL SRF UDQ (2.9.11)
-   The all-records SRF UDQ opens the Dashboard, but the document tools (CIV,
-   Packing List, SLI…) work on one shipment. The "Open a shipment" box in the
-   left menu cuts that shipment's block out of the full UDQ (the header row +
-   its rows) and loads it exactly as a single-shipment UDQ would load. The full
-   UDQ is kept aside (AppFull) so "All shipments" / the Dashboard button brings
-   it straight back without dropping the file again.
-   ------------------------------------------------------------------------- */
-const AppFull = { grid: null, name: "" };
-const _appShipCache = new WeakMap();
-/** Every SRF record in a multi-record grid: [{ wmtr, last5, title, status, row, end }] (rows 1-based, end exclusive), newest number first. */
-function appShipmentList(grid) {
-  if (!grid || typeof grid !== "object") return [];
-  let list = _appShipCache.get(grid);
-  if (list) return list;
-  list = [];
-  const hmap = buildHeaderMap(grid, 1), maxRow = gridMaxRow(grid);
-  const cTitle = hmap[normWs("Request Title")], cStatus = hmap[normWs("Status")];
-  let cur = null;
-  for (let r = 2; r <= maxRow; r++) {
-    const v = normWs(gridCell(grid, r, 1));
-    if (!/^WMTR-/i.test(v)) continue;
-    if (cur) { cur.end = r; cur = null; }
-    if (!/-SRF$/i.test(v)) continue;
-    cur = { wmtr: v, last5: wmtrLast5(v) || v, title: cTitle ? norm(gridCell(grid, r, cTitle)) : "", status: cStatus ? norm(gridCell(grid, r, cStatus)) : "", row: r, end: maxRow + 1 };
-    list.push(cur);
-  }
-  list.sort((x, y) => String(y.last5).localeCompare(String(x.last5), undefined, { numeric: true }));
-  _appShipCache.set(grid, list);
-  return list;
-}
-/** The full SRF UDQ to pick from: the one loaded now, or the one kept aside while a shipment from it is open. */
-function appFullUdq() {
-  if (AppState.udqType === "metrics" && AppState.grid) return { grid: AppState.grid, name: AppState.fileName || "SRF UDQ" };
-  return AppFull.grid ? { grid: AppFull.grid, name: AppFull.name } : null;
-}
-/** Open one shipment (WMTR number, last 5 or full) from the full UDQ. Returns "" when it opened, otherwise why it didn't (plain words, for the screen). */
-async function appOpenShipment(wmtr) {
-  const full = appFullUdq();
-  if (!full) return "Load the full SRF UDQ first.";
-  const q = normWs(wmtr).toUpperCase();
-  const five = (q.match(/(\d{5})(?!.*\d)/) || [])[1] || q;
-  const list = appShipmentList(full.grid);
-  const hit = list.find((x) => x.wmtr.toUpperCase() === q) || list.find((x) => String(x.last5) === five);
-  if (!hit) return `No shipment "${normWs(wmtr)}" in this UDQ.`;
-  const sub = [full.grid[0]].concat(full.grid.slice(hit.row - 1, hit.end - 1));
-  // Read it first: a shipment the document tools can't use (no inventory lines yet) stays on the full UDQ with a plain reason.
-  try { readUdq(sub); }
-  catch (e) {
-    return /Inventory header not found/i.test(String(e && e.message))
-      ? `${hit.last5} has no inventory lines yet — nothing to put on its documents.`
-      : `Couldn't open ${hit.last5}: ${(e && e.message) || e}`;
-  }
-  AppFull.grid = full.grid; AppFull.name = full.name;
-  await loadFile({ name: `${hit.wmtr} — from ${full.name}`, _keepFull: true }, sub);
-  return "";
-}
-/** Back to the full UDQ (and the Dashboard). */
-async function appBackToFull() {
-  if (!AppFull.grid) return false;
-  const g = AppFull.grid, n = AppFull.name;
-  AppFull.grid = null; AppFull.name = "";
-  await loadFile({ name: n }, g);
-  return true;
-}
-/** The "Open a shipment" box for the left menu. */
-function appShipmentPicker(full) {
-  const list = appShipmentList(full.grid);
-  const cur = (AppFull.grid && AppState.udqType === "srf" && AppState.data && AppState.data.meta) ? (AppState.data.meta.wmtr_last5 || "") : "";
-  const box = el(`<div class="rail-pick">
-    <label for="railWmtr">Open a shipment</label>
-    <input id="railWmtr" type="text" list="railWmtrList" autocomplete="off" spellcheck="false" value="${esc(cur)}"
-      placeholder="WMTR # — e.g. ${esc(list.length ? String(list[0].last5) : "10097")}" title="Type or pick a WMTR number from this UDQ to make its CIV, packing list, SLI and other documents">
-    <datalist id="railWmtrList">${list.map((x) => `<option value="${esc(String(x.last5))}">${esc(x.title)}${x.status ? " · " + esc(x.status) : ""}</option>`).join("")}</datalist>
-    ${AppFull.grid ? `<button type="button" class="rail-back" id="railBackFull">\u2190 All ${list.length} shipments</button>` : ""}
-    <div class="rail-pick-msg" id="railWmtrMsg" role="status"></div>
-  </div>`);
-  const inp = box.querySelector("#railWmtr"), msg = box.querySelector("#railWmtrMsg");
-  let busy = false;
-  const go = async () => {
-    const q = inp.value.trim();
-    if (!q || busy || q === cur) return;
-    busy = true; msg.textContent = "";
-    let why = "";
-    try { why = await appOpenShipment(q); } catch (e) { console.error(e); why = "Couldn't open that shipment."; }
-    busy = false;
-    if (why) msg.textContent = why;
-  };
-  inp.addEventListener("change", go);
-  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
-  const back = box.querySelector("#railBackFull");
-  if (back) back.addEventListener("click", () => appBackToFull());
-  return box;
-}
 
 /* -------------------------------------------------------------------------
    THE NEW LOOK ("ui2") — every tool page and the request details (2.9.12;
@@ -359,8 +264,6 @@ function uiWatch(ws) {
 }
 
 async function loadFile(file, preGrid) {
-  // Anything loaded any other way forgets the full UDQ a picked shipment came from.
-  if (!(file && file._keepFull)) { AppFull.grid = null; AppFull.name = ""; }
   // Offline mode reads only its own Excel template (offline.js); a template
   // dropped with offline mode off offers to switch it on.
   if (!preGrid && typeof offlineMaybeFile === "function" && await offlineMaybeFile(file)) return;
@@ -916,9 +819,6 @@ function renderRail() {
   if (typeof offlineOn === "function" && offlineOn()) { offlineRenderRail(rail); return; }
   // The COP: one big button at the top; its tools are tabs inside it.
   if (typeof copRailButton === "function") rail.appendChild(copRailButton());
-  // A full SRF UDQ (loaded, or kept aside behind an opened shipment): pick one shipment to make documents for.
-  const fullUdq = appFullUdq();
-  if (fullUdq) rail.appendChild(appShipmentPicker(fullUdq));
   let lastGroup = null;
   for (const tool of TOOLS) {
     if (tool.hub) continue;   // reached through the COP's tab bar

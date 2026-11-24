@@ -861,3 +861,19 @@ Arrived Warehouse or the warehouse actual date is filled.
   next to the Save as PDF button." -> pl.js: #plInvExcel is class "btn steel" and now second in the row (uiLift
   reverses the row, so it lands just left of Save as PDF). .ui2 .btn.steel = --sch mixed 76% with white.
   Pushed 2026-11-22.
+
+## v2.9.27 security fixes — Benson's QA baseline (2026-11-24)
+- Benson (TTI) security-fixed v2.9.27; that copy is now in ATLAS QA and is the baseline for ALL future changes.
+  Unpacked from Downloads\ATLAS_Utility_v2.9.27_secfix_base.zip and committed as "Benson security fixes (v2.9.27
+  QA baseline)". Version number NOT bumped (still 2.9.27); sw.js CACHE renamed to atlas-cache-v2.9.27-sec-fix.
+- sw.js: SCOPE_PATH check — same-origin requests outside the Utility's folder (ATLAS /api/UDQ, daily status) are
+  never cached; renaming CACHE wipes any API responses older versions stored. Vendor libs added to APP_SHELL;
+  cdn.sheetjs.com added to RUNTIME_HOSTS.
+- backup.js: ATLAS_BACKUP_LOCAL_ONLY = udqApi, udqIds, dailyStatus — a backup import (merge or replace) never
+  changes them (atlasKeepLocalSettings).
+- util.js: esc() also escapes ' ; new safeImgSrc() allows only base64 data:image png/jpeg/gif/webp URLs. Used for
+  logos in offline.js (offlineCompany drops anything else), ci.js (esc), pl.js and placards.js.
+- js/vendor/: xlsx (SheetJS 0.20.3, was 0.18.5 from cdnjs), jszip 3.10.1, pdf-lib 1.17.1, pptxgen 3.12.0 now
+  committed. index.html loads them with SRI integrity hashes (CDN fallback carries the same hash); pmdash.js
+  PM_PPTX_SRI for PptxGenJS. download-offline-libs.ps1/.sh and js/vendor/README.txt point at cdn.sheetjs.com.
+- Rules to keep these fixes are in CLAUDE.md > "Security rules".

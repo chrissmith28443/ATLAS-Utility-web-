@@ -12,7 +12,7 @@ overriding it.
 ATLAS Utility is a Progressive Web App (PWA) that supports TTI's ATLAS
 material-transit and inventory management platform.
 
-- **Current Utility version:** 2.5.60
+- **Current Utility version:** 2.9.27
 - **Language:** vanilla JavaScript (no framework, no build step)
 - **Size:** ~30,000 lines of app JS across ~54 JS files
 - **Deployment:** Cloudflare (see CLOUDFLARE_SETUP.md)
@@ -47,7 +47,7 @@ language, not just in code.
 
 ATLAS uses **two independent version histories**:
 
-1. **The Utility's own version** — semantic version, currently **2.5.60**.
+1. **The Utility's own version** — semantic version, currently **2.9.27**.
    This tracks *this PWA*.
 2. **The ATLAS platform release history** — MAJOR.MINOR.FIX, tracked separately
    in the platform's `releases.json` (not in this repo).
@@ -94,6 +94,28 @@ git config core.hooksPath .githooks
 ```
 
 Bypass a specific commit with `git commit --no-verify`.
+
+---
+
+## Security rules (from Benson's v2.9.27 security fixes — do not undo)
+
+- **Baseline:** all changes start from the v2.9.27 security-fix baseline
+  (commit "Benson security fixes (v2.9.27 QA baseline)"). Benson's QA copy is
+  the source of truth; never restore older code from before it.
+- **Service worker:** `sw.js` must never cache ATLAS API calls (`/api/...`) —
+  only the Utility's own files (plus the CDN/font hosts in `RUNTIME_HOSTS`).
+  Keep the `SCOPE_PATH` check in the fetch handler.
+- **Backup import:** must never change `udqApi`, `udqIds` or `dailyStatus`
+  (`ATLAS_BACKUP_LOCAL_ONLY` in `js/backup.js`). They stay as this browser has
+  them, in both merge and replace modes.
+- **Images:** any image put into a page with `<img src>` goes through
+  `safeImgSrc()` and `esc()` (both in `js/util.js`), e.g.
+  `<img src="${esc(safeImgSrc(logo))}">`. Never insert a raw logo/image value.
+- **Libraries:** load from `js/vendor/` with SRI `integrity` hashes (CDN only
+  as a fallback, same hash). Replacing a library means updating its hash in
+  `index.html` (and `PM_PPTX_SRI` in `js/tools/pmdash.js` for PptxGenJS).
+  SheetJS stays at 0.20.3 or newer (from cdn.sheetjs.com — cdnjs stops at the
+  vulnerable 0.18.5).
 
 ---
 
@@ -148,7 +170,7 @@ This repo is **Git-connected to Cloudflare Pages** — deploys are automatic:
   JS with no build step.
 - Don't edit anything in `js/vendor/` (third-party code).
 - Don't reformat or restructure files I didn't ask you to change.
-- Don't conflate the Utility version (2.5.60) with the platform `releases.json`
+- Don't conflate the Utility version (2.9.27) with the platform `releases.json`
   version.
 - Don't add dependencies without flagging it first.
 

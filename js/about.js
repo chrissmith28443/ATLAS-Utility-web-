@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.28",
+    title: "Reads UDQ exports with the new Request ID column",
+    notes: [
+      "ATLAS UDQ exports now start with a Request ID column (each request's unique ID, used to save daily updates back to it). Dropped exports with it load exactly as before: the Dashboard, COP, Metrics, PMR, Christmas Tree and the document tools all find their shipments.",
+    ],
+  },
+  {
     version: "2.9.27",
     title: "Every flag shows its details; all missed daily-update dates listed",
     notes: [

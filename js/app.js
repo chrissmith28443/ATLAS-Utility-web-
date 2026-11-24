@@ -73,13 +73,33 @@ const TOOLS = [
 
 /* ---------------- SheetJS adapter ---------------- */
 
+/* 2.9.28: SRF-related UDQ exports now start with a "Request ID" column (ATLAS's
+   unique ID for each request, used to save daily updates back to it), which
+   pushes WMTR Number from column A to B. Every reader expects the WMTR in
+   column A, so Request ID moves to the end of the header and record rows, the
+   same place the ATLAS fetch puts it (json_udq.js atlasScalarColumns). Only
+   row 1 and the record rows have anything in column A; the sub-section rows
+   (Inventory List, Daily Status History…) never use it and are left alone. */
+function udqMoveRequestIdLast(rows) {
+  if (!rows || !rows.length || !rows[0] || normKey(rows[0][0]) !== "request id") return rows;
+  let width = rows[0].length;
+  while (width > 1 && normWs(rows[0][width - 1]) === "") width--;
+  return rows.map((row, i) => {
+    if (!row || (i > 0 && normWs(row[0]) === "")) return row;
+    const out = row.slice(1, width);
+    while (out.length < width - 1) out.push(null);
+    out.push(row[0]);
+    return out;
+  });
+}
+
 /** Convert the active worksheet of an .xlsx file to a string grid. */
 function workbookToGrid(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
   const ws = wb.Sheets[wb.SheetNames[0]];
   // header:1 -> array of arrays; raw:false -> formatted strings (matches ATLAS export text)
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
-  return rows.map((row) => row.map((v) => (v === null || v === undefined ? null : String(v))));
+  return udqMoveRequestIdLast(rows.map((row) => row.map((v) => (v === null || v === undefined ? null : String(v)))));
 }
 
 /** Convert EVERY worksheet to a string grid. Returns {names, grids} where
@@ -92,7 +112,7 @@ function workbookAllSheets(arrayBuffer) {
   for (const name of names) {
     const ws = wb.Sheets[name];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
-    grids[name] = rows.map((row) => row.map((v) => (v === null || v === undefined ? null : String(v))));
+    grids[name] = udqMoveRequestIdLast(rows.map((row) => row.map((v) => (v === null || v === undefined ? null : String(v)))));
   }
   return { names, grids };
 }
@@ -114,7 +134,7 @@ async function appMaybeDashboardUdq(file) {
     const buf = await file.arrayBuffer();
     // Cheap first look — the header row alone says which UDQ this is.
     const wb = XLSX.read(buf, { type: "array", sheetRows: 1 });
-    const head = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: null });
+    const head = udqMoveRequestIdLast(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: null }));
     svc = typeof pmIsPlsGrid === "function" && pmIsPlsGrid(head) ? "PLS" : xtClassifyService(head);
     if (!svc || svc === "SRF") return false;
     if (svc !== "PLS") {

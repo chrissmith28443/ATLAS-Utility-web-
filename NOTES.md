@@ -877,3 +877,17 @@ Arrived Warehouse or the warehouse actual date is filled.
   committed. index.html loads them with SRI integrity hashes (CDN fallback carries the same hash); pmdash.js
   PM_PPTX_SRI for PptxGenJS. download-offline-libs.ps1/.sh and js/vendor/README.txt point at cdn.sheetjs.com.
 - Rules to keep these fixes are in CLAUDE.md > "Security rules".
+
+## v2.9.28 (2026-11-24) — Request ID column in UDQ exports
+- ATLAS (CR 401, daily-update write-back) added "Request ID" (a GUID) as column A of SRF-related UDQ exports;
+  WMTR Number moved to B. User: it will be in every SRF-related UDQ from now on, always first. Only row 1 and the
+  record rows shifted; sub-section rows (Inventory List, Daily Status History…) stayed in their columns.
+- Without a fix the 24-Nov Metrics export read as a single "srf" with 0 shipments (everything finds records by
+  "WMTR-" in column A). Fix: app.js udqMoveRequestIdLast() — in workbookToGrid / workbookAllSheets and the
+  appMaybeDashboardUdq header peek — moves Request ID to the END of row 1 and of every row with column A filled,
+  the same spot json_udq.js puts it for fetched data. cop.js copRequestId() reads it by header ("request id").
+- Tested with Downloads\UDQ_WMTR_SRF_23-Nov / 24-Nov exports: both read as metrics, 251 shipments, header identical
+  apart from Request ID at the end (col 123); opening a shipment (10097) works.
+- The Excel export's Daily Status History still has only Date + Notes/Comments (no entry ID) — editing an entry
+  needs the JSON fetch's dailyPOCList id. dailyStatus url / editUrl / requestIdField still blank: waiting on
+  Benson's CR 401 details (add/edit URLs + methods, body, JSON field name for Request ID).

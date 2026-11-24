@@ -6,7 +6,7 @@
    ========================================================================= */
 // Renamed for the security fix: activate deletes every older cache, which also
 // removes any ATLAS API responses an earlier version had stored.
-const CACHE = "atlas-cache-v2.9.27-sec-fix";
+const CACHE = "atlas-cache-v2.9.28-request-id-col";
 const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
 const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
@@ -14,12 +14,12 @@ const APP_SHELL = [
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
   "css/app.css?v=108",
   "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
-  "js/app.js?v=125",
+  "js/app.js?v=126",
   "js/assets.js?v=64",
-  "js/about.js?v=215",
+  "js/about.js?v=216",
   "js/a11y.js?v=61",
   "js/backup.js?v=71",
-  "js/constants.js?v=206",
+  "js/constants.js?v=207",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=93",
   "js/pwa.js?v=63",

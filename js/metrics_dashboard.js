@@ -526,7 +526,7 @@ function renderMetricsView(host, id) {
   if (typeof copHistoryPending === "function" && copHistoryPending()) { host.appendChild(copHistoryWaitCard()); return; }
   if (id === "mwmtr") {
     if (typeof validationBanner === "function") { const vb = validationBanner(); if (vb) host.appendChild(vb); }
-    renderMetricsDashboard(host);
+    renderSrfWatch(host);
     return;
   }
   const v = MX_VIEWS[id];
@@ -540,6 +540,353 @@ function renderMetricsView(host, id) {
       </div>
     </div>`));
 }
+
+/* ---------------- WMTR › SRF: current-period scorecard (2.9.36) ----------------
+   Looks at NOW: the current fiscal half (or quarter) so misses are caught before
+   they count. One row per PMR metric:
+     Score  = SRFs delivered in the period that passed (the PMR denominator).
+     Missed = delivered ones that failed (they already count).
+     Watch  = in-progress shipments that will miss (red) or are at risk (amber).
+   Metrics ATLAS has no field for are tagged by the shipping team in Shipping
+   Team Notes — [MISS: CODE] reason — next to the existing [RELIEF: …] tags.
+   A relief tag counts as a pass; the per-browser Acknowledge doesn't change a
+   metric. The PMR tab will look back at finished periods. The old dashboard
+   (renderMetricsDashboard) is kept for that. */
+const MXS_METRICS = [
+  { code: "Q1", key: "qc", name: "QC issues", green: 0.95, yellow: 0.90,
+    req: "No rejection during or after DTRA Compliance Review.", src: "Workflow Logs (rejections)" },
+  { code: "S1", key: "delivery", name: "Delivered by NLT date", green: 0.95, yellow: 0.90,
+    req: "Delivered on or before the NLT Completion Date.", src: "NLT Completion Date, Delivery Date" },
+  { code: "S6", key: "rfq", name: "Quote within 1 business day", green: 1, yellow: 0.95,
+    req: "RFQ sent within 1 business day of Compliance approval and the pack date (final weights/dims).", src: "Workflow Logs, Date Packed, RFQ Sent Date" },
+  { code: "C6", key: "cost_srf", name: "Cost within 10% of estimate", green: 0.95, yellow: 0.90,
+    req: "Final cost no more than 10% over the approved estimate.", src: "Workflow Logs approval, Total Cost in USD" },
+  { code: "R5", key: "docs", name: "Shipping documents", green: 1, yellow: 0.99,
+    req: "Every required shipping document attached to the WMTR.", src: "Attachment List" },
+  { code: "R6", key: "itn", name: "Customs filings", green: 1, yellow: 1, tags: ["R6", "CUSTOMS", "FILING"], tag: "CUSTOMS",
+    req: "AES filed (ITN) before departure on US exports. Other filing errors: tag them.", src: "ITN / NOEEI Citation, departure dates, plus [MISS: CUSTOMS] tags" },
+  { code: "O2", key: "tracking", name: "Tracking details", green: 0.98, yellow: 0.95,
+    req: "Carrier and AWB/BoL entered in Shipping Activity.", src: "Shipping Activity › AWB/BoL" },
+  { code: "O3", key: "daily", name: "Daily status updates", green: 1, yellow: 0.95,
+    req: "A status update every business day until delivery.", src: "Daily Status History" },
+];
+/* No ATLAS field: tracked by tag. tags[] = codes accepted; tag = the one we suggest. */
+const MXS_MANUAL = [
+  { code: "Q2", name: "Shipment indicators", green: 1, yellow: 0.98, tags: ["Q2", "INDICATOR", "INDICATORS", "TEMP"], tag: "INDICATOR",
+    req: "Temperature, perishable, shock or orientation indicator violated." },
+  { code: "C2", name: "Pre-solicited rates", green: 0.95, yellow: 0.90, tags: ["C2", "RATES", "RATE"], tag: "RATES",
+    req: "Pre-solicited freight rate not used." },
+  { code: "R1", name: "Free of VAT and duty", green: 1, yellow: 0.99, tags: ["R1", "VAT", "DUTY", "TAX"], tag: "VAT",
+    req: "VAT, duty, taxes or fees paid at customs clearance." },
+  { code: "R2", name: "Export-controlled handling", green: 1, yellow: 0.99, tags: ["R2", "EXPORT", "ITAR", "ECM"], tag: "EXPORT",
+    req: "Export-controlled material handling, marking or accountability issue." },
+  { code: "R3", name: "HAZMAT handling", green: 1, yellow: 0.99, tags: ["R3", "HAZMAT", "DG"], tag: "HAZMAT",
+    req: "HAZMAT identification, marking or handling issue." },
+  { code: "R4", name: "ESOH compliance", green: 1, yellow: 0.99, tags: ["R4", "ESOH", "SAFETY"], tag: "ESOH",
+    req: "Safety or environmental incident (Significant Incident Report)." },
+  { code: "R7", name: "Packaging", green: 1, yellow: 0.98, tags: ["R7", "PACKAGING"], tag: "PACKAGING",
+    req: "Packaging not per best practice or regulations." },
+  { code: "M4", name: "Lost or damaged cargo", green: 1, yellow: 1, tags: ["M4", "LOST", "DAMAGED", "DAMAGE"], tag: "DAMAGED",
+    req: "Cargo lost or damaged." },
+];
+const MXS_MISS_RE = /\[\s*MISS\s*[:\-–—]?\s*([^\]]*)\]\s*([^\[]*)/gi;
+/** Shipping Team Notes -> [{ code: metric code, reason }] for every [MISS: …] tag. */
+function mxsParseMiss(text) {
+  const out = [], s = String(text || "");
+  const all = MXS_MANUAL.concat(MXS_METRICS.filter((m) => m.tags));
+  let m;
+  MXS_MISS_RE.lastIndex = 0;
+  while ((m = MXS_MISS_RE.exec(s))) {
+    const reason = norm(m[2]).replace(/[\s.;,]+$/, "");
+    for (const c of m[1].toUpperCase().split(/[\s,;\/&+]+/).filter(Boolean)) {
+      const def = all.find((d) => d.tags.indexOf(c) !== -1);
+      if (def && !out.some((x) => x.code === def.code)) out.push({ code: def.code, reason });
+    }
+  }
+  return out;
+}
+const MxSrf = { span: "half", _b: null };
+
+/** R5 detail: the same ReqAtt evaluation mxSrfMetricScores runs, with the miss list. */
+function mxDocsDetail(grid, startIso, endIso) {
+  const out = { pass: 0, total: 0, fails: [] };
+  if (typeof reqattParseUdq !== "function" || typeof _raEvaluate !== "function") return out;
+  const inWin = (iso) => !!iso && (!startIso || iso >= startIso) && (!endIso || iso <= endIso);
+  const isoOf = (v) => { try { const d = xtParseDate(v); return d ? xtIso(d) : ""; } catch (e) { return ""; } };
+  let blocks = [];
+  try { blocks = reqattParseUdq(grid) || []; } catch (e) { blocks = []; }
+  for (const blk of blocks) {
+    const f = blk.fields || {};
+    const wmtr = norm(f["WMTR Number"]);
+    const dIso = isoOf(f["Delivery Date"]);
+    if (!inWin(dIso)) continue;
+    if (typeof pmrSrfRelieved === "function" && pmrSrfRelieved(wmtr, dIso)) continue;
+    if (norm(f["Identify Shipment As"]).toLowerCase() === "hand carry") continue;
+    const origin = norm(f["Country of Origin"]), dest = norm(f["Country of Destination"]);
+    const cat = _raShipmentCategory(origin, dest);
+    if (cat === "UNKNOWN") continue;
+    const ev = _raEvaluate(cat, blk.attachment_types || [], origin, _raIsCourier(f["Identify Shipment As"]));
+    out.total += 1;
+    if (!ev.missing.length || mxRelieved(grid, wmtr, "docs")) out.pass += 1;
+    else out.fails.push({ wmtr, iso: dIso, text: "Missing " + ev.missing.join(", ") });
+  }
+  return out;
+}
+
+/** Every number on the SRF view for one window. */
+function mxsCompute(startIso, endIso) {
+  const grid = AppState.grid;
+  const inWin = (iso) => !!iso && (!startIso || iso >= startIso) && (!endIso || iso <= endIso);
+  const idOf = (w) => _mxIdOf(w);
+  const S = {};
+  for (const d of MXS_METRICS.concat(MXS_MANUAL)) S[d.code] = { def: d, pass: 0, total: 0, missed: [], watch: [] };
+  const miss = (code, w, iso, text) => S[code].missed.push({ id: idOf(w), date: iso ? mxIsoToDmy(iso) : "", text });
+
+  // COP rows: who's delivered in the window, who's still in progress (+ POC).
+  if (!MxSrf._b || MxSrf._b.grid !== grid) MxSrf._b = { grid, all: (typeof copBuildAll === "function" ? copBuildAll() : null) };
+  const b = MxSrf._b.all || { active: [], closed: [] };
+  const delivered = [], active = [];
+  for (const r of b.active.concat(b.closed)) {
+    if (/^cancel/i.test(r.status || "")) continue;
+    let dIso = "";
+    try { const d = xtParseDate(r.rec.f["delivery date"]); dIso = d ? xtIso(d) : ""; } catch (e) { dIso = ""; }
+    if (dIso) { if (inWin(dIso) && !(typeof pmrSrfRelieved === "function" && pmrSrfRelieved(r.wmtr, dIso))) delivered.push({ r, iso: dIso }); }
+    else if (!r.closed && b.active.indexOf(r) !== -1) active.push(r);
+  }
+  const chk = (r, id) => r.checks.filter((c) => c.id === id);
+  const txt = (c) => (c.brief && c.brief !== c.label ? c.brief : c.detail);
+
+  // S6 / R6 + tags: denominator = every SRF delivered in the window (the deck's).
+  for (const { r, iso } of delivered) {
+    for (const [code, id] of [["S6", "rfq"], ["R6", "itn"]]) {
+      S[code].total += 1;
+      const bad = chk(r, id).find((c) => c.state === "fail" || c.state === "ack");
+      if (bad) miss(code, r.wmtr, iso, bad.detail.replace(/^Acknowledged — /, ""));
+      else if (code === "S6") S[code].pass += 1;
+    }
+    const tags = mxsParseMiss(r.rec.ship && r.rec.ship[COP_SHIP_FIELDS.notes]);
+    for (const d of MXS_MANUAL) {
+      S[d.code].total += 1;
+      const t = tags.find((x) => x.code === d.code);
+      if (t) miss(d.code, r.wmtr, iso, t.reason || "Tagged in Shipping Team Notes");
+      else S[d.code].pass += 1;
+    }
+    const r6 = tags.find((x) => x.code === "R6");
+    if (r6 && !S.R6.missed.some((x) => x.id === idOf(r.wmtr))) miss("R6", r.wmtr, iso, r6.reason || "Tagged in Shipping Team Notes");
+  }
+  S.R6.pass = S.R6.total - S.R6.missed.length;
+
+  // S1 on-time delivery (PMR engine).
+  try {
+    const pr = pmrRun(grid, startIso, endIso);
+    S.S1.total = pr.nlt_scoped || 0; S.S1.pass = pr.on_time_count || 0;
+    for (const x of (pr.late_rows || [])) miss("S1", x[0], x[2], `${x[3]} day${x[3] === 1 ? "" : "s"} late (NLT ${mxIsoToDmy(x[1])})`);
+  } catch (e) { /* leave S1 empty */ }
+  // O3 daily updates (includes shipments still in progress).
+  try {
+    const du = pmrDailyUpdateCheck(grid, startIso, endIso);
+    S.O3.total = du.with_daily || 0; S.O3.pass = du.compliant || 0;
+    for (const x of du.rows) if (x.missing_count) {
+      const days = x.missing.slice(0, 4).map(mxIsoToDmy).join(", ") + (x.missing.length > 4 ? ` +${x.missing.length - 4} more` : "");
+      miss("O3", x.wmtr, "", `${x.missing_count} business day${x.missing_count === 1 ? "" : "s"} with no update: ${days}`);
+    }
+  } catch (e) { /* leave O3 empty */ }
+  // Q1 / C6 / O2 (row metrics) + legacy manual note.
+  const det = mxRowMetricDetail(grid, startIso, endIso, ["qc", "cost_srf", "tracking", "manual"]);
+  for (const [code, k] of [["Q1", "qc"], ["C6", "cost_srf"], ["O2", "tracking"]]) {
+    const s = det[k]; S[code].total = s.total; S[code].pass = s.pass;
+    for (const row of s.fails) miss(code, row.wmtr_full, xtIso(row.delivered), s.def ? s.def.failReason(row) : "");
+  }
+  const legacy = det.manual && det.manual.fails.length ? det.manual : null;
+  // R5 shipping documents.
+  const docs = mxDocsDetail(grid, startIso, endIso);
+  S.R5.total = docs.total; S.R5.pass = docs.pass;
+  for (const x of docs.fails) miss("R5", x.wmtr, x.iso, x.text);
+
+  // Watch: in-progress shipments that will miss (r) or are at risk (a).
+  for (const r of active) {
+    const w = (code, sev, text) => S[code].watch.push({ id: idOf(r.wmtr), poc: r.poc || "", sev, text });
+    for (const c of r.checks) {
+      if (c.state === "relief" || c.state === "ok" || c.state === "na") continue;
+      const acked = c.state === "ack";
+      if (c.id === "rdd" && (c.state === "fail" || c.state === "warn" || acked)) w("S1", c.state === "fail" ? "r" : "a", txt(c));
+      else if (c.id === "daily" && c.state === "todo") w("O3", "a", "Today's update isn't in yet");
+      else if (c.id === "rfq" && (c.state === "fail" || acked)) w("S6", "r", txt(c));
+      else if (c.id === "rfq" && (c.state === "warn" || (c.state === "todo" && /^Due \d/.test(c.detail)))) w("S6", "a", c.state === "todo" ? "RFQ " + c.detail.replace(/\.$/, "").replace(/^Due/, "due") : txt(c));
+      else if (c.id === "cost" && (c.state === "warn" || acked)) w("C6", "r", c.detail.replace(/^Acknowledged — /, "") + " Counts when delivered unless re-approved.");
+      else if ((c.id === "civ" || c.id === "pl") && (c.state === "warn" || acked)) w("R5", "a", c.detail.replace(/^Acknowledged — /, ""));
+      else if (c.id === "itn" && (c.state === "fail" || c.state === "warn" || acked)) w("R6", c.state === "fail" ? "r" : "a", txt(c));
+      else if (c.id === "tracking" && (c.state === "warn" || acked)) w("O2", "a", c.detail.replace(/^Acknowledged — /, ""));
+    }
+    try { if (typeof copXt === "function" && copXt(r.rec, r.status).xrow.rejected === "Yes") w("Q1", "r", "Rejected in review. Counts as a QC issue when delivered."); } catch (e) { /* skip */ }
+    for (const t of mxsParseMiss(r.rec.ship && r.rec.ship[COP_SHIP_FIELDS.notes])) w(t.code, "r", (t.reason || "Tagged") + ". Counts when delivered.");
+  }
+  for (const k of Object.keys(S)) S[k].watch.sort((x, y) => (x.sev === y.sev ? 0 : x.sev === "r" ? -1 : 1));
+  return { S, legacy, nDelivered: delivered.length, nActive: active.length };
+}
+
+function renderSrfWatch(host) {
+  const wrap = el(`<div class="copx mxs"><style>${typeof COPX_CSS === "string" ? COPX_CSS : ""}${MXS_CSS}</style><div class="mxs-in"></div></div>`);
+  host.appendChild(wrap);
+  mxsDraw(wrap.querySelector(".mxs-in"));
+}
+
+function mxsDraw(box) {
+  const fy = pmrCurrentFiscalYear();
+  const sel = MxSrf.span === "qtr" ? { fy, span: "qtr", part: mxCurrentQuarter() } : { fy, span: "half", part: mxCurrentSel().part };
+  const win = mxWindowFor(sel);
+  let res;
+  try { res = mxsCompute(win.start, win.end); }
+  catch (e) {
+    box.innerHTML = `<div class="copx-card"><div class="statusline err">Couldn't calculate the SRF metrics: ${esc(e.message || String(e))}</div></div>`;
+    return;
+  }
+  const { S, legacy } = res;
+  const pctOf = (s) => (s.total ? Math.floor((s.pass / s.total) * 1000) / 10 : null);
+  const status = (s) => (!s.total ? "none" : mxMetricStatus(s.pass, s.total, s.def));
+  const tgt = (d) => (d.green >= 1 ? "100%" : "≥" + Math.round(d.green * 100) + "%");
+  const tagged = MXS_MANUAL.filter((d) => S[d.code].missed.length || S[d.code].watch.length);
+  const quiet = MXS_MANUAL.filter((d) => tagged.indexOf(d) === -1);
+  const shown = MXS_METRICS.concat(tagged);
+
+  const scored = shown.filter((d) => S[d.code].total);
+  const onTarget = scored.filter((d) => status(S[d.code]) === "good").length;
+  const nMissed = shown.reduce((n, d) => n + S[d.code].missed.length, 0) + (legacy ? legacy.fails.length : 0);
+  const nRed = shown.reduce((n, d) => n + S[d.code].watch.filter((x) => x.sev === "r").length, 0);
+  const nAmber = shown.reduce((n, d) => n + S[d.code].watch.filter((x) => x.sev === "a").length, 0);
+
+  const help = (title, body, cls) => `<span class="copx-help ${cls || ""}" tabindex="0" role="button" aria-label="${esc(title)}">?<span class="pop" role="tooltip"><b class="t">${esc(title)}</b>${body}</span></span>`;
+  const tagHelp = (d) => `<br><span class="ex">Tracked by tag: type <code>[MISS: ${esc(d.tag)}] reason</code> in ATLAS › Shipping Activity › Shipping Team Notes.</span>`;
+  const list = (title, rows, cols) => rows.length ? `<div class="mxs-list"><h4>${esc(title)} <span>${rows.length}</span></h4><table>${rows.map(cols).join("")}</table></div>` : "";
+  const sevPill = { r: `<span class="copx-pill r">Will miss</span>`, a: `<span class="copx-pill a">At risk</span>` };
+
+  const rowHtml = (d) => {
+    const s = S[d.code], st = status(s), p = pctOf(s);
+    const reds = s.watch.filter((x) => x.sev === "r").length, ambers = s.watch.length - reds;
+    const manual = MXS_MANUAL.indexOf(d) !== -1;
+    const hov = help(`${d.code} · ${d.name}`,
+      `${esc(d.req)}<br><span class="ex">Target ${tgt(d)}${d.yellow < d.green ? ` · amber from ${Math.round(d.yellow * 100)}%` : ""}. ${manual ? "" : "Source: " + esc(d.src) + "."}</span>${manual || d.tags ? tagHelp(d) : ""}`);
+    const cells = `
+      <span class="copx-dot ${st === "issue" ? "red" : st === "warn" ? "amber" : st === "none" ? "none" : ""}"></span>
+      <span class="mxs-nm"><b>${esc(d.code)}</b> ${esc(d.name)} ${hov}</span>
+      <span class="mxs-score">${p === null ? `<span class="of">No deliveries yet</span>` : `<span class="pct">${p}%</span> <span class="of">${s.pass} of ${s.total}</span>`}</span>
+      <span class="mxs-miss">${s.missed.length ? `<span class="copx-pill r">${s.missed.length} missed</span>` : ""}</span>
+      <span class="mxs-watch">${reds ? `<span class="copx-pill r">${reds} will miss</span>` : ""}${ambers ? `<span class="copx-pill a">${ambers} at risk</span>` : ""}</span>`;
+    if (!s.missed.length && !s.watch.length) return `<div class="mxs-row flat">${cells}<span class="mxs-chev"></span></div>`;
+    return `<details class="mxs-row" data-w="${s.watch.length ? 1 : 0}" data-m="${s.missed.length ? 1 : 0}"><summary>${cells}<span class="mxs-chev" aria-hidden="true">›</span></summary>
+      <div class="mxs-body">
+        ${list("Watch — in progress", s.watch, (x) => `<tr><td class="id">${esc(x.id)}</td><td>${sevPill[x.sev]}</td><td>${esc(x.text)}</td><td class="poc">${esc(x.poc)}</td></tr>`)}
+        ${list("Missed — delivered", s.missed, (x) => `<tr><td class="id">${esc(x.id)}</td><td class="dt">${esc(x.date)}</td><td colspan="2">${esc(x.text)}</td></tr>`)}
+      </div></details>`;
+  };
+  const legacyRow = legacy ? `<details class="mxs-row" data-m="1"><summary>
+      <span class="copx-dot red"></span>
+      <span class="mxs-nm">Other manual flags ${help("Other manual flags", "A note in the DTRA-Only Import/Export Comments or Revision Number field flags a delivered WMTR. Use <code>[MISS: CODE]</code> tags in Shipping Team Notes for new flags.")}</span>
+      <span class="mxs-score"></span><span class="mxs-miss"><span class="copx-pill r">${legacy.fails.length} flagged</span></span><span class="mxs-watch"></span><span class="mxs-chev" aria-hidden="true">›</span></summary>
+      <div class="mxs-body">${list("Flagged — delivered", legacy.fails.map((row) => ({ id: _mxIdOf(row.wmtr_full), date: _mxDeliveredDmy(row), text: legacy.def ? legacy.def.failReason(row) : "" })),
+        (x) => `<tr><td class="id">${esc(x.id)}</td><td class="dt">${esc(x.date)}</td><td colspan="2">${esc(x.text)}</td></tr>`)}</div></details>` : "";
+
+  const codes = MXS_MANUAL.concat(MXS_METRICS.filter((m) => m.tags));
+  const tagLegend = `<span class="copx-help mxs-tags" tabindex="0" role="button" aria-label="How to tag a miss">How to tag a miss
+    <span class="pop" role="tooltip"><b class="t">Tag a miss ATLAS has no field for</b>
+      Type a tag in ATLAS › Shipping Activity › <b>Shipping Team Notes</b>, then the reason:<br>
+      <code>[MISS: VAT] Customs charged 20% VAT, refund requested</code>
+      <span class="rcs">${codes.map((d) => `<button type="button" class="rc" data-miss="${esc(d.tag)}" title="Copy [MISS: ${esc(d.tag)}] to the clipboard"><b>${esc(d.tag)}</b><span>${esc(d.code)} · ${esc(d.name)}</span><i>Copy</i></button>`).join("")}</span>
+      <span class="ex"><b>Click a code to copy its tag.</b> A tagged shipment counts as a miss once it's delivered in the period. A shipment can carry several tags.</span></span></span>`;
+
+  const period = `${win.label} · ${mxIsoToDmy(win.start)} to ${mxIsoToDmy(win.end)}`;
+  box.innerHTML = `
+    <div class="copx-card">
+      <div class="copx-hd">
+        <h2>SRF metrics</h2>
+        <span class="n">${esc(period)} · ${res.nDelivered} delivered · ${res.nActive} in progress</span>
+        <span class="acts">
+          ${help("How this works", `<b>Score</b> counts SRFs delivered in the period, the same count the PMR uses.<br><b>Missed</b> lists the delivered ones that failed. They already count.<br><b>Watch</b> lists shipments still in progress that will miss (red) or are at risk (amber). Fix these before delivery.<br><span class="ex">A <code>[RELIEF: …]</code> tag counts as a pass. Acknowledge on the Shipments tab doesn't change a metric. Finished periods: PMR tab.</span>`, "mxs-how")}
+          <span class="copx-seg" role="group" aria-label="Period">
+            <button type="button" data-span="half" class="${MxSrf.span === "half" ? "on" : ""}" aria-pressed="${MxSrf.span === "half"}">This half</button>
+            <button type="button" data-span="qtr" class="${MxSrf.span === "qtr" ? "on" : ""}" aria-pressed="${MxSrf.span === "qtr"}">This quarter</button>
+          </span>
+        </span>
+      </div>
+      <div class="copx-kpis">
+        <button type="button" class="copx-kpi g ${scored.length && onTarget === scored.length ? "" : onTarget ? "" : "zero"}" disabled title="Metrics at or above target for SRFs delivered so far"><span class="n">${onTarget} of ${scored.length}</span><span class="l">metrics on target</span></button>
+        <button type="button" class="copx-kpi r ${nMissed ? "" : "zero"}" data-open="m" ${nMissed ? "" : "disabled"} title="Delivered shipments that missed a metric — show them"><span class="n">${nMissed}</span><span class="l">missed so far</span></button>
+        <button type="button" class="copx-kpi r ${nRed ? "" : "zero"}" data-open="w" ${nRed + nAmber ? "" : "disabled"} title="In-progress shipments that will miss unless fixed — show them"><span class="n">${nRed}</span><span class="l">will miss</span></button>
+        <button type="button" class="copx-kpi a ${nAmber ? "" : "zero"}" data-open="w" ${nRed + nAmber ? "" : "disabled"} title="In-progress shipments close to a miss — show them"><span class="n">${nAmber}</span><span class="l">at risk</span></button>
+      </div>
+      <div class="mxs-sc">
+        <div class="mxs-row mxs-th"><span></span><span>Metric</span><span>Score</span><span>Missed</span><span>Watch</span><span></span></div>
+        ${shown.map(rowHtml).join("")}
+        ${legacyRow}
+      </div>
+      <div class="mxs-foot">
+        <span>${quiet.length ? `Tracked by tag, none tagged yet: ${quiet.map((d) => `<span class="mxs-q" title="${esc(d.code + " · " + d.name + ": " + d.req)}">${esc(d.code)}</span>`).join(" · ")}` : ""}</span>
+        ${tagLegend}
+      </div>
+    </div>`;
+
+  box.querySelectorAll("[data-span]").forEach((bt) => bt.addEventListener("click", () => {
+    if (MxSrf.span === bt.dataset.span) return;
+    MxSrf.span = bt.dataset.span; mxsDraw(box);
+  }));
+  box.querySelectorAll("[data-open]").forEach((bt) => bt.addEventListener("click", () => {
+    const k = bt.dataset.open;
+    const rows = [...box.querySelectorAll(`details.mxs-row[data-${k}="1"]`)];
+    const open = !rows.every((d) => d.open);
+    box.querySelectorAll("details.mxs-row").forEach((d) => { d.open = open && d.dataset[k] === "1"; });
+  }));
+  // A "?" inside a row shows its hover; clicking it shouldn't fold the row.
+  box.querySelectorAll("summary .copx-help").forEach((h) => h.addEventListener("click", (e) => e.preventDefault()));
+  box.querySelectorAll(".mxs-tags .rc").forEach((bt) => bt.addEventListener("click", async () => {
+    const ok = typeof copCopyText === "function" && await copCopyText(`[MISS: ${bt.dataset.miss}] `);
+    const tag = bt.querySelector("i");
+    box.querySelectorAll(".mxs-tags .rc").forEach((x) => { x.classList.remove("done"); x.querySelector("i").textContent = "Copy"; });
+    bt.classList.toggle("done", !!ok);
+    tag.textContent = ok ? "Copied ✓" : "Couldn't copy";
+    setTimeout(() => { bt.classList.remove("done"); tag.textContent = "Copy"; }, 2500);
+  }));
+}
+
+const MXS_CSS = `
+.mxs-in{display:flex;flex-direction:column;gap:14px}
+.mxs .copx-hd .acts{display:flex;align-items:center;gap:8px}
+.mxs .copx-kpi{cursor:default}
+.mxs .copx-kpi[data-open]:not(:disabled){cursor:pointer}
+.mxs .copx-kpi.zero.g .n{color:var(--ax-muted)}
+.mxs-sc{border:1px solid var(--ax-line);border-radius:10px}
+.mxs-row>summary,.mxs-row.flat,.mxs-th{display:grid;grid-template-columns:16px minmax(220px,1.4fr) minmax(130px,.8fr) minmax(80px,.5fr) minmax(170px,1fr) 14px;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--ax-line2)}
+.mxs-th{border-top:0;font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.045em;color:var(--ax-muted);background:var(--ax-th-bg,var(--ax-soft));border-radius:10px 10px 0 0}
+.mxs-row>summary{cursor:pointer;list-style:none}
+.mxs-row>summary::-webkit-details-marker{display:none}
+.mxs-row>summary:hover{background:var(--ax-acc2)}
+.mxs-row[open]>summary{background:var(--ax-blue-soft)}
+.mxs-chev{color:var(--ax-muted);font-size:15px;line-height:1;transition:transform .12s}
+.mxs-row[open] .mxs-chev{transform:rotate(90deg)}
+.mxs .copx-dot{margin:0}
+.mxs .copx-dot.none{background:var(--ax-neutral)}
+.mxs-nm b{display:inline-block;min-width:24px;font-size:11.5px;color:var(--ax-muted);font-weight:650}
+.mxs-nm .copx-help{padding:0 6px;margin-left:2px;border-radius:50%;font-size:11px}
+.mxs-nm .copx-help .pop{left:0;right:auto;width:340px}
+.mxs-score .pct{font-weight:650}
+.mxs-score .of{font-size:11.5px;color:var(--ax-muted);margin-left:4px}
+.mxs-body{padding:2px 14px 12px 40px;background:var(--ax-soft)}
+.mxs-list h4{margin:10px 0 4px;font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.045em;color:var(--ax-muted)}
+.mxs-list h4 span{font-weight:500}
+.mxs-list table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--ax-card);border:1px solid var(--ax-line2);border-radius:8px}
+.mxs-list td{padding:6px 10px;border-top:1px solid var(--ax-line2);vertical-align:top}
+.mxs-list tr:first-child td{border-top:0}
+.mxs-list td.id{font-weight:600;white-space:nowrap;width:1%}
+.mxs-list td.dt,.mxs-list td.poc{white-space:nowrap;color:var(--ax-muted);width:1%}
+.mxs-list td .copx-pill{margin:0}
+.mxs-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--ax-muted)}
+.mxs-foot>span:first-child{flex:1;min-width:200px}
+.mxs-foot .copx-help .pop{bottom:100%;top:auto}
+.mxs-q{cursor:help;border-bottom:1px dotted var(--ax-muted)}
+.mxs-tags .pop .rc{grid-template-columns:84px 1fr auto}
+.mxs-how{padding:0 7px;border-radius:50%}
+.mxs-how .pop{width:360px}
+@media (max-width:760px){.mxs-row>summary,.mxs-row.flat,.mxs-th{grid-template-columns:14px 1fr auto;}.mxs-row .mxs-miss,.mxs-row .mxs-watch,.mxs-chev,.mxs-th span:nth-child(n+4){display:none}}
+`;
 
 /* ---------------- main render ---------------- */
 
@@ -1444,8 +1791,8 @@ function mxRenderOntimeSection(host, precomputed, precomputedErr) {
    disagree with its card. Returns { qc, tracking, cost_srf } where each slot is
    { def, pass, total, fails:[row,...] }.
    ========================================================================= */
-function mxRowMetricDetail(grid, startIso, endIso) {
-  const keys = ["qc", "tracking", "cost_srf"];
+function mxRowMetricDetail(grid, startIso, endIso, onlyKeys) {
+  const keys = onlyKeys || ["qc", "tracking", "cost_srf"];
   const defByKey = {};
   if (typeof XT_ROLLUP_METRICS !== "undefined") {
     for (const m of XT_ROLLUP_METRICS) if (keys.indexOf(m.key) !== -1) defByKey[m.key] = m;

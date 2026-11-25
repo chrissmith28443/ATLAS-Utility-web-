@@ -991,3 +991,19 @@ Arrived Warehouse or the warehouse actual date is filled.
   Workflow Logs + Activity Tracker "PR – PO Issued", though XT_ROLLUP_PENDING still lists it as awaiting a field.
 - NEXT: build WMTR (SRF first, then PR / WS / PMCT) per PMR_METRICS_MAP.md — quarter columns Q1–Q4, pass/total,
   RYG per the deck's thresholds, exception table (Request ID / Explanation / Mitigation / Relief).
+
+## v2.9.36 (2026-11-25) — WMTR › SRF = current-period scorecard
+- User direction: Metrics looks at NOW (catch misses before they happen); the PMR tab looks BACK at the previous half
+  for the PowerPoint. Less is more — metric tracking only on SRF.
+- renderSrfWatch / mxsCompute / mxsDraw (metrics_dashboard.js). Opens on the current FY half; "This quarter" toggle
+  (own state MxSrf, not MetricsUi). One row per metric: Q1 S1 S6 C6 R5 R6 O2 O3, plus tag-tracked ones only when
+  something is tagged. Score = SRFs delivered in the window; Missed = delivered fails; Watch = active shipments
+  (red "will miss" / amber "at risk") from copBuildAll() checks (rdd, daily todo, rfq, cost, civ/pl, itn, tracking,
+  QC rejection via copXt). S6/R6 denominator = every delivered SRF (deck rule). Relief tag = pass; Acknowledge ≠ pass.
+- Manual metrics: [MISS: CODE] reason in Shipping Team Notes (mxsParseMiss). Codes: INDICATOR (Q2), RATES (C2),
+  VAT (R1), EXPORT (R2), HAZMAT (R3), ESOH (R4), PACKAGING (R7), DAMAGED/LOST (M4), CUSTOMS (R6). C1 consolidation
+  was eliminated 12 Feb 2026; O1 belongs on WS. Legacy DTRA-Only comment flags show as "Other manual flags" if present.
+- Old SRF dashboard (renderMetricsDashboard) is no longer shown but kept — reuse its pieces for the PMR tab.
+- Data note: many current-half S6 / R6 misses are blank RFQ Sent Date / ITN on shipments handled before those
+  fields existed (Nov 2026); entering the dates clears them.
+- NEXT: PR / WS / PMCT tabs (S3 needs the 10-day rule), then PMR tab (previous half, look-back).

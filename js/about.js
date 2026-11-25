@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.36",
+    title: "New SRF metrics view: catch misses before they count",
+    notes: [
+      "Metrics › WMTR › SRF is now one scorecard for the current fiscal half (or This quarter): each PMR metric's score so far, what's already missed, and the in-progress shipments that will miss or are at risk.",
+      "Click a metric to see the shipments behind it. Hover the ? for the requirement, target and where the data comes from.",
+      "Metrics ATLAS has no field for (VAT, HAZMAT, packaging, lost/damaged…) are tagged in Shipping Team Notes: [MISS: VAT] reason. \"How to tag a miss\" copies the tags.",
+    ],
+  },
+  {
     version: "2.9.35",
     title: "Metrics tabs: Overview, WMTR, PLS, PMR",
     notes: [

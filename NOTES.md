@@ -951,3 +951,15 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Single-shipment Fetch still uses the full UDQ (shipping id) — unchanged.
 - Tested locally with stubbed ATLAS responses (real fast + full JSON samples): order, hand-off, refresh merge,
   full-fails and fast-fails paths. Not tested inside ATLAS yet.
+
+## v2.9.33 (2026-11-25) — fast PLS UDQ; IR / DTR ID boxes
+- User built an active-only copy of the PLS UDQ: 75120834-1c65-46e2-a446-dd713c37f5b3 (QA) =
+  ATLAS_UDQ_CONFIG.ids.qa.plsFast (+ Settings "Fast PLS UDQ"; prod blank).
+- Dashboard click order now: fast SRF -> PR + PMCT -> fast PLS -> full SRF -> full PLS. pmAutoPull(force,
+  { laterFull: true }) leaves PmPls.fullPending; copAutoFetch opts.after = pmPullPlsRest runs the full PLS last.
+  PLS tab / Refresh on its own: fast then full straight away. Fast is laid over the last full (PmPls.full, by
+  PLSNumber). While slot.partial, Closed PLS shows "Loading the closed PLS…" (count "…").
+- Settings now has IR and DTR UDQ ID boxes (atlasIds().ir / .dtr). Built-in QA IDs already match what the user
+  gave: IR f2e4ad3c-cb32-4086-9b29-8e4ffc0f7bfd, DTR 61198689-9693-4490-843a-e676f00d9030. Nothing pulls them yet.
+- Tested locally with stubs (real PLS + SRF JSON; fast PLS = full minus closed statuses): order, Closed PLS
+  wait card, then 35 active / 335 closed. Not tested inside ATLAS yet.

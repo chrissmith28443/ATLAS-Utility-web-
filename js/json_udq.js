@@ -62,6 +62,9 @@ const ATLAS_UDQ_CONFIG = {
       property: "75abb665-d493-47ab-be82-20210a09282c",
       // PLS (Personnel Logistics Services) — the Dashboard's PLS tab (full PLS dataset).
       pls: "6ef19319-e7ad-4726-9c41-7d19f1961844",
+      // Fast PLS pull (2.9.33): the PLS UDQ filtered in ATLAS to active trips. Pulled first;
+      // the full PLS UDQ above then fills in the closed ones. Blank = full only, as before.
+      plsFast: "75120834-1c65-46e2-a446-dd713c37f5b3",
       // DTR and IR service modules — recorded for future tools; nothing reads them yet.
       dtr: "61198689-9693-4490-843a-e676f00d9030",
       ir:  "f2e4ad3c-cb32-4086-9b29-8e4ffc0f7bfd",
@@ -80,6 +83,7 @@ const ATLAS_UDQ_CONFIG = {
       metricsFast: "",
       property: "",
       pls: "",
+      plsFast: "",
       dtr: "",
       ir: "",
       christmasTree: { srf: "", pr: "", pmct: "", ws: "" }, // TODO: fill at publish
@@ -250,6 +254,9 @@ function atlasIds() {
     metricsFast: pick("metricsFast"),
     property: pick("property"),
     pls:      pick("pls"),
+    plsFast:  pick("plsFast"),
+    ir:       pick("ir"),       // recorded for future tools; nothing pulls these yet
+    dtr:      pick("dtr"),
     christmasTree: { srf: pickCt("srf"), pr: pickCt("pr"), pmct: pickCt("pmct"), ws: pickCt("ws") },
   };
 }

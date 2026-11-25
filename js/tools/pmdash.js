@@ -510,7 +510,9 @@ function pmData() {
    PLS UDQ — pulled from ATLAS (pmPullPls) or dropped. Any drop zone on the
    three tabs routes a PLS export here and PR / PMCT exports to the Christmas Tree slots.
    ------------------------------------------------------------------------- */
-const PmPls = { slot: null, status: "", err: false };
+/* slot.partial: only the fast PLS UDQ (active trips) is in. full: the last full pull's records.
+   fullPending: a fast pull ran and the full one is still to come (pmPullPlsRest). */
+const PmPls = { slot: null, status: "", err: false, full: null, fullPending: false };
 function pmPlsStatus(msg, err) {
   PmPls.status = msg || ""; PmPls.err = !!err;
   const s = document.getElementById("pmPlsStatus");
@@ -572,15 +574,38 @@ function pmPlsJsonToGrid(recs) {
   }
   return grid;
 }
-async function pmPullPls() {
+/* Fast PLS UDQ (2.9.33): the PLS UDQ filtered in ATLAS to active trips — Settings › Fast PLS UDQ.
+   Pulled first so the PLS tab opens quickly; the full PLS UDQ then fills in the closed trips. */
+function pmPlsFastId() { try { return typeof atlasIds === "function" ? String(atlasIds().plsFast || "").trim() : ""; } catch (e) { return ""; } }
+/** Pull the PLS UDQ (fast: the fast one, laid over the last full pull). Returns true when it loaded. */
+async function pmPullPls(fast) {
   try {
-    const recs = await atlasFetchUdqJson(pmPlsId());
-    const grid = pmPlsJsonToGrid((recs || []).filter(Boolean));
+    let recs = ((await atlasFetchUdqJson(fast ? pmPlsFastId() : pmPlsId())) || []).filter(Boolean);
+    if (fast && PmPls.full) {                        // keep the closed trips from the last full pull
+      const by = new Map(PmPls.full.map((r) => [String(r.PLSNumber || "").trim(), r]));
+      for (const r of recs) by.set(String(r.PLSNumber || "").trim(), r);
+      recs = Array.from(by.values());
+    }
+    const grid = pmPlsJsonToGrid(recs);
     const n = pmParsePls(grid).filter((r) => r.status).length;
-    if (!n) { pmPlsStatus("Pulled the PLS UDQ from ATLAS, but couldn't read its layout yet — keep dropping the PLS export until the Utility is updated for it.", true); return; }
-    PmPls.slot = { fileName: "ATLAS PLS UDQ", grid, at: Date.now() };
+    if (!n) { pmPlsStatus("Pulled the PLS UDQ from ATLAS, but couldn't read its layout yet — keep dropping the PLS export until the Utility is updated for it.", true); return false; }
+    if (!fast) { PmPls.full = recs; PmPls.fullPending = false; }
+    PmPls.slot = { fileName: "ATLAS PLS UDQ", grid, at: Date.now(), partial: !!fast && !PmPls.full };
     pmPlsStatus("", false);
-  } catch (e) { console.error(e); pmPlsStatus(`Couldn't pull the PLS UDQ from ATLAS — ${e.message || e}`, true); }
+    return true;
+  } catch (e) { console.error(e); pmPlsStatus(`Couldn't pull the PLS UDQ from ATLAS — ${e.message || e}`, true); return false; }
+}
+/** After a fast PLS pull: the full PLS UDQ, to fill in the closed trips. Dashboard click runs
+    this last (after the full SRF UDQ); a pull of its own runs it straight after the fast one. */
+async function pmPullPlsRest() {
+  if (!PmPls.fullPending || PmPull.busy) return;
+  PmPls.fullPending = false;
+  PmPull.busy = true; PmPull.on = "pls";
+  if (pmIsTool(AppState.activeTool)) renderWorkspace();
+  await pmPullPls(false);
+  PmPull.busy = false; PmPull.on = "";
+  if (pmIsTool(AppState.activeTool)) renderWorkspace();
+  else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();
 }
 
 /* -------------------------------------------------------------------------
@@ -591,11 +616,13 @@ const PmPull = { busy: false, on: "" };
 /** Is this UDQ ("PR", "PMCT" or "PLS") the one being pulled right now? */
 function pmPulling(udq) { return PmPull.busy && (!PmPull.on || (PmPull.on === "pls") === (udq === "PLS")); }
 function pmFresh(slot) { return slot && slot.at && Date.now() - slot.at < PM_AUTO_PULL_MIN * 60000; }
-async function pmAutoPull(force) {
+/* opts.laterFull (Dashboard click): after a fast PLS pull, leave the full PLS UDQ for the
+   caller to run last (pmPullPlsRest); otherwise it's pulled straight after the fast one. */
+async function pmAutoPull(force, opts) {
   if (PmPull.busy || typeof loadFromAtlasXmasTree !== "function") return;
   const pr = XTree.slots.PR, pm = XTree.slots.PMCT, pl = PmPls.slot;
   const needPm = force || !((pmFresh(pr) && pmFresh(pm)) || (pr && !pr.at) || (pm && !pm.at));
-  const needPls = !!pmPlsId() && (force || !(pmFresh(pl) || (pl && !pl.at)));
+  const needPls = !!pmPlsId() && (force || !((pmFresh(pl) && (!pl.partial || PmPls.fullPending)) || (pl && !pl.at)));
   if (!needPm && !needPls) return;
   PmPull.busy = true;
   // One after the other (2.9.32): PR + PMCT first, then PLS — so the Procurement and
@@ -612,7 +639,14 @@ async function pmAutoPull(force) {
       if (pmIsTool(AppState.activeTool)) renderWorkspace();
       else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();
     }
-    await pmPullPls();
+    // Fast PLS UDQ first (when set), then the full one — now, or last on a Dashboard click.
+    const fastOk = !!pmPlsFastId() && await pmPullPls(true);
+    if (!fastOk) await pmPullPls(false);
+    else if (opts && opts.laterFull) PmPls.fullPending = true;
+    else {
+      if (pmIsTool(AppState.activeTool)) renderWorkspace();
+      await pmPullPls(false);
+    }
   }
   PmPull.busy = false; PmPull.on = "";
   if (pmIsTool(AppState.activeTool)) renderWorkspace();
@@ -948,7 +982,7 @@ function pmRenderPls(container) {
   const isActive = ui.view !== "closed";
   const tabs = el(`<div class="pmx-top"><div class="copx-tabs" role="tablist">
     <button type="button" data-v="active" class="${isActive ? "on" : ""}" role="tab" aria-selected="${isActive}">Active PLS (${active.length - (ui.drafts ? 0 : drafts)})</button>
-    <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed PLS (${closed.length})</button></div>
+    <button type="button" data-v="closed" class="${!isActive ? "on" : ""}" role="tab" aria-selected="${!isActive}">Closed PLS (${D.plsSlot.partial ? "…" : closed.length})</button></div>
     <div class="pmx-tools">${pmSrcChip("PLS", D.plsSlot)}
       ${pmRefreshBtn("Refresh — pull the PLS UDQ from ATLAS again")}
       ${PM_VIEW_BTN("pls")}
@@ -964,6 +998,16 @@ function pmRenderPls(container) {
   root.appendChild(tabs);
   root.appendChild(el(`<div class="pmx-status quiet ${PmPls.err ? "err" : ""}" id="pmPlsStatus" style="margin-top:-8px">${esc(PmPls.status || "")}</div>`));
   if (PmUi.viewEdit === "pls") root.appendChild(pmViewPanel("pls", isActive));
+  // Only the fast (active trips) PLS UDQ is in so far — the closed trips come with the full one (2.9.33).
+  if (!isActive && D.plsSlot.partial) {
+    const busy = PmPull.busy || PmPls.fullPending;
+    root.appendChild(el(`<section class="copx-card copx-wait" ${busy ? 'role="status" aria-live="polite"' : ""}>
+      ${busy ? '<div class="copx-spin" aria-hidden="true"></div>' : ""}
+      <h2>${busy ? "Loading the closed PLS…" : "The closed PLS didn't load"}</h2>
+      <p class="copx-msg">${busy ? "They come with the full PLS report from ATLAS, right after the active ones." : "The full PLS report from ATLAS didn't come in. Refresh to try again; Active PLS is up to date."}</p>
+    </section>`));
+    return;
+  }
   if (PmUi.slide) root.appendChild(pmSlideCard(D));
 
   const base = isActive ? active.filter((r) => ui.drafts || r.lane !== "draft") : pmClosedWindow(closed, ui.period);

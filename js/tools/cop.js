@@ -3851,7 +3851,11 @@ function copRailButton() {
   // Metrics UDQ and PR / PMCT / PLS pull at once, as before.
   btn.addEventListener("click", async () => {
     copHubSelect("cop");
-    copAutoFetch(false, { between: typeof pmAutoPull === "function" ? () => pmAutoPull() : null });
+    // 2.9.33: the PLS step pulls the fast PLS UDQ; the full PLS UDQ comes last (after: pmPullPlsRest).
+    copAutoFetch(false, {
+      between: typeof pmAutoPull === "function" ? () => pmAutoPull(false, { laterFull: true }) : null,
+      after: typeof pmPullPlsRest === "function" ? () => pmPullPlsRest() : null,
+    });
   });
   return btn;
 }
@@ -3928,11 +3932,12 @@ async function copSwapInMetrics(recs, label) {
    PLS), then the full Metrics UDQ replaces it. Without one, the full UDQ is pulled
    with opts.between running alongside it, as before. */
 async function copAutoFetch(force, opts) {
-  const between = opts && opts.between;
+  const between = opts && opts.between, after = opts && opts.after;   // after: runs last (the full PLS UDQ)
   if (CopPull.busy || typeof atlasPullMetricsRecords !== "function") return;
   const minGap = atlasChangesOn() ? 0 : COP_AUTO_PULL_MIN;
   if (!force && !CopPull.partial && AppState.udqType === "metrics" && Date.now() - CopPull.at < minGap * 60000) {
     if (between) await between();
+    if (after) await after();
     return;
   }
   CopPull.busy = true;
@@ -3977,6 +3982,7 @@ async function copAutoFetch(force, opts) {
     if (fastOk) copRedrawHub(); else copRerender();
     copHubRefreshTabs();                             // not connected → the drop box appears
     await side;
+    if (after) await after();
     return;                                          // no ATLAS → don't try the Christmas Tree either
   }
   CopPull.busy = false;
@@ -3996,6 +4002,7 @@ async function copAutoFetch(force, opts) {
     try { await loadFromAtlasXmasTree({ quiet: true, services: ["SRF"], srfRecords: recs }); } catch (e) { console.error(e); }
   }
   await side;
+  if (after) await after();
 }
 function copHubTabs() {
   const hasMetrics = AppState.udqType === "metrics";

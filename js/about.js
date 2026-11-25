@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.33",
+    title: "PLS tab opens faster: active trips first, closed after",
+    notes: [
+      "Clicking Dashboard now pulls a smaller PLS report first (active trips), so the PLS tab opens quickly. The full PLS report comes last and fills in Closed PLS, which shows \"Loading the closed PLS…\" until then. The PLS tab's Refresh button pulls both, one right after the other.",
+      "Dashboard order is now: active shipments, PR and PMCT, active PLS, full shipment history, full PLS.",
+      "Settings ▸ ATLAS data source has new boxes for the Fast PLS UDQ and for the IR and DTR UDQs (saved for a future Dashboard tab; nothing pulls IR or DTR yet).",
+    ],
+  },
+  {
     version: "2.9.32",
     title: "Dashboard opens faster: active shipments first, full history after",
     notes: [

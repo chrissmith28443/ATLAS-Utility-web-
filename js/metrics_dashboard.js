@@ -742,6 +742,51 @@ function mxsWireCommon(box, redraw, st) {
   }));
 }
 
+/* ---- Metric tiles (2.9.39): one small tile per metric, grouped by service, colored by status,
+   so anything not green stands out. Clicking one opens that metric's row (its list of requests
+   with issues) — on the same view, or on its own tab from the Overview. ---- */
+const MxFocus = { code: "" };
+const MXS_TAB_STATE = { mwmtr: () => MxSrf, mwpr: () => MxPr, mpls: () => MxPls, mlang: () => MxLang };
+/** groups = [{ t, tab, defs, S }]; tab = where a click goes (blank = this view). */
+function mxsTiles(groups, live) {
+  const cls = { good: "g", warn: "a", issue: "r", none: "n" };
+  return `<div class="mxt">${groups.map((g) => `<div class="mxt-g"><span class="mxt-h">${esc(g.t)}</span><div class="mxt-row">${g.defs.map((d) => {
+    const s = g.S && g.S[d.code];
+    if (!s) return `<button type="button" class="mxt-tile n" disabled title="${esc(g.t)} UDQ not loaded"><b>${esc(d.code)}</b><span class="nm">${esc(d.name)}</span><span class="pc">–</span></button>`;
+    const stt = !s.total ? "none" : mxMetricStatus(s.pass, s.total, d);
+    const p = s.total ? Math.floor((s.pass / s.total) * 1000) / 10 + "%" : "N/A";
+    const w = live ? (s.watch || []) : [], reds = w.filter((x) => x.sev === "r").length;
+    const issues = s.missed.length + (s.fix || []).length + w.length;
+    const tip = `${d.code} · ${d.name}: ${s.total ? `${s.pass} of ${s.total} (${p})` : "nothing scored yet"}` +
+      `${s.missed.length ? ` · ${s.missed.length} missed` : ""}${(s.fix || []).length ? ` · ${s.fix.length} to fix` : ""}${w.length ? ` · ${w.length} on watch` : ""}. Click for the requests.`;
+    return `<button type="button" class="mxt-tile ${cls[stt]}" data-code="${esc(d.code)}" data-tab="${esc(g.tab || "")}" title="${esc(tip)}">
+      <b>${esc(d.code)}</b><span class="nm">${esc(d.name)}</span><span class="pc">${p}</span>${issues ? `<i class="${reds || s.missed.length ? "r" : "a"}">${issues}</i>` : ""}</button>`;
+  }).join("")}</div></div>`).join("")}</div>`;
+}
+/** Tile click: open the metric's row here, or go to its tab (same period) and open it there. */
+function mxsWireTiles(box, st) {
+  box.querySelectorAll(".mxt-tile[data-code]").forEach((b) => b.addEventListener("click", () => {
+    const tab = b.dataset.tab;
+    MxFocus.code = b.dataset.code;
+    if (!tab) { mxsApplyFocus(box); return; }
+    const target = MXS_TAB_STATE[tab] && MXS_TAB_STATE[tab]();
+    if (target && st) target.st = Object.assign({}, st, { sel: Object.assign({}, st.sel) });
+    copHubSelect(tab);
+  }));
+}
+/** Open + scroll to the row MxFocus names (after a tile click). */
+function mxsApplyFocus(box) {
+  const code = MxFocus.code;
+  if (!code) return;
+  MxFocus.code = "";
+  const row = box.querySelector(`.mxs-row[data-code="${CSS.escape(code)}"]`);
+  if (!row) return;
+  if (row.tagName === "DETAILS") row.open = true;
+  row.classList.add("mxs-hit");
+  setTimeout(() => row.scrollIntoView({ behavior: "smooth", block: "start" }), 350);   // after the hub's own scroll
+  setTimeout(() => row.classList.remove("mxs-hit"), 2600);
+}
+
 /**
  * One scorecard: header + period chips + tiles + a row per metric.
  * cfg = { st, title, metrics, manual, tagDefs, tagWhere, tagExample, how, doneWord, emptyWord,
@@ -786,9 +831,9 @@ function mxsScorecard(box, cfg) {
       <span class="mxs-score">${p === null ? `<span class="of">${esc(cfg.emptyWord)}</span>` : `<span class="pct">${p}%</span> <span class="of">${s.pass} of ${s.total}</span>`}</span>
       <span class="mxs-miss">${s.missed.length ? `<span class="copx-pill r">${s.missed.length} missed</span>` : ""}${fx.length ? `<span class="copx-pill a" title="Finished, but a record is missing so it can't be scored">${fx.length} to fix</span>` : ""}</span>
       <span class="mxs-watch">${reds ? `<span class="copx-pill r">${reds} will miss</span>` : ""}${ambers ? `<span class="copx-pill a">${ambers} at risk</span>` : ""}</span>`;
-    if (!s.missed.length && !s.watch.length && !fx.length) return `<div class="mxs-row flat">${cells}<span class="mxs-chev"></span></div>`;
+    if (!s.missed.length && !s.watch.length && !fx.length) return `<div class="mxs-row flat" data-code="${esc(d.code)}">${cells}<span class="mxs-chev"></span></div>`;
     const doneRow = (x) => `<tr><td class="id">${esc(x.id)}</td><td class="dt">${esc(x.date)}</td><td colspan="2">${esc(x.text)}</td></tr>`;
-    return `<details class="mxs-row" data-w="${s.watch.length ? 1 : 0}" data-m="${s.missed.length || fx.length ? 1 : 0}"><summary>${cells}<span class="mxs-chev" aria-hidden="true">›</span></summary>
+    return `<details class="mxs-row" data-code="${esc(d.code)}" data-w="${s.watch.length ? 1 : 0}" data-m="${s.missed.length || fx.length ? 1 : 0}"><summary>${cells}<span class="mxs-chev" aria-hidden="true">›</span></summary>
       <div class="mxs-body">
         ${mxsList("Watch — in progress", s.watch, (x) => `<tr><td class="id">${esc(x.id)}</td><td>${sevPill[x.sev]}</td><td>${esc(x.text)}</td><td class="poc">${esc(x.poc)}</td></tr>`)}
         ${mxsList(cfg.missedTitle, s.missed, doneRow)}
@@ -811,6 +856,7 @@ function mxsScorecard(box, cfg) {
         ${live ? `<button type="button" class="copx-kpi r ${nRed ? "" : "zero"}" data-open="w" ${nRed + nAmber ? "" : "disabled"} title="In-progress requests that will miss unless fixed — show them"><span class="n">${nRed}</span><span class="l">will miss</span></button>
         <button type="button" class="copx-kpi a ${nAmber ? "" : "zero"}" data-open="w" ${nRed + nAmber ? "" : "disabled"} title="In-progress requests close to a miss — show them"><span class="n">${nAmber}</span><span class="l">at risk</span></button>` : ""}
       </div>
+      ${mxsTiles([{ t: cfg.service || cfg.title, tab: "", defs: shown, S }], live)}
       <div class="mxs-sc">
         <div class="mxs-row mxs-th"><span></span><span>Metric</span><span>Score</span><span>Missed</span><span>${live ? "Watch" : ""}</span><span></span></div>
         ${shown.map(rowHtml).join("")}
@@ -822,6 +868,8 @@ function mxsScorecard(box, cfg) {
       </div>
     </div>`;
   mxsWireCommon(box, () => mxsScorecard(box, cfg), st);
+  mxsWireTiles(box, st);
+  mxsApplyFocus(box);
 }
 
 /* ---------------- WMTR › SRF ---------------- */
@@ -838,7 +886,7 @@ function mxsLegacyRows(res) {
 }
 function mxsDraw(box) {
   mxsScorecard(box, {
-    st: mxsWin(MxSrf), title: "SRF metrics", doneWord: "delivered", emptyWord: "No deliveries yet", missedTitle: "Missed — delivered",
+    st: mxsWin(MxSrf), title: "SRF metrics", service: "SRF", doneWord: "delivered", emptyWord: "No deliveries yet", missedTitle: "Missed — delivered",
     metrics: MXS_METRICS, manual: MXS_MANUAL, tagDefs: MXS_MANUAL.concat(MXS_METRICS.filter((m) => m.tags)),
     tagWhere: "ATLAS › Shipping Activity › <b>Shipping Team Notes</b>", tagExample: "[MISS: VAT] Customs charged 20% VAT, refund requested",
     how: `<b>Score</b> counts SRFs delivered in the period, the same count the PMR uses.<br><b>Missed</b> lists the delivered ones that failed. They already count.<br><b>Watch</b> lists shipments still in progress that will miss (red) or are at risk (amber). Fix these before delivery.<br><span class="ex">A <code>[RELIEF: …]</code> tag counts as a pass. Acknowledge on the Shipments tab doesn't change a metric.</span>`,
@@ -954,7 +1002,7 @@ function renderPrMetrics(host) {
   const box = mxsShell(host);
   if (!(typeof XTree !== "undefined" && XTree.slots.PR) || typeof pmData !== "function") { mxsNeedUdq(box, "PR", "PR metrics"); return; }
   mxsScorecard(box, {
-    st: mxsWin(MxPr), title: "PR metrics", doneWord: "completed", emptyWord: "None completed yet", missedTitle: "Missed — completed",
+    st: mxsWin(MxPr), title: "PR metrics", service: "PR", doneWord: "completed", emptyWord: "None completed yet", missedTitle: "Missed — completed",
     metrics: MXP_METRICS, manual: MXP_MANUAL, tagDefs: MXP_MANUAL,
     tagWhere: "the PR's <b>General Comments</b> field in ATLAS", tagExample: "[MISS: LOCAL] Bought from a US vendor; a local supplier was available",
     how: `<b>Score</b> counts PRs completed in the period (by Delivery Date, or the completion date when there's none).<br><b>Missed</b> lists the completed ones that failed.<br><b>To fix</b> lists completed PRs that can't be scored yet, e.g. no “PR – PO Issued” entry in the Activity Tracker.<br><b>Watch</b> lists PRs still in progress whose estimate or PO is overdue or due soon, or whose cost is already over.<br><span class="ex">S3 uses 10 business days for Compliance approvals from 10 Sep 2026 (the COR's change), 3 before.</span>`,
@@ -989,7 +1037,7 @@ function mxEstScore(s, wfl, days, inWin, relieved, miss) {
   s.total++;
   const late = cyc.map((c) => ({ c, due: xtWorkday(c.start, days, true) })).filter((x) => xtIso(x.c.sent) > xtIso(x.due));
   if (!late.length || relieved) s.pass++;
-  else miss(xtIso(late[0].c.sent), `Estimate sent ${mxsDmy(late[0].c.sent)}, due ${mxsDmy(late[0].due)}${late.length > 1 ? ` (+${late.length - 1} more late)` : ""}`);
+  if (late.length) miss(xtIso(late[0].c.sent), `Estimate sent ${mxsDmy(late[0].c.sent)}, due ${mxsDmy(late[0].due)}${late.length > 1 ? ` (+${late.length - 1} more late)` : ""}`, relieved);
   return true;
 }
 /** An estimate being prepared now: overdue (r) or due within 2 days (a). */
@@ -1043,7 +1091,7 @@ function mxlCompute(startIso, endIso) {
   const D = pmData();
   const inWin = (iso) => !!iso && (!startIso || iso >= startIso) && (!endIso || iso <= endIso);
   const S = {};
-  for (const d of MXL_METRICS) S[d.code] = { def: d, pass: 0, total: 0, missed: [], watch: [], fix: [] };
+  for (const d of MXL_METRICS) S[d.code] = { def: d, pass: 0, total: 0, missed: [], watch: [], fix: [], relief: [] };
   const tagDefs = MXL_METRICS.filter((d) => d.tags);
   const gc = mxGeneralComments(D.plsSlot && D.plsSlot.grid, /^PLS-/i);
   const today = pmToday(), todayIso = xtIso(today);
@@ -1054,7 +1102,8 @@ function mxlCompute(startIso, endIso) {
     const id = p.wmtr, note = gc[id.toUpperCase()] || "";
     const tags = mxsParseMiss(note, tagDefs), relief = mxsParseRelief(note, MXL_METRICS);
     const tag = (code) => tags.find((x) => x.code === code);
-    const miss = (code) => (iso, text) => { scored.add(id); S[code].missed.push({ id, date: iso ? mxIsoToDmy(iso) : "", text }); };
+    // rel = relief granted: it counts as a pass, but the PMR lists it as "Relief".
+    const miss = (code) => (iso, text, rel) => { scored.add(id); S[code][rel ? "relief" : "missed"].push({ id, date: iso ? mxIsoToDmy(iso) : "", text, poc: p.ctpm || "" }); };
     const simple = mxlIsSimple(p), est = simple ? "S7" : "S8", days = simple ? 3 : 5;
     const poc = p.poc === "Unassigned" ? "" : p.poc;
     const w = (code, sev, text) => S[code].watch.push({ id, poc, sev, text });
@@ -1070,9 +1119,9 @@ function mxlCompute(startIso, endIso) {
         if (!p.approved) S.C4.fix.push({ id, date: mxIsoToDmy(iso), text: "No approved estimate cost in the Workflow Logs" });
         else {
           S.C4.total++;
-          const t = tag("C4");
-          if (relief.has("C4") || (!over && !t)) S.C4.pass++;
-          else miss("C4")(iso, over ? `Total cost ${pmMoney(p.cost, true)} is ${over}% over the approved ${pmMoney(p.approved, true)}` : t.reason || "Tagged in General Comments");
+          const t = tag("C4"), rel = relief.has("C4");
+          if (rel || (!over && !t)) S.C4.pass++;
+          if (over || t) miss("C4")(iso, over ? `Total cost ${pmMoney(p.cost, true)} is ${over}% over the approved ${pmMoney(p.approved, true)}` : t.reason || "Tagged in General Comments", rel);
         }
       }
     }
@@ -1083,8 +1132,9 @@ function mxlCompute(startIso, endIso) {
       if (inWin(iso) && iso <= todayIso) {
         scored.add(id);
         S.M10.total++;
-        const t = tag("M10");
-        if (t && !relief.has("M10")) miss("M10")(iso, t.reason || "Tagged in General Comments"); else S.M10.pass++;
+        const t = tag("M10"), rel = relief.has("M10");
+        if (!t || rel) S.M10.pass++;
+        if (t) miss("M10")(iso, t.reason || "Tagged in General Comments", rel);
       } else if (xtIso(p.end) <= todayIso && iso > todayIso) {
         const d = pmDays(today, aarDue);
         if (tag("M10")) w("M10", "r", (tag("M10").reason || "Tagged") + ". Counts when the AAR falls due.");
@@ -1112,7 +1162,7 @@ function renderPlsMetrics(host) {
     return;
   }
   mxsScorecard(box, {
-    st: mxsWin(MxPls), title: "PLS metrics", doneWord: "PLS scored", emptyWord: "None yet", missedTitle: "Missed",
+    st: mxsWin(MxPls), title: "PLS metrics", service: "PLS", doneWord: "PLS scored", emptyWord: "None yet", missedTitle: "Missed",
     metrics: MXL_METRICS, manual: [], tagDefs: MXL_METRICS.filter((d) => d.tags),
     tagWhere: "the PLS's <b>General Comments</b> field in ATLAS", tagExample: "[MISS: C4] Invoice came in 8% over the approved estimate",
     how: `<b>S7 / S8</b> count PLS whose estimate went to DTRA in the period. The clock runs from each time the PLS reaches <b>TTI Estimate Preparation</b> to the next <b>Fulfillment Review</b> or <b>DTRA Estimate Review</b>, in business days (holidays skipped). Simple = only lodging, ground transportation and equipment line items; anything else is Complex.<br><b>C4</b> counts PLS that reached Ready To Invoice in the period.<br><b>M10</b> counts AARs that fell due in the period. A late AAR only shows when tagged.<br><b>Watch</b> lists estimates overdue or due within 2 days, costs already over 5%, and AARs due within a week.<br><span class="ex">Relief granted? Type <code>[RELIEF: S7] reason</code> in General Comments and the miss counts as a pass.</span>`,
@@ -1143,6 +1193,7 @@ function mxlangRecords() {
       const b = pmBase(grid, H, rr, rEnd, t.toUpperCase());
       recs.push(Object.assign(b, { type: t, due: xtParseDate(b.S("Due Date/Time")), done: xtParseDate(b.S("Completed Date")),
         start: xtParseDate(b.S("Start Date")), program: norm(b.S("CT Funding Program")), cost: toFloat(b.S("Total Cost in USD")) || 0,
+        title: norm(b.S("Event Title") || b.S("Project Title")),
         country: pmCountry(b.S("Destination Country") || b.S("Document Destination Country") || b.S("Funding Country")),
         note: norm(b.S("General Comments")), lane: pmPlsLane(b.status), S: undefined }));
     }
@@ -1160,14 +1211,14 @@ const MXG_METRICS = [
 function mxgCompute(startIso, endIso) {
   const inWin = (iso) => !!iso && (!startIso || iso >= startIso) && (!endIso || iso <= endIso);
   const S = {};
-  for (const d of MXG_METRICS) S[d.code] = { def: d, pass: 0, total: 0, missed: [], watch: [], fix: [] };
+  for (const d of MXG_METRICS) S[d.code] = { def: d, pass: 0, total: 0, missed: [], watch: [], fix: [], relief: [] };
   const today = pmToday();
   const scored = new Set();
   let nActive = 0;
   for (const r of mxlangRecords()) {
     if (/^cancel/i.test(r.status) || r.lane === "draft") continue;
     const id = r.wmtr, relief = mxsParseRelief(r.note, MXG_METRICS);
-    const miss = (code) => (iso, text) => S[code].missed.push({ id, date: iso ? mxIsoToDmy(iso) : "", text });
+    const miss = (code) => (iso, text, rel) => S[code][rel ? "relief" : "missed"].push({ id, date: iso ? mxIsoToDmy(iso) : "", text, poc: r.poc === "Unassigned" ? "" : r.poc });
     const w = (code, sev, text) => S[code].watch.push({ id, poc: r.poc === "Unassigned" ? "" : r.poc, sev, text });
     if (mxEstScore(S.S5, r.wfl, 5, inWin, relief.has("S5"), miss("S5"))) scored.add(id);
     if (r.type === "dtr" && r.done && inWin(xtIso(r.done))) {
@@ -1176,8 +1227,9 @@ function mxgCompute(startIso, endIso) {
       if (!r.due) S.S4.fix.push({ id, date: mxIsoToDmy(iso), text: "No Due Date/Time" });
       else {
         S.S4.total++;
-        if (iso <= xtIso(r.due) || relief.has("S4")) S.S4.pass++;
-        else miss("S4")(iso, `Completed ${mxsDmy(r.done)}, due ${mxsDmy(r.due)}`);
+        const late = iso > xtIso(r.due), rel = relief.has("S4");
+        if (!late || rel) S.S4.pass++;
+        if (late) miss("S4")(iso, `Completed ${mxsDmy(r.done)}, due ${mxsDmy(r.due)}`, rel);
       }
     }
     if (r.closed) continue;
@@ -1210,7 +1262,7 @@ function renderLangMetrics(host) {
   }
   const have = ["ir", "dtr"].filter((t) => MxLang[t]).map((t) => t.toUpperCase()).join(" and ");
   mxsScorecard(box, {
-    st: mxsWin(MxLang), title: "IR / DTR metrics", doneWord: "requests scored", emptyWord: "None yet", missedTitle: "Missed",
+    st: mxsWin(MxLang), title: "IR / DTR metrics", service: "IR / DTR", doneWord: "requests scored", emptyWord: "None yet", missedTitle: "Missed",
     metrics: MXG_METRICS, manual: [],
     how: `<b>S5</b> counts IRs and DTRs whose estimate went to DTRA in the period. The clock runs from each time the request reaches <b>TTI Estimate Preparation</b> to the next <b>Fulfillment Review</b> or <b>DTRA Estimate Review</b>, in business days (holidays skipped).<br><b>S4</b> counts DTRs completed in the period: Completed Date vs Due Date/Time.<br><b>Watch</b> lists estimates and translations overdue or due within 2 days.<br><span class="ex">Relief granted? Type <code>[RELIEF: S5] reason</code> in General Comments and the miss counts as a pass.</span>`,
     footNote: `<span class="mxs-q">From the ${esc(have)} UDQ${have.length > 3 ? "s" : ""}${MxLang.ir && MxLang.dtr ? "" : `. Drop the ${MxLang.ir ? "DTR" : "IR"} UDQ too`}</span>`,
@@ -1323,7 +1375,7 @@ function mxoDraw(box) {
       const s = g.S[d.code], stt = !s.total ? "none" : mxMetricStatus(s.pass, s.total, d), p = pctOf(s);
       if (s.total) { nSc++; if (stt === "good") onT++; }
       const w = live ? s.watch : [], reds = w.filter((x) => x.sev === "r").length, ambers = w.length - reds;
-      return `<div class="mxs-row flat mxo-go" data-go="${g.tab}" role="button" tabindex="0" title="Open ${esc(g.t)}">
+      return `<div class="mxs-row flat mxo-go" data-go="${g.tab}" data-code="${esc(d.code)}" role="button" tabindex="0" title="Open ${esc(g.t)}">
         <span class="copx-dot ${stt === "issue" ? "red" : stt === "warn" ? "amber" : stt === "none" ? "none" : ""}"></span>
         <span class="mxs-nm"><b>${esc(d.code)}</b> ${esc(d.name)}</span>
         <span class="mxs-score">${p === null ? `<span class="of">None yet</span>` : `<span class="pct">${p}%</span> <span class="of">${s.pass} of ${s.total}</span>`}</span>
@@ -1369,6 +1421,7 @@ function mxoDraw(box) {
     </div>
     <div class="copx-card">
       <div class="copx-hd"><h2>Scorecard</h2><span class="n">${onT} of ${nSc} metrics on target</span></div>
+      ${mxsTiles(groups.map((g) => ({ t: g.t, tab: g.tab, defs: g.defs, S: g.S })), live)}
       <div class="mxs-sc">
         <div class="mxs-row mxs-th"><span></span><span>Metric</span><span>Score</span><span>Missed</span><span>${live ? "Watch" : ""}</span><span></span></div>
         ${sc}
@@ -1377,10 +1430,215 @@ function mxoDraw(box) {
     <div class="copx-card"><div class="copx-hd"><h2>By program</h2></div>${progTbl}</div>
     <div class="copx-card"><div class="copx-hd"><h2>By destination</h2><span class="n">${destRows.length} countr${destRows.length === 1 ? "y" : "ies"}</span></div>${destTbl}</div>`;
   mxsWireCommon(box, () => mxoDraw(box), st);
+  mxsWireTiles(box, st);
   box.querySelectorAll("[data-go]").forEach((n) => {
-    const go = () => copHubSelect(n.dataset.go);
+    const go = () => {
+      const target = MXS_TAB_STATE[n.dataset.go] && MXS_TAB_STATE[n.dataset.go]();
+      if (target) target.st = Object.assign({}, st, { sel: Object.assign({}, st.sel) });   // open on the same period
+      MxFocus.code = n.dataset.code || "";
+      copHubSelect(n.dataset.go);
+    };
     n.addEventListener("click", go);
     n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+}
+
+/* ---------------- Metrics › PMR (2.9.39) ----------------
+   Looks BACK: opens on the previous FY half, for building the PMR PowerPoint.
+   Metric outcomes per quarter (the deck's Outcome boxes) with each metric's exception
+   list, then the summary tables behind the deck's summary slides. Copy pastes as a
+   table (tab-separated) into PowerPoint or Excel. */
+const MxPmr = { st: null, sum: "" };
+function mxPrevHalfWin() {
+  const c = mxCurrentSel();
+  const sel = c.part === 2 ? { fy: c.fy, span: "half", part: 1 } : { fy: c.fy - 1, span: "half", part: 2 };
+  const w = mxWindowFor(sel);
+  return { _warn: "", quick: w.quick, start: w.start, end: w.end, label: w.label, sel };
+}
+/** The FY quarters that make up the picked window (none for All time / Custom). */
+function mxrQuarters(st) {
+  const s = st.sel || {};
+  const parts = s.span === "year" ? [1, 2, 3, 4] : s.span === "half" ? (s.part === 1 ? [1, 2] : [3, 4]) : s.span === "qtr" ? [s.part] : [];
+  return parts.length > 1 ? parts.map((q) => Object.assign({ q: `Q${q}` }, mxWindowFor({ fy: s.fy, span: "qtr", part: q }))) : [];
+}
+function mxrGroups(have) {
+  return [
+    { t: "SRF", on: have.SRF, defs: MXS_METRICS.concat(MXS_MANUAL), run: (s, e) => mxsCompute(s, e).S },
+    { t: "PR", on: have.PR, defs: MXP_METRICS.concat(MXP_MANUAL), run: (s, e) => mxpCompute(s, e).S },
+    { t: "PLS", on: have.PLS, defs: MXL_METRICS, run: (s, e) => mxlCompute(s, e).S },
+    { t: "IR / DTR", on: have.IR || have.DTR, defs: MXG_METRICS, run: (s, e) => mxgCompute(s, e).S },
+  ].filter((g) => g.on);
+}
+/** Summary tables behind the deck's summary slides: [{ k, t, cols, rows, money: [col…] }]. */
+function mxrSummaries(st, have) {
+  const out = [], start = st.start || null, end = st.end || null;
+  const inWin = (d) => { if (!d) return false; const iso = xtIso(d); return (!start || iso >= start) && (!end || iso <= end); };
+  const gone = (s) => /^cancel/i.test(norm(s)) || /^draft/i.test(norm(s));
+  const tally = (list, key, cells) => {
+    const m = {};
+    for (const r of list) { const k = norm(key(r)) || "(none)"; (m[k] = m[k] || []).push(r); }
+    return Object.entries(m).map(([k, rs]) => [k].concat(cells(rs))).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+  };
+  const cost = (rs) => Math.round(rs.reduce((a, r) => a + (r.cost || 0), 0) * 100) / 100;
+  let pmr = null;
+  if (have.SRF) {
+    pmr = pmrRun(AppState.grid, start, end);
+    out.push({ k: "srf_dest", t: "SRF by destination", cols: ["Country of Destination", "SRFs"], rows: pmr.location_rows },
+      { k: "srf_mode", t: "SRF by shipping mode", cols: ["Shipping Mode", "SRFs"], rows: pmr.mode_rows },
+      { k: "srf_cost", t: "SRF cost by program", cols: ["CTR Program", "SRFs", "Total Cost (USD)"], rows: pmr.cost_rows, money: [2] },
+      { k: "srf_value", t: "SRF cargo value by program", cols: ["CTR Program", "SRFs", "Value of Cargo (USD)"], rows: pmr.value_rows, money: [2] });
+  }
+  const D = (have.PR || have.PLS) ? pmData() : null;
+  if (have.PR) {
+    const prs = D.prs.filter((p) => !gone(p.status) && inWin(p.delivDate || (p.closed ? p.closedDate : null)));
+    out.push({ k: "pr_prog", t: "PR by program", cols: ["CTR Program", "PRs", "Total Cost (USD)"], rows: tally(prs, (p) => p.program, (rs) => [rs.length, cost(rs)]), money: [2] });
+  }
+  if (have.PLS) {
+    const pls = D.pls.filter((p) => !/^cancelled$/i.test(p.status) && p.lane !== "draft" && inWin(p.start));
+    out.push({ k: "pls_prog", t: "PLS by program", cols: ["CT Funding Program", "PLS", "Participants", "Total Cost (USD)"],
+        rows: tally(pls, (p) => p.program, (rs) => [rs.length, rs.reduce((a, r) => a + r.travelers, 0), cost(rs)]), money: [3] },
+      { k: "pls_dest", t: "PLS by destination", cols: ["Destination Country", "PLS", "Total Cost (USD)"], rows: tally(pls, (p) => p.country, (rs) => [rs.length, cost(rs)]), money: [2] });
+    const svc = {};
+    for (const p of pls) for (const s of p.services) { const x = (svc[s.name] = svc[s.name] || [0, 0]); x[0]++; x[1] += s.n; }
+    out.push({ k: "pls_svc", t: "PLS services", cols: ["Service", "PLS using it", "Line items"], rows: Object.entries(svc).map(([k, v]) => [k, v[0], v[1]]).sort((a, b) => b[1] - a[1]) });
+  }
+  const lang = (have.IR || have.DTR) ? mxlangRecords() : [];
+  if (lang.length) {
+    const inP = lang.filter((r) => !gone(r.status) && (r.type === "ir" ? inWin(r.start) : inWin(r.done)));
+    out.push({ k: "lang_prog", t: "IR / DTR by program", cols: ["CT Funding Program", "IR", "DTR", "Total Cost (USD)"],
+      rows: tally(inP, (r) => r.program, (rs) => [rs.filter((r) => r.type === "ir").length, rs.filter((r) => r.type === "dtr").length, cost(rs)]).sort((a, b) => (b[1] + b[2]) - (a[1] + a[2])), money: [3] });
+  }
+  // Cancelled requests submitted in the period, every service.
+  const can = [];
+  const addC = (id, svc, sub, prog, title, status) => { if (/^cancel/i.test(norm(status)) && inWin(sub)) can.push([id, svc, mxsDmy(sub), norm(prog), norm(title), norm(status)]); };
+  if (have.SRF && MxSrf._b && MxSrf._b.all) for (const r of MxSrf._b.all.active.concat(MxSrf._b.all.closed)) {
+    let sub = null;
+    try { sub = xtParseDate(r.rec.f["date submitted"]); } catch (e) { sub = null; }
+    addC(mxsIdShort(r.wmtr), "SRF", sub, r.rec.f["ctr program"], r.title, r.status);
+  }
+  if (have.PR) for (const p of D.prs) addC(mxsIdShort(p.wmtr), "PR", p.submitted, p.program, p.title, p.status);
+  if (have.PLS) for (const p of D.pls) addC(p.wmtr, "PLS", p.submitted, p.program, p.title, p.status);
+  for (const r of lang) addC(r.wmtr, r.type.toUpperCase(), r.submitted, r.program, r.title, r.status);
+  out.push({ k: "cancel", t: "Cancelled", cols: ["Request", "Service", "Date Submitted", "Program", "Title", "Status"], rows: can });
+  return { tables: out, pmr };
+}
+function renderPmrLookback(host) {
+  if (typeof copHistoryPending === "function" && copHistoryPending()) { host.appendChild(copHistoryWaitCard()); return; }
+  mxrDraw(mxsShell(host));
+}
+function mxrDraw(box) {
+  const st = MxPmr.st || (MxPmr.st = mxPrevHalfWin());
+  const have = mxoHave();
+  const qs = mxrQuarters(st);
+  let groups, sums;
+  try {
+    groups = mxrGroups(have).map((g) => Object.assign(g, { all: g.run(st.start, st.end), byQ: qs.map((q) => g.run(q.start, q.end)) }));
+    sums = mxrSummaries(st, have);
+  } catch (e) {
+    console.error(e);
+    box.innerHTML = `<div class="copx-card"><div class="statusline err">Couldn't build the PMR view: ${esc(e.message || String(e))}</div></div>`;
+    return;
+  }
+  const cell = (s, d) => (!s || !s.total ? { html: `<span class="of">N/A</span>`, txt: "N/A 0/0" } : (() => {
+    const p = Math.floor((s.pass / s.total) * 1000) / 10, stt = mxMetricStatus(s.pass, s.total, d);
+    return { html: `<span class="copx-dot ${stt === "issue" ? "red" : stt === "warn" ? "amber" : ""}"></span><span class="pct">${p}%</span> <span class="of">${s.pass}/${s.total}</span>`, txt: `${p}% ${s.pass}/${s.total}` };
+  })());
+  const cols = qs.map((q) => q.q).concat([qs.length ? (st.sel.span === "year" ? "FY" + st.sel.fy : "Half") : "Period"]);
+  const grid = `grid-template-columns:minmax(220px,1.6fr) repeat(${cols.length},minmax(96px,.7fr)) minmax(90px,.6fr) 14px`;
+  const exc = {};                                     // "group|code" -> exception rows
+  const outcomeTsv = [["Metric"].concat(cols).join("\t")];
+  const body = groups.map((g) => {
+    const rows = g.defs.map((d) => {
+      const list = [];
+      const src = qs.length ? g.byQ.map((S, i) => ({ S, q: qs[i].q })) : [{ S: g.all, q: "" }];
+      for (const { S, q } of src) {
+        const s = S[d.code];
+        if (!s) continue;
+        for (const x of s.missed) list.push({ q, x, st: "Missed" });
+        for (const x of (s.relief || [])) list.push({ q, x, st: "Relief" });
+        for (const x of (s.fix || [])) list.push({ q, x, st: "Can't score" });
+      }
+      exc[g.t + "|" + d.code] = list;
+      const cells = qs.map((q, i) => cell(g.byQ[i][d.code], d)).concat([cell(g.all[d.code], d)]);
+      outcomeTsv.push([`${d.code} ${d.name}`].concat(cells.map((c) => c.txt)).join("\t"));
+      const nm = `<span class="mxs-nm"><b>${esc(d.code)}</b> ${esc(d.name)}</span>`;
+      const tds = cells.map((c) => `<span class="mxs-score">${c.html}</span>`).join("");
+      const nMiss = list.filter((y) => y.st === "Missed").length, nRel = list.length - nMiss;
+      const pills = `<span>${nMiss ? `<span class="copx-pill r">${nMiss}</span>` : ""}${nRel ? `<span class="copx-pill a" title="Relief or can't score">${nRel}</span>` : ""}</span>`;
+      if (!list.length) return `<div class="mxs-row flat" data-code="${esc(d.code)}" style="${grid}">${nm}${tds}${pills}<span></span></div>`;
+      return `<details class="mxs-row" data-code="${esc(d.code)}"><summary style="${grid}">${nm}${tds}${pills}<span class="mxs-chev" aria-hidden="true">›</span></summary>
+        <div class="mxs-body"><div class="mxs-list"><h4>Exceptions <span>${list.length}</span>
+          <button type="button" class="copx-btn sm ghost mxr-copy" data-exc="${esc(g.t + "|" + d.code)}" title="Copy as a table for the slide: Request ID, quarter, date, detail, POC, status">Copy</button></h4>
+          <table>${list.map((y) => `<tr><td class="id">${esc(y.x.id)}</td><td class="dt">${esc([y.q, y.x.date].filter(Boolean).join(" · "))}</td><td>${esc(y.x.text)}</td><td class="poc">${esc(y.x.poc || "")}</td><td class="dt">${y.st === "Missed" ? `<span class="copx-pill r">Missed</span>` : `<span class="copx-pill a">${esc(y.st)}</span>`}</td></tr>`).join("")}</table></div></div></details>`;
+    }).join("");
+    return `<div class="mxs-row flat mxo-grp" style="${grid}"><span class="mxs-nm">${esc(g.t)}</span>${cols.map(() => "<span></span>").join("")}<span></span><span></span></div>${rows}`;
+  }).join("");
+  const missing = ["SRF", "PR", "PLS"].filter((k) => !have[k]).concat(have.IR || have.DTR ? [] : ["IR / DTR"]);
+
+  // Summary tables: one at a time, picked by chip.
+  const tabs = sums.tables;
+  if (!tabs.some((t) => t.k === MxPmr.sum)) MxPmr.sum = tabs.length ? tabs[0].k : "";
+  const cur = tabs.find((t) => t.k === MxPmr.sum);
+  const fmt = (t, i, v) => ((t.money || []).indexOf(i) !== -1 ? pmMoney(Number(v) || 0, true) : v == null ? "" : String(v));
+  const sumTbl = !cur ? "" : cur.rows.length ? `<div class="copx-tbl"><table><thead><tr>${cur.cols.map((c, i) => `<th class="${i && typeof cur.rows[0][i] === "number" ? "num" : ""}">${esc(c)}</th>`).join("")}</tr></thead>
+      <tbody>${cur.rows.map((r) => `<tr>${r.map((v, i) => `<td class="${typeof v === "number" ? "num" : ""}">${esc(fmt(cur, i, v))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+    : `<div class="mxs-empty">Nothing in this period.</div>`;
+  const p = sums.pmr;
+  const fixN = p ? p.no_nlt_count + p.missing_mode_count + p.unknown_mode_count + p.missing_dest_count + p.missing_program_count : 0;
+  const fixList = p ? [["No NLT Completion Date", p.no_nlt_rows], ["No shipping mode", p.missing_mode_rows], ["Unrecognized shipping mode", p.unknown_mode_rows],
+    ["No Country of Destination", p.missing_dest_rows], ["No CTR Program", p.missing_program_rows]].filter(([, r]) => r && r.length) : [];
+
+  box.innerHTML = `
+    <div class="copx-card">
+      <div class="copx-hd">
+        <h2>PMR</h2>
+        <span class="n">${esc(mxsPeriodText(st))}</span>
+        <span class="acts">
+          <button type="button" class="copx-btn sm ghost" id="mxrCopyOut" title="Copy the outcomes table (paste into PowerPoint or Excel)">Copy outcomes</button>
+          ${have.SRF ? `<button type="button" class="copx-btn sm blue" id="mxrWb" title="The SRF summary workbook with its four charts (destination, mode, cost and value by program)">SRF chart workbook</button>` : ""}
+          ${mxsHelp("How this works", `Looks back at a finished period for the PMR deck. Opens on the <b>previous half</b>; pick any period below.<br><b>Outcomes</b> use the same rules as the Metrics tabs, per quarter and for the whole period, colored green / amber / red by each metric's threshold.<br><b>Exceptions</b> list each metric's misses by quarter. <b>Relief</b> = tagged <code>[RELIEF: CODE]</code> (counted as a pass). <b>Can't score</b> = a record gap to fix in ATLAS.<br><b>Copy</b> puts a table on the clipboard. Paste it into the slide's table, then fill in Explanation and Mitigation.`, "mxs-how")}
+        </span>
+      </div>
+      <div class="mx-pick mxs-pick"></div>
+      ${groups.length ? mxsTiles(groups.map((g) => ({ t: g.t, tab: "", defs: g.defs, S: g.all })), false) : ""}
+      <div class="mxs-sc mxr-out">
+        <div class="mxs-row mxs-th" style="${grid}"><span>Metric</span>${cols.map((c) => `<span>${esc(c)}</span>`).join("")}<span>Exceptions</span><span></span></div>
+        ${body || `<div class="mxs-empty">No UDQs loaded yet.</div>`}
+      </div>
+      ${missing.length ? `<div class="mxs-foot"><span>Not loaded: ${esc(missing.join(", "))}. Their metrics will show once the UDQ is in.</span></div>` : ""}
+    </div>
+    <div class="copx-card">
+      <div class="copx-hd"><h2>Summary data</h2><span class="n">${cur ? `${cur.rows.length} row${cur.rows.length === 1 ? "" : "s"}` : ""}</span>
+        <span class="acts">${cur ? `<button type="button" class="copx-btn sm ghost" id="mxrCopySum">Copy</button><button type="button" class="copx-btn sm ghost" id="mxrXlsx">Download .xlsx</button>` : ""}</span></div>
+      <div class="mx-pks mxr-sums" role="group" aria-label="Summary table">${tabs.map((t) => `<button type="button" class="mx-pk ${t.k === MxPmr.sum ? "on" : ""}" data-sum="${t.k}" aria-pressed="${t.k === MxPmr.sum}">${esc(t.t)}</button>`).join("")}</div>
+      ${sumTbl}
+      ${fixN ? `<details class="mxr-fix"><summary>${fixN} delivered SRF${fixN === 1 ? " isn't" : "s aren't"} counted in every SRF table: fields missing in ATLAS</summary>
+        ${fixList.map(([t, r]) => mxsList(t, r, (x) => `<tr><td class="id">${esc(x[0])}</td><td>${esc(x.length > 2 ? x[1] : "")}</td><td class="dt">delivered ${esc(x[x.length - 1] || "")}</td></tr>`)).join("")}</details>` : ""}
+      <span class="mxr-msg" role="status"></span>
+    </div>`;
+  mxsWireCommon(box, () => mxrDraw(box), st);
+  mxsWireTiles(box, st);
+  const msg = box.querySelector(".mxr-msg");
+  const say = (t) => { msg.textContent = t; setTimeout(() => { if (msg.textContent === t) msg.textContent = ""; }, 2500); };
+  const copy = async (text) => say(typeof copCopyText === "function" && await copCopyText(text) ? "Copied. Paste it into the slide or a spreadsheet." : "Couldn't copy.");
+  box.querySelector("#mxrCopyOut").addEventListener("click", () => copy(outcomeTsv.join("\n")));
+  box.querySelectorAll(".mxr-copy").forEach((b) => b.addEventListener("click", (e) => {
+    e.preventDefault();
+    const rows = (exc[b.dataset.exc] || []).map((y) => [y.x.id, y.q, y.x.date, y.x.text, y.x.poc || "", "", "", y.st === "Relief" ? "Relief" : ""].join("\t"));
+    copy(["Request ID\tQuarter\tDate\tDetail\tPOC / CTR PM\tExplanation\tMitigation\tRelief Status"].concat(rows).join("\n"));
+  }));
+  box.querySelectorAll("[data-sum]").forEach((b) => b.addEventListener("click", () => { MxPmr.sum = b.dataset.sum; mxrDraw(box); }));
+  const tsv = () => [cur.cols.join("\t")].concat(cur.rows.map((r) => r.map((v) => (v == null ? "" : String(v))).join("\t"))).join("\n");
+  const cs = box.querySelector("#mxrCopySum"); if (cs) cs.addEventListener("click", () => copy(tsv()));
+  const xl = box.querySelector("#mxrXlsx");
+  if (xl) xl.addEventListener("click", () => {
+    try { pmrDownloadXlsxB64(pmrWriteSectionWorkbook(cur.t, cur.cols, cur.rows), `PMR - ${cur.t.replace(/\//g, "-")}_${pmrStamp()}.xlsx`); say("Downloaded."); }
+    catch (e) { console.error(e); say(`Couldn't build the file: ${e.message || e}`); }
+  });
+  const wb = box.querySelector("#mxrWb");
+  if (wb) wb.addEventListener("click", async () => {
+    try { pmrDownloadXlsxB64(await pmrWriteWorkbook(p), `PMR_${pmrStamp()}.xlsx`); say("Downloaded the SRF chart workbook."); }
+    catch (e) { console.error(e); say(`Couldn't build the workbook: ${e.message || e}`); }
   });
 }
 
@@ -1438,6 +1696,32 @@ const MXS_CSS = `
 .mxs-row.mxo-grp{background:var(--ax-soft);padding-top:7px;padding-bottom:7px}
 .mxo-grp .mxs-nm{font-size:11.5px;font-weight:650;text-transform:uppercase;letter-spacing:.045em;color:var(--ax-muted)}
 .mxo-grp .of{font-size:11.5px;color:var(--ax-muted)}
+.mxt{display:flex;flex-wrap:wrap;gap:10px 22px;margin:2px 0 14px}
+.mxt-g{display:flex;flex-direction:column;gap:5px;min-width:0}
+.mxt-h{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--ax-muted)}
+.mxt-row{display:flex;flex-wrap:wrap;gap:6px}
+.mxt-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:118px;padding:7px 9px 7px 10px;border:1px solid var(--ax-line);border-left:4px solid var(--ax-neutral);border-radius:8px;background:var(--ax-card);color:var(--ax-ink);font:inherit;text-align:left;cursor:pointer}
+.mxt-tile b{font-size:13px;line-height:1.2}
+.mxt-tile .nm{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em;font-size:10.5px;line-height:1.25;color:var(--ax-muted)}
+.mxt-tile .pc{font-size:12px;font-weight:650}
+.mxt-tile.g{border-left-color:var(--ax-green)}
+.mxt-tile.a{border-left-color:var(--ax-amber);background:color-mix(in srgb,var(--ax-amber) 10%,var(--ax-card))}
+.mxt-tile.r{border-left-color:var(--ax-red);background:color-mix(in srgb,var(--ax-red) 9%,var(--ax-card))}
+.mxt-tile.a .pc{color:var(--ax-amber)}
+.mxt-tile.r .pc{color:var(--ax-red)}
+.mxt-tile.n{opacity:.75}
+.mxt-tile:hover:not(:disabled){border-color:var(--ax-blue);box-shadow:var(--ax-shadow)}
+.mxt-tile:disabled{cursor:default}
+.mxt-tile i{position:absolute;top:6px;right:6px;padding:0 5px;border-radius:8px;font-style:normal;font-size:10px;font-weight:700;line-height:15px;color:#fff;background:var(--ax-red)}
+.mxt-tile i.a{background:var(--ax-amber)}
+.mxs-row.mxs-hit>summary,.mxs-row.flat.mxs-hit{background:var(--ax-blue-soft);box-shadow:inset 3px 0 0 var(--ax-blue)}
+.mxr-out .mxs-score{white-space:nowrap}
+.mxr-out .mxs-score .copx-dot{display:inline-block;margin-right:6px;vertical-align:middle}
+.mxs-list h4 .copx-btn{margin-left:8px;text-transform:none;letter-spacing:0}
+.mxr-sums{margin:0 0 12px;flex-wrap:wrap}
+.mxr-fix{margin-top:10px;font-size:12px}
+.mxr-fix>summary{cursor:pointer;color:var(--ax-amber);font-weight:600}
+.mxr-msg{display:block;min-height:16px;margin-top:6px;font-size:12px;color:var(--ax-muted)}
 @media (max-width:760px){.mxs-row>summary,.mxs-row.flat,.mxs-th{grid-template-columns:14px 1fr auto;}.mxs-row .mxs-miss,.mxs-row .mxs-watch,.mxs-chev,.mxs-th span:nth-child(n+4){display:none}}
 `;
 

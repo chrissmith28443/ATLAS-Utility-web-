@@ -13,6 +13,16 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.39",
+    title: "PMR look-back tab; metric tiles everywhere",
+    notes: [
+      "Metrics › PMR now looks back for the PowerPoint: it opens on the previous half and shows every metric (SRF, PR, PLS, IR / DTR) per quarter and for the whole period, like the deck's Outcome boxes.",
+      "Each metric opens its exceptions by quarter: missed, relief and can't-score. Copy puts them on the clipboard as a table with blank Explanation and Mitigation columns for the slide.",
+      "Summary data for the deck's summary slides: SRF by destination, mode, cost and cargo value; PR, PLS and IR / DTR by program; PLS by destination and service; cancellations. Each has Copy and .xlsx, and the SRF chart workbook is still one click.",
+      "A row of metric tiles sits above the table on Overview, SRF, PR, PLS, IR / DTR and PMR. Green, amber or red at a glance; click one to open that metric's list of requests with issues (from the Overview it opens the metric's own tab, same period).",
+    ],
+  },
+  {
     version: "2.9.38",
     title: "PLS and IR / DTR metrics; Contract overview",
     notes: [

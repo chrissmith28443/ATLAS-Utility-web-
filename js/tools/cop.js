@@ -3833,7 +3833,7 @@ function copHubSelect(id) {
   renderRail(); renderDashboard(); renderWorkspace();
   // Procurement / Property tabs pull the PR + PMCT UDQs as soon as they open (pmdash.js).
   // Metrics › WMTR › PR and Metrics › PLS read the same UDQs (2.9.38).
-  if (typeof pmIsTool === "function" && (pmIsTool(id) || ["metrics", "mwpr", "mpls"].indexOf(id) !== -1)) pmAutoPull();
+  if (typeof pmIsTool === "function" && (pmIsTool(id) || ["metrics", "mwpr", "mpls", "pmr"].indexOf(id) !== -1)) pmAutoPull();
   requestAnimationFrame(() => {
     const nav = document.querySelector(".cop-hub");
     if (nav) nav.scrollIntoView({ behavior: "smooth", block: "start" });

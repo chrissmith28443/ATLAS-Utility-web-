@@ -1054,3 +1054,22 @@ Arrived Warehouse or the warehouse actual date is filled.
   IR/DTR and invoices). Extra S7 miss PLS-26-1-P-PL-20294 (rec'd 5 Aug, due 10 Aug, sent 11 Aug) — asked user.
 - NEXT: PMR tab (look back at the previous half for the PowerPoint). Later: IR / DTR ATLAS pull (JSON sample),
   languages (Interpretation / Translation lists), financials by month / CLIN.
+
+## v2.9.39 (2026-11-25) — PMR look-back tab; metric tiles
+- User intent (from the SRF redesign brief): Metrics looks at NOW; PMR looks BACK at the previous half "in preparation
+  for the PMR PowerPoint build".
+- renderPmrLookback / mxrDraw (metrics_dashboard.js) replaces renderPmrWorkspace as the PMR tab (app.js routing). The old
+  pmr.js workspace + Ignore list code is still there (pmrRun, pmrWriteWorkbook, section writers are reused).
+  Opens on mxPrevHalfWin(); own state MxPmr. Outcomes = every group's compute (mxsCompute / mxpCompute / mxlCompute /
+  mxgCompute) run per FY quarter of the window (mxrQuarters) + whole window; manual SRF/PR metrics included (deck needs
+  them). Exceptions per metric = missed + relief + fix, by quarter; Copy = TSV with blank Explanation / Mitigation.
+- PLS / IR / DTR computes now keep S[code].relief (relieved misses still count as pass) and poc (CTR PM / TTI POC).
+- Summary data chips (mxrSummaries): SRF dest / mode / cost / value (pmrRun), PR by program, PLS by program (with
+  participants) / destination / services, IR / DTR by program, Cancelled (Date Submitted in window, all services).
+  SRF records-to-fix (no NLT / mode / destination / program) folded into one amber details line.
+- Metric tiles (user request): mxsTiles / mxsWireTiles / mxsApplyFocus. One tile per metric grouped by service,
+  colored by mxMetricStatus, badge = missed + to-fix + watch. On a tab the click opens + scrolls to that row; from the
+  Overview it copies the Overview period into the target tab's state (MXS_TAB_STATE), sets MxFocus.code and switches
+  tab. Overview scorecard rows do the same. Rows carry data-code (codes are unique across services).
+- Pull inside ATLAS: opening PMR runs pmAutoPull too ("pmr" in copHubSelect + pmShowsPm).
+- NEXT ideas: IR / DTR ATLAS pull (needs JSON sample); languages; financials by month / CLIN.

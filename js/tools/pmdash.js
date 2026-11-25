@@ -624,7 +624,7 @@ function pmFresh(slot) { return slot && slot.at && Date.now() - slot.at < PM_AUT
 /* opts.laterFull (Dashboard click): after a fast PLS pull, leave the full PLS UDQ for the
    caller to run last (pmPullPlsRest); otherwise it's pulled straight after the fast one. */
 /** Is a tab that reads the PR / PMCT / WS UDQs on screen? (Procurement, Property, PLS, Metrics › WMTR › PR, Metrics › PLS) */
-function pmShowsPm() { return pmIsTool(AppState.activeTool) || ["mwpr", "mpls"].indexOf(AppState.activeTool) !== -1 || pmShowsOverview(); }
+function pmShowsPm() { return pmIsTool(AppState.activeTool) || ["mwpr", "mpls", "pmr"].indexOf(AppState.activeTool) !== -1 || pmShowsOverview(); }
 /** Metrics › Overview (no tool, Metrics UDQ) — it lives in the dashboard, so it redraws there. */
 function pmShowsOverview() { return !AppState.activeTool && AppState.udqType === "metrics" && typeof copHubActive === "function" && copHubActive(); }
 function pmRedraw() { if (pmShowsOverview()) renderDashboard(); else renderWorkspace(); }

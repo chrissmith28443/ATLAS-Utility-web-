@@ -1021,7 +1021,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "deltek") renderDeltekWorkspace(ws);
   else if (AppState.activeTool === "invpr") renderInvPrWorkspace(ws);
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
-  else if (AppState.activeTool === "pmr") renderPmrWorkspace(ws);
+  else if (AppState.activeTool === "pmr") renderPmrLookback(ws);
   else if (AppState.activeTool === "cop") renderCopWorkspace(ws);
   else if (AppState.activeTool === "proc") renderProcWorkspace(ws);
   else if (AppState.activeTool === "prop") renderPropWorkspace(ws);

@@ -13,6 +13,24 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.35",
+    title: "Metrics tabs: Overview, WMTR, PLS, PMR",
+    notes: [
+      "Metrics now has four tabs: Overview (whole-contract rollup), WMTR, PLS and PMR.",
+      "WMTR has its own row: SRF, PR, WS, PMCT and Export-Controlled. SRF is the shipping metrics view that used to open under Metrics.",
+      "Overview, PLS, and WMTR's PR, WS and PMCT tabs are placeholders for now. Each lists what it will calculate for the PMR.",
+    ],
+  },
+  {
+    version: "2.9.34",
+    title: "Settings: one box per UDQ",
+    notes: [
+      "Settings ▸ ATLAS data source now has one box per UDQ: SRF, PR, PMCT, WS, PLS, IR and DTR, each with a Fast (active-only) box under it. The separate Metrics, Shipping, Property and Christmas Tree boxes are gone. The SRF box feeds the Dashboard, single-shipment Fetch and the Christmas Tree, and the PR box feeds Property fetch, Procurement and the Christmas Tree.",
+      "Only Fast SRF and Fast PLS are used so far. The other Fast boxes are saved for later.",
+      "An ID you entered before in one of the old boxes carries over to its new box.",
+    ],
+  },
+  {
     version: "2.9.33",
     title: "PLS tab opens faster: active trips first, closed after",
     notes: [

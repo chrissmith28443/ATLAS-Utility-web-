@@ -277,7 +277,7 @@ async function _cmpFetchAtlas(slotKey, wmtr, ui) {
   if (!_cmpAtlasReady()) { setErr("ATLAS fetch isn't available (json_udq.js not loaded)."); return; }
   const ids = (typeof atlasIds === "function" ? atlasIds() : {});
   const id = ids.shipping;
-  if (!id) { setErr(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Shipping UDQ ID configured. Add it to ATLAS_UDQ_CONFIG.`); return; }
+  if (!id) { setErr(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} SRF UDQ ID configured. Set it in Settings ▸ ATLAS data source.`); return; }
   const q = String(wmtr || "").trim();
   if (!q) { setErr("Enter a WMTR number to fetch."); return; }
 

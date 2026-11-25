@@ -3821,7 +3821,7 @@ function copPrint(rows, isActive) {
    Metrics (the Metrics dashboard), PMR, Export-Controlled and the Christmas
    Tree are tabs inside it. Tab ids are the TOOLS ids (app.js, hub: true).
    ------------------------------------------------------------------------- */
-const COP_HUB_TOOLS = ["cop", "proc", "prop", "pls", "pmr", "ecm", "xmastree"];     // workspace tools ("metrics" = the dashboard)
+const COP_HUB_TOOLS = ["cop", "proc", "prop", "pls", "pmr", "ecm", "mwmtr", "mwpr", "mwws", "mwpmct", "mpls", "xmastree"];     // workspace tools ("metrics" = the dashboard)
 function copIsHubTool(id) { return COP_HUB_TOOLS.indexOf(id) !== -1; }
 /** True while any COP tab is on screen (the Metrics tab = no tool on a Metrics UDQ). */
 function copHubActive() {
@@ -4008,9 +4008,12 @@ function copHubTabs() {
   const hasMetrics = AppState.udqType === "metrics";
   const cur = AppState.activeTool || (hasMetrics ? "metrics" : "");
   const all = (typeof TOOLS !== "undefined" ? TOOLS : []).filter((t) => t.hub && !t.hubHidden);
-  // PMR / Export-Controlled (hubUnder: "metrics") sit in a sub-tab row under Metrics and light it up.
-  const curTool = all.find((t) => t.id === cur);
-  const group = curTool && curTool.hubUnder ? curTool.hubUnder : cur;
+  // Sub-tabs (hubUnder) sit in a row under their parent and light it up; WMTR's own
+  // sub-tabs make a second row (2.9.35). chain = the open tab and its parents, top first.
+  const byId = (id) => all.find((t) => t.id === id);
+  const chain = [];
+  for (let t = byId(cur); t && chain.indexOf(t.id) === -1; t = t.hubUnder ? byId(t.hubUnder) : null) chain.unshift(t.id);
+  const group = chain[0] || cur;
   // With the Dashboard drop box on, Procurement / Property / PLS light up only once their UDQ is loaded.
   const drop = copHubDropOn();
   const btn = (t, on, label) => {
@@ -4029,12 +4032,13 @@ function copHubTabs() {
   const nav = el(`<nav class="cop-hub" aria-label="COP views"></nav>`);
   for (const t of all.filter((x) => !x.hubUnder)) nav.appendChild(btn(t, group === t.id));
   wrap.appendChild(nav);
-  const subs = all.filter((t) => t.hubUnder === group);
-  if (subs.length) {
-    const parent = all.find((t) => t.id === group);
+  for (const pid of chain) {
+    const subs = all.filter((t) => t.hubUnder === pid);
+    if (!subs.length) continue;
+    const parent = byId(pid);
     const sub = el(`<nav class="cop-hub sub" aria-label="${esc(parent ? parent.label : "")} views"></nav>`);
-    if (parent) sub.appendChild(btn(parent, cur === parent.id, "Overview"));
-    for (const t of subs) sub.appendChild(btn(t, cur === t.id));
+    if (parent) sub.appendChild(btn(parent, cur === parent.id, parent.hubSelf || "Overview"));
+    for (const t of subs) sub.appendChild(btn(t, chain.indexOf(t.id) !== -1));
     wrap.appendChild(sub);
   }
   if (copHubDropShown()) wrap.appendChild(copHubDropBox());
@@ -4052,7 +4056,7 @@ function copHubTabs() {
    then always clickable), and not while a pull is still running. Settings ›
    General › "Dashboard UDQ drop box" switches it off altogether.
    ------------------------------------------------------------------------- */
-const COP_HUB_UDQ = { cop: "Metrics", metrics: "Metrics", pmr: "Metrics", ecm: "Metrics", proc: "PR", prop: "PMCT", pls: "PLS" };
+const COP_HUB_UDQ = { cop: "Metrics", metrics: "Metrics", pmr: "Metrics", ecm: "Metrics", mwmtr: "Metrics", mwpr: "Metrics", mwws: "Metrics", mwpmct: "Metrics", mpls: "Metrics", proc: "PR", prop: "PMCT", pls: "PLS" };
 const CopDrop = { status: "", err: false, busy: false };
 /** A pull from ATLAS has worked this session = the Utility is running connected to ATLAS. */
 function copAtlasConnected() { return typeof AtlasLive !== "undefined" && !!AtlasLive.ok; }

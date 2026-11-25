@@ -535,7 +535,7 @@ async function pmIngest(files) {
   else renderWorkspace();
 }
 
-/* PLS from ATLAS — Settings › ATLAS UDQ IDs › PLS UDQ. /api/UDQ/{id} returns one object per PLS
+/* PLS from ATLAS — Settings › ATLAS data source › PLS UDQ. /api/UDQ/{id} returns one object per PLS
    (named fields + lists). It's laid out exactly like the PLS UDQ export so pmParsePls reads both:
    fields -> header row 1 (export column names), lists -> titled col-B sections (export titles). */
 function pmPlsId() { try { return typeof atlasIds === "function" ? String(atlasIds().pls || "").trim() : ""; } catch (e) { return ""; } }
@@ -990,7 +990,7 @@ function pmRenderPls(container) {
   </div>`);
   tabs.querySelectorAll("button[data-v]").forEach((b) => b.addEventListener("click", () => { ui.view = b.dataset.v; ui.quick = ""; ui.open = new Set(); pmRerender(); }));
   tabs.querySelector("#pmRefresh").addEventListener("click", () => {
-    if (!pmPlsId()) pmPlsStatus("No PLS UDQ ID is set — add it in Settings › ATLAS UDQ IDs, or drop a newer PLS export.", true);
+    if (!pmPlsId()) pmPlsStatus("No PLS UDQ ID is set — add it in Settings › ATLAS data source, or drop a newer PLS export.", true);
     pmAutoPull(true);
   });
   pmWireViewBtn(tabs, "pls");

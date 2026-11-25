@@ -6,7 +6,7 @@
    ========================================================================= */
 // Renamed for the security fix: activate deletes every older cache, which also
 // removes any ATLAS API responses an earlier version had stored.
-const CACHE = "atlas-cache-v2.9.33-fast-pls";
+const CACHE = "atlas-cache-v2.9.35-metrics-tabs";
 const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
 const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
@@ -14,20 +14,20 @@ const APP_SHELL = [
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
   "css/app.css?v=109",
   "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
-  "js/app.js?v=128",
+  "js/app.js?v=129",
   "js/assets.js?v=64",
-  "js/about.js?v=221",
+  "js/about.js?v=223",
   "js/a11y.js?v=61",
   "js/backup.js?v=71",
-  "js/constants.js?v=212",
+  "js/constants.js?v=214",
   "js/dangerous_goods.js?v=69",
-  "js/metrics_dashboard.js?v=93",
+  "js/metrics_dashboard.js?v=94",
   "js/pwa.js?v=63",
   "js/audit.js?v=62",
   "js/formcache.js?v=65",
-  "js/compare.js?v=65",
-  "js/json_udq.js?v=37",
-  "js/settings.js?v=80",
+  "js/compare.js?v=66",
+  "js/json_udq.js?v=38",
+  "js/settings.js?v=81",
   "js/tools/ci.js?v=72",
   "js/tools/coreims.js?v=62",
   "js/tools/coreims_template.js?v=61",
@@ -46,7 +46,7 @@ const APP_SHELL = [
   "js/tools/inventory.js?v=8",
   "js/tools/pl_templates.js?v=61",
   "js/tools/manual_parents.js?v=5",
-  "js/consol.js?v=9",
+  "js/consol.js?v=10",
   "js/item_split.js?v=7",
   "js/tools/manual_details.js?v=5",
   "js/tools/placards.js?v=65",
@@ -70,8 +70,8 @@ const APP_SHELL = [
   "js/tools/validate.js?v=71",
   "js/tools/xmastree.js?v=49",
   "js/tools/record_audit.js?v=4",
-  "js/tools/cop.js?v=56",
-  "js/tools/pmdash.js?v=18",
+  "js/tools/cop.js?v=57",
+  "js/tools/pmdash.js?v=19",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",
   "js/udq.js?v=72",

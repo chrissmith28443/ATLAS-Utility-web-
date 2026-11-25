@@ -963,3 +963,31 @@ Arrived Warehouse or the warehouse actual date is filled.
   gave: IR f2e4ad3c-cb32-4086-9b29-8e4ffc0f7bfd, DTR 61198689-9693-4490-843a-e676f00d9030. Nothing pulls them yet.
 - Tested locally with stubs (real PLS + SRF JSON; fast PLS = full minus closed statuses): order, Closed PLS
   wait card, then 35 active / 335 closed. Not tested inside ATLAS yet.
+
+## v2.9.34 (2026-11-25) — one UDQ ID per service module (+ a Fast one each)
+- User: drop the Metrics / Shipping / Property / Christmas Tree boxes; one box per UDQ. Final list (each with a
+  Fast box under it): SRF, PR, PMCT, WS, PLS, IR, DTR. "Fast versions ... pull 'active' records only for quick
+  display while the longer reports continue to run in the background."
+- ATLAS_UDQ_CONFIG.ids.<env> keys are now srf, srfFast, pr, prFast, pmct, pmctFast, ws, wsFast, pls, plsFast,
+  ir, irFast, dtr, dtrFast. atlasIds() still returns the names tools read (metrics = shipping = christmasTree.srf
+  = srf; property = christmasTree.pr = pr; metricsFast = srfFast …), so no tool code changed.
+- Only srfFast and plsFast are pulled. prFast / pmctFast / wsFast / irFast / dtrFast are blank and unused —
+  wire them in like SRF / PLS when the user builds those UDQs.
+- Old Settings overrides (metrics / shipping / property / metricsFast / christmasTree.*) are still read and
+  show in the new boxes; the next Settings save rewrites them under the new names.
+
+## v2.9.35 (2026-11-25) — Metrics tabs: Overview / WMTR / PLS / PMR (PMR rebuild starts)
+- User goal: the Metrics tab monitors metrics AND builds the bi-annual PMR — the Utility pulls every record and does
+  all the math. Source deck: Desktop\PMR Slides DRAFT.pptx (FY26 Q3 & Q4). Full metric -> UDQ field map, counting
+  rules and the "add in ATLAS" list: PMR_METRICS_MAP.md (repo root). Order of work: WMTR -> PLS -> Overview.
+- Tabs: Metrics sub-row = Overview | WMTR | PLS | PMR. WMTR has its own row: SRF | PR | WS | PMCT | Export-Controlled.
+  TOOLS ids mwmtr (hubSelf "SRF" = label of its own first button), mwpr, mwws, mwpmct, ecm (hubUnder mwmtr), mpls.
+  copHubTabs walks the hubUnder chain, one sub-row per level. Overview (activeTool null) and the placeholders render
+  through renderMetricsView (metrics_dashboard.js, MX_VIEWS); WMTR › SRF = the old Metrics dashboard
+  (renderMetricsDashboard), now drawn in the workspace.
+- Opening Metrics lands on Overview (a placeholder) — SRF metrics are one click further (WMTR).
+- Found while mapping: PR estimate rule (pmdash estDue, XT_ROLLUP_METRICS pr_estimate) is still 3 business days;
+  the COR changed S3 to 10 business days on 10 Sep 2026. PR S2 (purchase within 1 day) is computable now from
+  Workflow Logs + Activity Tracker "PR – PO Issued", though XT_ROLLUP_PENDING still lists it as awaiting a field.
+- NEXT: build WMTR (SRF first, then PR / WS / PMCT) per PMR_METRICS_MAP.md — quarter columns Q1–Q4, pass/total,
+  RYG per the deck's thresholds, exception table (Request ID / Explanation / Mitigation / Relief).

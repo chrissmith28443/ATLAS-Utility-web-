@@ -33,8 +33,16 @@ const TOOLS = [
   { id: "pls",      group: "COP", hub: true,     label: "PLS",                 needs: "none",     ready: true  },
   { id: "metrics",  group: "COP", hub: true,     label: "Metrics",             needs: "metrics",  ready: true  },
   // hubUnder: shown as a sub-tab under that hub tab, not in the main tab bar.
+  // Sub-tabs can nest one more level (WMTR's own row); hubSelf = the label of
+  // the tab's own first button in that row (default "Overview").
+  // Metrics: Overview (contract rollup) · WMTR (SRF · PR · WS · PMCT · Export-Controlled) · PLS · PMR (2.9.35).
+  { id: "mwmtr",    group: "COP", hub: true, hubUnder: "metrics", hubSelf: "SRF", label: "WMTR", needs: "metrics",  ready: true  },
+  { id: "mwpr",     group: "COP", hub: true, hubUnder: "mwmtr",   label: "PR",                needs: "metrics",  ready: true  },
+  { id: "mwws",     group: "COP", hub: true, hubUnder: "mwmtr",   label: "WS",                needs: "metrics",  ready: true  },
+  { id: "mwpmct",   group: "COP", hub: true, hubUnder: "mwmtr",   label: "PMCT",              needs: "metrics",  ready: true  },
+  { id: "ecm",      group: "COP", hub: true, hubUnder: "mwmtr",   label: "Export-Controlled", needs: "metrics",  ready: true  },
+  { id: "mpls",     group: "COP", hub: true, hubUnder: "metrics", label: "PLS",               needs: "metrics",  ready: true  },
   { id: "pmr",      group: "COP", hub: true, hubUnder: "metrics", label: "PMR",               needs: "metrics",  ready: true  },
-  { id: "ecm",      group: "COP", hub: true, hubUnder: "metrics", label: "Export-Controlled", needs: "metrics",  ready: true  },
   // hubHidden: tab hidden for now (the code stays; reachable again by removing the flag).
   { id: "xmastree", group: "COP", hub: true, hubHidden: true,     label: "Christmas Tree",    needs: "none",     ready: true  },
   { id: "packet",   group: "Shipping",           label: "Generate packet",     needs: "srf",      ready: true  },
@@ -587,11 +595,9 @@ function renderDashboardInner() {
     if (typeof copHubTabs === "function") dash.appendChild(copHubTabs()); // it's the COP's "Metrics" tab
     // Only the fast (active-shipments) UDQ is in so far — wait for the full one (2.9.32).
     if (typeof copHistoryPending === "function" && copHistoryPending()) { dash.appendChild(copHistoryWaitCard()); return; }
-    if (typeof validationBanner === "function") {
-      const vb = validationBanner();
-      if (vb) dash.appendChild(vb);
-    }
-    renderMetricsDashboard(dash);
+    // Metrics › Overview = the contract-wide rollup (placeholder for now, 2.9.35);
+    // the SRF shipping metrics moved to Metrics › WMTR.
+    renderMetricsView(dash, "metrics");
     return;
   }
   if ((AppState.udqType === "ir" || AppState.udqType === "dtr") && AppState.grid) {
@@ -1024,6 +1030,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "reqatt") renderReqattWorkspace(ws);
   else if (AppState.activeTool === "audit") renderRecordAuditWorkspace(ws);
   else if (AppState.activeTool === "ecm") renderEcmWorkspace(ws);
+  else if (typeof mxIsMetricsView === "function" && mxIsMetricsView(AppState.activeTool)) renderMetricsView(ws, AppState.activeTool);
   else if (AppState.activeTool === "xmastree") renderXmasTreeWorkspace(ws);
   else if (AppState.activeTool === "search") renderSearchWorkspace(ws);
   else if (AppState.activeTool === "invconv") renderInvConvWorkspace(ws);

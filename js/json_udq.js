@@ -41,52 +41,39 @@ const ATLAS_UDQ_CONFIG = {
                              //  against another host, set absoluteOrigin below.)
   absoluteOrigin: "",        // e.g. "https://qa-atlas.azurewebsites.net" — optional override.
 
+  /* One ID per UDQ (2.9.34) — the same nine as Settings ▸ ATLAS data source. atlasIds()
+     hands each one to every tool that needs it (e.g. SRF -> Dashboard, single-shipment
+     Fetch and the Christmas Tree; PR -> Property fetch, Procurement and the Christmas Tree). */
   ids: {
     qa: {
-      // The Metrics UDQ carries every WMTR's full detail — the combined, all-WMTR
-      // dataset the Metrics dashboard and the Christmas Tree read.
-      metrics:  "cfb99354-d596-4a86-b067-7b19eea14708",
-      // Shipping uses the same SRF UDQ as Metrics (one UDQ per service module).
-      // A single shipment is narrowed SERVER-SIDE via requestNumberParam
-      // ("requestNumber") so it pulls ~1 record instead of the whole UDQ; the
-      // client re-checks the result and shows the picker on any multi-match.
-      shipping: "cfb99354-d596-4a86-b067-7b19eea14708",
-      // Fast Dashboard pull (2.9.32): the same SRF UDQ filtered in ATLAS to recent /
-      // active records, so the Shipments tab opens quickly. Clicking Dashboard pulls
-      // this first, then PR / PMCT, then PLS, then the full Metrics UDQ above fills in
-      // the older shipments. Blank = the Dashboard pulls only the full one, as before.
-      metricsFast: "fc32d169-1701-4202-a601-183d43a68c8c",
-      // Property (PR) also pulls the FULL property dataset from ATLAS (all
-      // records, not a single request); the utility filters to the entered
-      // WMTR / PR number client-side, exactly like Shipping.
-      property: "75abb665-d493-47ab-be82-20210a09282c",
+      // SRF: every WMTR's full detail. Dashboard (Shipments, Metrics, PMR…), the Christmas
+      // Tree, and single-shipment Fetch — narrowed SERVER-SIDE via requestNumberParam
+      // ("requestNumber") so it pulls ~1 record; the picker shows on any multi-match.
+      srf:     "cfb99354-d596-4a86-b067-7b19eea14708",
+      // Fast SRF (2.9.32): the SRF UDQ filtered in ATLAS to recent / active records. Clicking
+      // Dashboard pulls it first so Shipments opens quickly; the full SRF UDQ then fills in
+      // the older shipments. Blank = the Dashboard pulls only the full one.
+      srfFast: "fc32d169-1701-4202-a601-183d43a68c8c",
+      // PR (procurement / property requests): the full dataset — the Property fetch filters
+      // to the entered number client-side; also Procurement and the Christmas Tree.
+      pr:      "75abb665-d493-47ab-be82-20210a09282c",
+      pmct:    "3f12340c-0b35-4e1d-a32c-3ae1385d425a",
+      ws:      "7ce9dfef-82ee-43f2-9c24-8105a10ee909",
       // PLS (Personnel Logistics Services) — the Dashboard's PLS tab (full PLS dataset).
-      pls: "6ef19319-e7ad-4726-9c41-7d19f1961844",
-      // Fast PLS pull (2.9.33): the PLS UDQ filtered in ATLAS to active trips. Pulled first;
-      // the full PLS UDQ above then fills in the closed ones. Blank = full only, as before.
+      pls:     "6ef19319-e7ad-4726-9c41-7d19f1961844",
+      // Fast PLS (2.9.33): the PLS UDQ filtered in ATLAS to active trips. Pulled first; the
+      // full PLS UDQ then fills in the closed ones. Blank = full only.
       plsFast: "75120834-1c65-46e2-a446-dd713c37f5b3",
-      // DTR and IR service modules — recorded for future tools; nothing reads them yet.
-      dtr: "61198689-9693-4490-843a-e676f00d9030",
-      ir:  "f2e4ad3c-cb32-4086-9b29-8e4ffc0f7bfd",
-      // Christmas Tree pulls per-service UDQs in one action, one UDQ per service
-      // module: SRF = Metrics / Shipping UDQ, PR = Property UDQ.
-      christmasTree: {
-        srf:  "cfb99354-d596-4a86-b067-7b19eea14708",
-        pr:   "75abb665-d493-47ab-be82-20210a09282c",
-        pmct: "3f12340c-0b35-4e1d-a32c-3ae1385d425a",
-        ws:   "7ce9dfef-82ee-43f2-9c24-8105a10ee909",
-      },
+      // IR and DTR service modules — recorded for future tools; nothing reads them yet.
+      ir:      "f2e4ad3c-cb32-4086-9b29-8e4ffc0f7bfd",
+      dtr:     "61198689-9693-4490-843a-e676f00d9030",
+      // Fast (active-only) copies of the other modules — saved for later; nothing pulls them
+      // yet (only srfFast and plsFast are used). Same idea: quick display first, full after.
+      prFast: "", pmctFast: "", wsFast: "", irFast: "", dtrFast: "",
     },
-    prod: {
-      metrics:  "",          // TODO: fill production UDQ IDs at publish
-      shipping: "",
-      metricsFast: "",
-      property: "",
-      pls: "",
-      plsFast: "",
-      dtr: "",
-      ir: "",
-      christmasTree: { srf: "", pr: "", pmct: "", ws: "" }, // TODO: fill at publish
+    prod: {                  // TODO: fill production UDQ IDs at publish
+      srf: "", srfFast: "", pr: "", prFast: "", pmct: "", pmctFast: "", ws: "", wsFast: "",
+      pls: "", plsFast: "", ir: "", irFast: "", dtr: "", dtrFast: "",
     },
   },
 
@@ -244,20 +231,26 @@ function atlasIdOverrides() {
 function atlasIds() {
   const base = atlasBuiltinIds();
   const ov = atlasIdOverrides();
-  const pick = (k) => (String(ov[k] != null ? ov[k] : "").trim() || String(base[k] || "").trim());
-  const bct = base.christmasTree || {};
+  // A Settings override saved before 2.9.34 used the old names (metrics / shipping / property /
+  // metricsFast / christmasTree.*) — still honoured until the next Settings save rewrites it.
   const oct = (ov.christmasTree && typeof ov.christmasTree === "object") ? ov.christmasTree : {};
-  const pickCt = (k) => (String(oct[k] != null ? oct[k] : "").trim() || String(bct[k] || "").trim());
+  const pick = (k, ...old) => [ov[k], ...old].map((v) => String(v || "").trim()).find(Boolean) || String(base[k] || "").trim();
+  const srf = pick("srf", ov.metrics, ov.shipping, oct.srf), pr = pick("pr", ov.property, oct.pr);
+  const pmct = pick("pmct", oct.pmct), ws = pick("ws", oct.ws);
   return {
-    metrics:  pick("metrics"),
-    shipping: pick("shipping"),
-    metricsFast: pick("metricsFast"),
-    property: pick("property"),
+    srf, srfFast: pick("srfFast", ov.metricsFast), pr, pmct, ws,
+    // The names each tool reads (one UDQ can feed several):
+    metrics:  srf,              // Dashboard
+    shipping: srf,              // single-shipment Fetch
+    metricsFast: pick("srfFast", ov.metricsFast),
+    property: pr,               // Property fetch
     pls:      pick("pls"),
     plsFast:  pick("plsFast"),
     ir:       pick("ir"),       // recorded for future tools; nothing pulls these yet
     dtr:      pick("dtr"),
-    christmasTree: { srf: pickCt("srf"), pr: pickCt("pr"), pmct: pickCt("pmct"), ws: pickCt("ws") },
+    // Fast copies saved for later (only srfFast / plsFast are pulled today):
+    prFast: pick("prFast"), pmctFast: pick("pmctFast"), wsFast: pick("wsFast"), irFast: pick("irFast"), dtrFast: pick("dtrFast"),
+    christmasTree: { srf, pr, pmct, ws },
   };
 }
 /* Effective API base URL. Built-in default = absoluteOrigin + baseUrl from
@@ -1095,7 +1088,7 @@ function atlasSetStatus(msg, isErr) {
    just types the number and the utility finds which UDQ holds it.
    ------------------------------------------------------------------------- */
 
-const ATLAS_DS_LABEL = { shipping: "Shipping (SR)", property: "Property (PR)" };
+const ATLAS_DS_LABEL = { shipping: "SRF", property: "PR" };
 
 /** Which single-WMTR UDQ a typed WMTR names by its suffix: "shipping" for …-SRF,
  *  "property" for …/PR, "other" for …/PMCT or …/WS (not fetchable here), else "". */
@@ -1161,7 +1154,7 @@ async function atlasLoadRequest(wmtrIn) {
   const ids = atlasIds();
   const want = svc ? [svc] : ["shipping", "property"].filter((ds) => ids[ds]);
   if (!want.length) {
-    atlasSetStatus(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Shipping or Property UDQ ID configured. Set them in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`, true);
+    atlasSetStatus(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} SRF or PR UDQ ID configured. Set them in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`, true);
     return;
   }
   atlasSetStatus(`Fetching WMTR ${wmtr} from ATLAS…`);
@@ -1219,7 +1212,7 @@ async function loadFromAtlasUdq(opts) {
       return;
     }
     const id = ids.property;
-    if (!id) { atlasSetStatus(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Property UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`, true); return; }
+    if (!id) { atlasSetStatus(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} PR UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`, true); return; }
     try {
       // Server-side filter (same ?requestNumber= as Shipping; confirmed on the PR
       // UDQ). Falls back to a full pull + client slice if the param is cleared.
@@ -1356,14 +1349,14 @@ async function atlasPullMetricsRecords(opts) {
   // plain full pull of that UDQ, never saved (the saved copy is the full UDQ's).
   if (opts && opts.fast) {
     const fid = atlasIds().metricsFast;
-    if (!fid) throw new Error("No fast Dashboard UDQ ID configured.");
+    if (!fid) throw new Error("No Fast SRF UDQ ID configured.");
     say("Fetching the active shipments from ATLAS…");
     const fast = (await atlasFetchUdqJson(fid)).filter((r) => r && String(r.GMTRNumber || "").trim());
     if (!fast.length) throw new Error("ATLAS returned no usable records.");
     return fast;
   }
   const id = atlasIds().metrics;
-  if (!id) throw new Error(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Metrics UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`);
+  if (!id) throw new Error(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} SRF UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`);
   const ch = ATLAS_UDQ_CONFIG.changes || {};
   const saved = atlasChangesOn() ? await atlasSavedMetrics() : null;
   const delta = !!(saved && saved.stamp && Date.now() - (saved.fullAt || 0) < (ch.fullEveryHours || 12) * 3600000);
@@ -1407,7 +1400,7 @@ async function atlasLoadMetrics() {
 /* -------------------------------------------------------------------------
    Christmas Tree — fetch all FOUR per-service UDQs in one action.
    Returns a friendly "not configured" message when a service's UDQ ID is blank
-   in ATLAS_UDQ_CONFIG.ids.<env>.christmasTree.
+   for its UDQ (atlasIds().christmasTree = the SRF / PR / PMCT / WS UDQs).
    ------------------------------------------------------------------------- */
 
 /**
@@ -1431,7 +1424,7 @@ async function loadFromAtlasXmasTree(opts) {
   const status = (m, err) => (typeof xtSetStatus === "function" ? xtSetStatus(m, err) : atlasSetStatus(m, err));
 
   if (!configured.length) {
-    const which = want ? `the ${want} Christmas Tree UDQ ID is` : wantList ? `the ${wantList.join(" / ")} Christmas Tree UDQ IDs are` : "any Christmas Tree UDQ IDs are";
+    const which = want ? `the ${want} UDQ ID is` : wantList ? `the ${wantList.join(" / ")} UDQ IDs are` : "any of the SRF / PR / PMCT / WS UDQ IDs are";
     status(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} ${which} configured. Set the SRF / PR / PMCT / WS IDs in Settings \u25b8 ATLAS data source (or in ATLAS_UDQ_CONFIG). For now, drag the UDQ exports onto the drop zone above.`, true);
     return;
   }

@@ -488,6 +488,59 @@ function mxProgramRows(r) {
     .sort((a, b) => b.count - a.count || a.program.localeCompare(b.program));
 }
 
+/* ---------------- Metrics tab views (2.9.35) ----------------
+   Metrics › Overview (contract rollup) · WMTR (SRF · PR · WS · PMCT ·
+   Export-Controlled) · PLS · PMR. WMTR › SRF is the shipping dashboard below;
+   the rest are placeholders listing what each will calculate for the PMR
+   (full map: PMR_METRICS_MAP.md). */
+const MX_VIEWS = {
+  metrics: { title: "Contract overview", sub: "All services", items: [
+    "Requests and spending by service (WMTR, SRF, PR, WS, PMCT, PLS, IR, DTR)",
+    "Requests and cost by program, by destination country, by language",
+    "Every PMR metric on one scorecard (green / yellow / red by quarter)",
+    "Costs by month and by program; period-over-period change"] },
+  mwpr: { title: "PR metrics", sub: "WMTR › Procurement", items: [
+    "Completed PRs by program and by country (count and cost)",
+    "S2: purchased within 1 business day of DTRA approval",
+    "S3: estimate within 10 business days of Compliance Review approval",
+    "C3: sourced from local or regional vendors",
+    "C5: final cost within 10% of the approved estimate"] },
+  mwws: { title: "WS metrics", sub: "WMTR › Warehouse storage", items: [
+    "WS requests and cost by program",
+    "O1: warehouse receipt entered in ATLAS within 1 business day"] },
+  mwpmct: { title: "PMCT metrics", sub: "WMTR › Transfer of Property", items: [
+    "TOPs closed per quarter, pending closeout, upcoming",
+    "Material value, program and recipient country per TOP",
+    "Cumulative TOP ledger (CDRL A007)"] },
+  mpls: { title: "PLS metrics", sub: "PLS · IR · DTR", items: [
+    "PLS by program, destination, service category, participants, status",
+    "S7 / S8: Simple (3 days) and Complex (5 days) estimate timeliness",
+    "C4: final cost within 5% of the approved estimate",
+    "AAR completed within 20 business days",
+    "IR / DTR: cost by program, interpreter days, words by language",
+    "S4: translations delivered on time · S5: estimates within 5 business days"] },
+};
+function mxIsMetricsView(id) { return id === "mwmtr" || Object.prototype.hasOwnProperty.call(MX_VIEWS, id); }
+function renderMetricsView(host, id) {
+  // Only the fast (active-shipments) UDQ is in so far — wait for the full one (2.9.32).
+  if (typeof copHistoryPending === "function" && copHistoryPending()) { host.appendChild(copHistoryWaitCard()); return; }
+  if (id === "mwmtr") {
+    if (typeof validationBanner === "function") { const vb = validationBanner(); if (vb) host.appendChild(vb); }
+    renderMetricsDashboard(host);
+    return;
+  }
+  const v = MX_VIEWS[id];
+  if (!v) return;
+  host.appendChild(el(`
+    <div class="panel">
+      <header><h2>${esc(v.title)}</h2><span class="count">${esc(v.sub)}</span></header>
+      <div class="body">
+        <div class="note">Coming soon. This tab will calculate, from the ATLAS UDQs:</div>
+        <ul style="margin:8px 0 0 18px;padding:0;line-height:1.6">${v.items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
+      </div>
+    </div>`));
+}
+
 /* ---------------- main render ---------------- */
 
 function renderMetricsDashboard(dash) {

@@ -365,7 +365,6 @@ function openSettings() {
   // ---- ATLAS data source (UDQ IDs) — built-in defaults + this browser's overrides ----
   const _udqEnv = (typeof ATLAS_UDQ_CONFIG !== "undefined") ? (ATLAS_UDQ_CONFIG.env || "qa") : "qa";
   const _udqBuiltins = (typeof ATLAS_UDQ_CONFIG !== "undefined") ? (ATLAS_UDQ_CONFIG.ids[_udqEnv] || {}) : {};
-  const _udqBct = _udqBuiltins.christmasTree || {};
   const _udqOv = (s.udqIds && s.udqIds[_udqEnv] && typeof s.udqIds[_udqEnv] === "object") ? s.udqIds[_udqEnv] : {};
   // API base URL: built-in default from ATLAS_UDQ_CONFIG + this browser's per-env override.
   const _udqApiBuiltin = (typeof ATLAS_UDQ_CONFIG !== "undefined")
@@ -376,12 +375,17 @@ function openSettings() {
   // COP daily-update save (address + request ID field) — built-in + this browser's override.
   const _dsBuiltin = (typeof ATLAS_UDQ_CONFIG !== "undefined" && ATLAS_UDQ_CONFIG.dailyStatus) || {};
   const _dsOv = (s.dailyStatus && s.dailyStatus[_udqEnv] && typeof s.dailyStatus[_udqEnv] === "object") ? s.dailyStatus[_udqEnv] : {};
-  const _udqOvCount = ["metrics", "metricsFast", "shipping", "property", "pls", "plsFast", "ir", "dtr"].filter((k) => String(_udqOv[k] || "").trim()).length +
-    ["srf", "pr", "pmct", "ws"].filter((k) => {
-      const oct = (_udqOv.christmasTree && typeof _udqOv.christmasTree === "object") ? _udqOv.christmasTree : {};
-      return String(oct[k] || "").trim();
-    }).length;
+  // One box per UDQ (2.9.34). An override saved under the old names (metrics / shipping /
+  // property / metricsFast / christmasTree.*) shows in its new box and is rewritten on Save.
   const _udqOct = (_udqOv.christmasTree && typeof _udqOv.christmasTree === "object") ? _udqOv.christmasTree : {};
+  const _udqCur = {
+    srf: _udqOv.srf || _udqOv.metrics || _udqOv.shipping || _udqOct.srf, srfFast: _udqOv.srfFast || _udqOv.metricsFast,
+    pr: _udqOv.pr || _udqOv.property || _udqOct.pr, pmct: _udqOv.pmct || _udqOct.pmct, ws: _udqOv.ws || _udqOct.ws,
+    pls: _udqOv.pls, plsFast: _udqOv.plsFast, ir: _udqOv.ir, dtr: _udqOv.dtr,
+    prFast: _udqOv.prFast, pmctFast: _udqOv.pmctFast, wsFast: _udqOv.wsFast, irFast: _udqOv.irFast, dtrFast: _udqOv.dtrFast,
+  };
+  const _udqLater = "Active records only, for a quick first display. Saved for later — nothing pulls it yet.";
+  const _udqOvCount = Object.keys(_udqCur).filter((k) => String(_udqCur[k] || "").trim()).length;
   const _udqField = (id, label, cur, def, note) => `
     <div class="settings-field span2">
       <label for="${id}">${esc(label)}</label>
@@ -389,18 +393,20 @@ function openSettings() {
       ${note ? `<div class="settings-note">${note}</div>` : ""}
     </div>`;
   const udqFieldsHtml =
-    _udqField("setUdqMetrics", "Metrics UDQ", _udqOv.metrics, _udqBuiltins.metrics, "") +
-    _udqField("setUdqMetricsFast", "Fast Dashboard UDQ", _udqOv.metricsFast, _udqBuiltins.metricsFast, "The Metrics UDQ filtered to recent / active shipments. Dashboard pulls it first so Shipments opens quickly; the full Metrics UDQ then fills in the rest.") +
-    _udqField("setUdqShipping", "Shipping (SR) UDQ", _udqOv.shipping, _udqBuiltins.shipping, "Usually the same ID as the Metrics UDQ — the single SR shipment is filtered by WMTR inside the utility.") +
-    _udqField("setUdqProperty", "Property (PR) UDQ", _udqOv.property, _udqBuiltins.property, "The full property dataset; filtered to the entered number inside the utility.") +
-    _udqField("setUdqPls", "PLS UDQ", _udqOv.pls, _udqBuiltins.pls, "Personnel Logistics Services — feeds the Dashboard's PLS tab. Until it's set, drop the PLS UDQ export on that tab.") +
-    _udqField("setUdqPlsFast", "Fast PLS UDQ", _udqOv.plsFast, _udqBuiltins.plsFast, "The PLS UDQ filtered to active trips. Pulled first so the PLS tab opens quickly; the full PLS UDQ then fills in the closed ones.") +
-    _udqField("setUdqIr", "IR UDQ", _udqOv.ir, _udqBuiltins.ir, "Interpretation requests. Saved for a future Dashboard tab; nothing pulls it yet.") +
-    _udqField("setUdqDtr", "DTR UDQ", _udqOv.dtr, _udqBuiltins.dtr, "Translation requests. Saved for a future Dashboard tab; nothing pulls it yet.") +
-    _udqField("setUdqCtSrf", "Christmas Tree — SRF", _udqOct.srf, _udqBct.srf, "Usually the same ID as the Metrics UDQ.") +
-    _udqField("setUdqCtPr", "Christmas Tree — PR", _udqOct.pr, _udqBct.pr, "") +
-    _udqField("setUdqCtPmct", "Christmas Tree — PMCT", _udqOct.pmct, _udqBct.pmct, "") +
-    _udqField("setUdqCtWs", "Christmas Tree — WS", _udqOct.ws, _udqBct.ws, "");
+    _udqField("setUdqSrf", "SRF UDQ", _udqCur.srf, _udqBuiltins.srf, "Shipping. Feeds the Dashboard (Shipments, Metrics, PMR, Export-Controlled), single-shipment Fetch and the Christmas Tree.") +
+    _udqField("setUdqSrfFast", "Fast SRF UDQ", _udqCur.srfFast, _udqBuiltins.srfFast, "The SRF UDQ filtered to recent / active shipments. Dashboard pulls it first so Shipments opens quickly; the full SRF UDQ then fills in the rest.") +
+    _udqField("setUdqPr", "PR UDQ", _udqCur.pr, _udqBuiltins.pr, "Procurement / property requests. Feeds Property fetch, the Procurement tab and the Christmas Tree.") +
+    _udqField("setUdqPrFast", "Fast PR UDQ", _udqCur.prFast, _udqBuiltins.prFast, _udqLater) +
+    _udqField("setUdqPmct", "PMCT UDQ", _udqCur.pmct, _udqBuiltins.pmct, "Feeds the Property (TOP) tab and the Christmas Tree.") +
+    _udqField("setUdqPmctFast", "Fast PMCT UDQ", _udqCur.pmctFast, _udqBuiltins.pmctFast, _udqLater) +
+    _udqField("setUdqWs", "WS UDQ", _udqCur.ws, _udqBuiltins.ws, "Feeds the Christmas Tree.") +
+    _udqField("setUdqWsFast", "Fast WS UDQ", _udqCur.wsFast, _udqBuiltins.wsFast, _udqLater) +
+    _udqField("setUdqPls", "PLS UDQ", _udqCur.pls, _udqBuiltins.pls, "Personnel Logistics Services — feeds the Dashboard's PLS tab. Until it's set, drop the PLS UDQ export on that tab.") +
+    _udqField("setUdqPlsFast", "Fast PLS UDQ", _udqCur.plsFast, _udqBuiltins.plsFast, "The PLS UDQ filtered to active trips. Pulled first so the PLS tab opens quickly; the full PLS UDQ then fills in the closed ones.") +
+    _udqField("setUdqIr", "IR UDQ", _udqCur.ir, _udqBuiltins.ir, "Interpretation requests. Saved for a future Dashboard tab; nothing pulls it yet.") +
+    _udqField("setUdqIrFast", "Fast IR UDQ", _udqCur.irFast, _udqBuiltins.irFast, _udqLater) +
+    _udqField("setUdqDtr", "DTR UDQ", _udqCur.dtr, _udqBuiltins.dtr, "Translation requests. Saved for a future Dashboard tab; nothing pulls it yet.") +
+    _udqField("setUdqDtrFast", "Fast DTR UDQ", _udqCur.dtrFast, _udqBuiltins.dtrFast, _udqLater);
 
   const overlay = el(`
     <div class="settings-overlay" id="settingsOverlay">
@@ -741,20 +747,11 @@ function openSettings() {
         if (inp) inp.classList.add("udq-bad");
       }
     }
-    const udqVals = {
-      metrics:  readUdq("setUdqMetrics"),
-      metricsFast: readUdq("setUdqMetricsFast"),
-      shipping: readUdq("setUdqShipping"),
-      property: readUdq("setUdqProperty"),
-      pls:      readUdq("setUdqPls"),
-      plsFast:  readUdq("setUdqPlsFast"),
-      ir:       readUdq("setUdqIr"),
-      dtr:      readUdq("setUdqDtr"),
-      christmasTree: {
-        srf:  readUdq("setUdqCtSrf"),  pr: readUdq("setUdqCtPr"),
-        pmct: readUdq("setUdqCtPmct"), ws: readUdq("setUdqCtWs"),
-      },
-    };
+    const UDQ_BOXES = { srf: "setUdqSrf", srfFast: "setUdqSrfFast", pr: "setUdqPr", prFast: "setUdqPrFast",
+      pmct: "setUdqPmct", pmctFast: "setUdqPmctFast", ws: "setUdqWs", wsFast: "setUdqWsFast",
+      pls: "setUdqPls", plsFast: "setUdqPlsFast", ir: "setUdqIr", irFast: "setUdqIrFast", dtr: "setUdqDtr", dtrFast: "setUdqDtrFast" };
+    const udqVals = {};
+    for (const k of Object.keys(UDQ_BOXES)) udqVals[k] = readUdq(UDQ_BOXES[k]);
     if (udqBad.length || apiBad) {
       // Make sure the buried fields are visible so the highlight can be seen.
       const advBox = overlay.querySelector("#setUdqAdv");
@@ -774,11 +771,9 @@ function openSettings() {
     }
     if (udqErrEl) udqErrEl.style.display = "none";
     // Keep only non-blank overrides so a blank field falls back to the default.
+    // (Saved under the new names only, so any pre-2.9.34 old-name override is dropped here.)
     const envOv = {};
-    ["metrics", "metricsFast", "shipping", "property", "pls", "plsFast", "ir", "dtr"].forEach((k) => { if (udqVals[k]) envOv[k] = udqVals[k]; });
-    const ctOv = {};
-    ["srf", "pr", "pmct", "ws"].forEach((k) => { if (udqVals.christmasTree[k]) ctOv[k] = udqVals.christmasTree[k]; });
-    if (Object.keys(ctOv).length) envOv.christmasTree = ctOv;
+    Object.keys(udqVals).forEach((k) => { if (udqVals[k]) envOv[k] = udqVals[k]; });
     const allUdqIds = Object.assign({}, AtlasSettings.get().udqIds || {});
     if (Object.keys(envOv).length) allUdqIds[udqEnv] = envOv; else delete allUdqIds[udqEnv];
     // API base URL override: keep only a non-blank value so blank = built-in.

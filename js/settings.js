@@ -40,6 +40,7 @@ const AtlasSettings = {
       copDailyPreview: false, // COP daily-update entry/editing shown before the ATLAS API exists (browser-only, temporary)
       dashInfo: true,         // Procurement / Property dashboards: show the (i) "how this is calculated" bubbles
       dashDrop: true,         // Dashboard: one UDQ drop box under the tab bar; tabs light up as their UDQ loads (off = connected to ATLAS)
+      dashStart: "summary",   // Dashboard button: the tab it opens on (2.9.41) — a top-level hub tab id
       packetSliFreight: "",   // last-used SLI freight location (packet default)
       packetSliForward: "",   // last-used SLI forwarding agent (packet default)
       hardBlock: { enabled: false, codes: {} }, // Validation gate (Feature #3)
@@ -483,6 +484,14 @@ function openSettings() {
 
           <div class="settings-section">
             <h3>General</h3>
+            <div class="settings-grid" style="margin-bottom:10px;">
+              <div class="settings-field">
+                <label for="setDashStart">Dashboard opens on</label>
+                <select id="setDashStart">${(typeof TOOLS !== "undefined" ? TOOLS : []).filter((t) => t.hub && !t.hubUnder && !t.hubHidden)
+                  .map((t) => `<option value="${esc(t.id)}" ${(s.dashStart || "summary") === t.id ? "selected" : ""}>${esc(t.label)}</option>`).join("")}</select>
+                <div class="settings-note">The tab the Dashboard button opens. Summary (the management overview) is the default.</div>
+              </div>
+            </div>
             <label class="set-check"><input type="checkbox" id="setAutoSave" ${s.autoSaveForms ? "checked" : ""}> Auto-save in-progress form inputs</label>
             <div class="settings-note">Remembers what you've typed in a tool's form (per UDQ) so it survives switching tools or an accidental reload. Turn off if a form misbehaves.</div>
             <label class="set-check"><input type="checkbox" id="setDashInfo" ${s.dashInfo !== false ? "checked" : ""}> Show &ldquo;how it's calculated&rdquo; info bubbles on the Procurement and Property dashboards</label>
@@ -826,6 +835,7 @@ function openSettings() {
       copDailyPreview: !!(overlay.querySelector("#setCopPreview") || {}).checked,
       dashInfo: !!(overlay.querySelector("#setDashInfo") || {}).checked,
       dashDrop: !!(overlay.querySelector("#setDashDrop") || {}).checked,
+      dashStart: (overlay.querySelector("#setDashStart") || {}).value || "summary",
       hardBlock,
       udqIds: allUdqIds,
       udqApi: allUdqApi,

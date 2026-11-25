@@ -13,6 +13,13 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.41",
+    title: "Pick the tab the Dashboard opens on",
+    notes: [
+      "Settings › General › Dashboard opens on: choose Summary (the default), Shipments, Procurement, Property (TOP), PLS or Metrics. Remembered on this device.",
+    ],
+  },
+  {
     version: "2.9.40",
     title: "Dashboard opens on a management Summary",
     notes: [

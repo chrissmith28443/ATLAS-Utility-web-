@@ -1092,3 +1092,10 @@ Arrived Warehouse or the warehouse actual date is filled.
   20 business days after End Date); PLS Completed not yet Ready To Invoice; DTR translated not closed.
 - On the 23-Nov sample nearly every SRF shows "needs attention" because the daily-update check fails on stale data;
   live pulls should be far fewer. Revisit if management finds it noisy (could count red non-daily checks only).
+## v2.9.41 (2026-11-25) — Pick the tab the Dashboard opens on
+- Settings › General › "Dashboard opens on" (settings.js `dashStart`, default "summary"): lists the top-level hub tabs
+  (Summary, Shipments, Procurement, Property (TOP), PLS, Metrics). Per browser, like other settings.
+- cop.js copStartTab() reads it (falls back to Summary if the id isn't a top-level hub tab); copRailButton opens it.
+- Metrics needs the Metrics UDQ: until it's loaded the button shows Shipments ("Getting the latest…") and sets
+  CopPull.wantMetrics; copSwapInMetrics switches to Metrics once the pull lands. Any tab clicked meanwhile
+  (copHubSelect) clears the flag, so the user's own choice wins.

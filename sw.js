@@ -6,7 +6,7 @@
    ========================================================================= */
 // Renamed for the security fix: activate deletes every older cache, which also
 // removes any ATLAS API responses an earlier version had stored.
-const CACHE = "atlas-cache-v2.9.40-mgmt-summary";
+const CACHE = "atlas-cache-v2.9.41-dash-start-tab";
 const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
 const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
@@ -16,10 +16,10 @@ const APP_SHELL = [
   "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
   "js/app.js?v=132",
   "js/assets.js?v=64",
-  "js/about.js?v=228",
+  "js/about.js?v=229",
   "js/a11y.js?v=61",
   "js/backup.js?v=71",
-  "js/constants.js?v=219",
+  "js/constants.js?v=220",
   "js/dangerous_goods.js?v=69",
   "js/metrics_dashboard.js?v=99",
   "js/pwa.js?v=63",
@@ -27,7 +27,7 @@ const APP_SHELL = [
   "js/formcache.js?v=65",
   "js/compare.js?v=66",
   "js/json_udq.js?v=38",
-  "js/settings.js?v=81",
+  "js/settings.js?v=82",
   "js/tools/ci.js?v=72",
   "js/tools/coreims.js?v=62",
   "js/tools/coreims_template.js?v=61",
@@ -70,7 +70,7 @@ const APP_SHELL = [
   "js/tools/validate.js?v=71",
   "js/tools/xmastree.js?v=50",
   "js/tools/record_audit.js?v=4",
-  "js/tools/cop.js?v=61",
+  "js/tools/cop.js?v=62",
   "js/tools/pmdash.js?v=23",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",

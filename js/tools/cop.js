@@ -3827,7 +3827,15 @@ function copIsHubTool(id) { return COP_HUB_TOOLS.indexOf(id) !== -1; }
 function copHubActive() {
   return copIsHubTool(AppState.activeTool) || (!AppState.activeTool && AppState.udqType === "metrics");
 }
+/** The tab the Dashboard button opens on (Settings › General; Summary by default). */
+function copStartTab() {
+  let id = "summary";
+  try { if (typeof AtlasSettings !== "undefined") id = AtlasSettings.get().dashStart || "summary"; } catch (e) { /* default */ }
+  const ok = (typeof TOOLS !== "undefined" ? TOOLS : []).some((t) => t.id === id && t.hub && !t.hubUnder && !t.hubHidden);
+  return ok ? id : "summary";
+}
 function copHubSelect(id) {
+  CopPull.wantMetrics = false;   // a tab picked by hand wins over a waiting Metrics start tab
   if (id === "metrics") { AppState.activeTool = null; AppState.dashCollapsed = false; }
   else { AppState.activeTool = id; AppState.dashCollapsed = true; }
   renderRail(); renderDashboard(); renderWorkspace();
@@ -3850,9 +3858,12 @@ function copRailButton() {
   // Every UDQ the Dashboard uses: the fast SRF UDQ first, then PR + PMCT, then PLS
   // (pmAutoPull), then the full Metrics UDQ (2.9.32). With no fast UDQ set, the
   // Metrics UDQ and PR / PMCT / PLS pull at once, as before.
-  // Opens on Summary, the management view (2.9.40).
+  // Opens on Summary, the management view (2.9.40), or the tab picked in Settings (2.9.41).
   btn.addEventListener("click", async () => {
-    copHubSelect("summary");
+    const start = copStartTab();
+    // Metrics needs the Metrics UDQ: until it's in, show Shipments ("Getting the latest…"), then switch.
+    if (start === "metrics" && AppState.udqType !== "metrics") { copHubSelect("cop"); CopPull.wantMetrics = true; }
+    else copHubSelect(start);
     // 2.9.33: the PLS step pulls the fast PLS UDQ; the full PLS UDQ comes last (after: pmPullPlsRest).
     copAutoFetch(false, {
       between: typeof pmAutoPull === "function" ? () => pmAutoPull(false, { laterFull: true }) : null,
@@ -3875,7 +3886,7 @@ function copRailButton() {
 const COP_AUTO_PULL_MIN = 10;
 /* partial: what's loaded is only the fast UDQ (recent / active shipments) — the
    full Metrics UDQ hasn't come in yet. full: the last full pull's records. */
-const CopPull = { busy: false, at: 0, okAt: 0, err: "", partial: false, full: null };
+const CopPull = { busy: false, at: 0, okAt: 0, err: "", partial: false, full: null, wantMetrics: false };
 /** Fast records over the last full pull's, matched by WMTR (fast = newer). */
 function copMergeRecs(full, fast) {
   const key = (r) => String(r.GMTRNumber || "").trim();
@@ -3921,7 +3932,10 @@ async function copSwapInMetrics(recs, label) {
     ? { tool: AppState.activeTool, collapsed: AppState.dashCollapsed,
         mx: { start: MetricsUi.start, end: MetricsUi.end, label: MetricsUi.label, quick: MetricsUi.quick, sel: MetricsUi.sel } } : null;
   await atlasLoadMetricsRecords(recs, label);
-  if (prev) {
+  if (CopPull.wantMetrics && AppState.udqType === "metrics") {   // Settings start tab = Metrics (2.9.41)
+    CopPull.wantMetrics = false;
+    AppState.activeTool = null; AppState.dashCollapsed = false;
+  } else if (prev) {
     AppState.activeTool = prev.tool; AppState.dashCollapsed = prev.collapsed;
     Object.assign(MetricsUi, prev.mx);
   } else if (keep && keep !== AppState.activeTool && copIsHubTool(keep)) {

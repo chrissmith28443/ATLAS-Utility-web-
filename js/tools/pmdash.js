@@ -587,7 +587,9 @@ async function pmPullPls() {
    AUTO-PULL — clicking Dashboard (or opening one of these tabs) pulls the PR, PMCT
    and PLS UDQs from ATLAS in the background. Dropped files are left alone.
    ------------------------------------------------------------------------- */
-const PmPull = { busy: false };
+const PmPull = { busy: false, on: "" };
+/** Is this UDQ ("PR", "PMCT" or "PLS") the one being pulled right now? */
+function pmPulling(udq) { return PmPull.busy && (!PmPull.on || (PmPull.on === "pls") === (udq === "PLS")); }
 function pmFresh(slot) { return slot && slot.at && Date.now() - slot.at < PM_AUTO_PULL_MIN * 60000; }
 async function pmAutoPull(force) {
   if (PmPull.busy || typeof loadFromAtlasXmasTree !== "function") return;
@@ -596,13 +598,23 @@ async function pmAutoPull(force) {
   const needPls = !!pmPlsId() && (force || !(pmFresh(pl) || (pl && !pl.at)));
   if (!needPm && !needPls) return;
   PmPull.busy = true;
+  // One after the other (2.9.32): PR + PMCT first, then PLS — so the Procurement and
+  // Property tabs fill in without waiting on PLS. PmPull.on = which one is running.
+  PmPull.on = needPm ? "pm" : "pls";
   if (pmIsTool(AppState.activeTool)) renderWorkspace();
-  await Promise.all([
-    needPm ? loadFromAtlasXmasTree({ services: ["PR", "PMCT"], quiet: true })
-      .catch((e) => { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT UDQs from ATLAS — ${e.message || e}`, true); }) : null,
-    needPls ? pmPullPls() : null,
-  ]);
-  PmPull.busy = false;
+  if (needPm) {
+    await loadFromAtlasXmasTree({ services: ["PR", "PMCT"], quiet: true })
+      .catch((e) => { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT UDQs from ATLAS — ${e.message || e}`, true); });
+  }
+  if (needPls) {
+    PmPull.on = "pls";
+    if (needPm) {
+      if (pmIsTool(AppState.activeTool)) renderWorkspace();
+      else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();
+    }
+    await pmPullPls();
+  }
+  PmPull.busy = false; PmPull.on = "";
   if (pmIsTool(AppState.activeTool)) renderWorkspace();
   else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();   // light up the tabs that now have data
 }
@@ -614,7 +626,7 @@ function pmRefreshBtn(title) {
 }
 /** Where a tab's data came from, as a small dot + a word (details on hover) — same as the Shipments tab. */
 function pmSrcChip(udq, slot) {
-  if (PmPull.busy) return `<span class="copx-fresh busy" title="Pulling the ${esc(udq)} UDQ from ATLAS…"><i></i>Refreshing…</span>`;
+  if (pmPulling(udq)) return `<span class="copx-fresh busy" title="Pulling the ${esc(udq)} UDQ from ATLAS…"><i></i>Refreshing…</span>`;
   return slot && slot.at
     ? `<span class="copx-fresh ok" title="${esc(`${udq} UDQ · live from ATLAS · ${pmPulledText(slot)}`)}"><i></i>${esc(new Date(slot.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</span>`
     : `<span class="copx-fresh file" title="${esc(`${udq} UDQ · from a dropped file${slot && slot.fileName ? " · " + slot.fileName : ""}`)}"><i></i>From file</span>`;
@@ -1190,7 +1202,7 @@ function pmRender(container, kind) {
 
 function pmEmptyCard(kind) {
   const isPr = kind === "proc";
-  const busy = PmPull.busy;
+  const busy = pmPulling("PR");
   const card = el(`<section class="copx-card">
     <div class="copx-hd"><h2>${isPr ? "Procurement" : "Property (TOP)"}</h2></div><div class="copx-rule"></div>
     <p class="copx-msg">${busy ? "Pulling the PR and PMCT UDQs from ATLAS…" :

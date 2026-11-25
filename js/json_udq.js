@@ -51,6 +51,11 @@ const ATLAS_UDQ_CONFIG = {
       // ("requestNumber") so it pulls ~1 record instead of the whole UDQ; the
       // client re-checks the result and shows the picker on any multi-match.
       shipping: "cfb99354-d596-4a86-b067-7b19eea14708",
+      // Fast Dashboard pull (2.9.32): the same SRF UDQ filtered in ATLAS to recent /
+      // active records, so the Shipments tab opens quickly. Clicking Dashboard pulls
+      // this first, then PR / PMCT, then PLS, then the full Metrics UDQ above fills in
+      // the older shipments. Blank = the Dashboard pulls only the full one, as before.
+      metricsFast: "fc32d169-1701-4202-a601-183d43a68c8c",
       // Property (PR) also pulls the FULL property dataset from ATLAS (all
       // records, not a single request); the utility filters to the entered
       // WMTR / PR number client-side, exactly like Shipping.
@@ -72,6 +77,7 @@ const ATLAS_UDQ_CONFIG = {
     prod: {
       metrics:  "",          // TODO: fill production UDQ IDs at publish
       shipping: "",
+      metricsFast: "",
       property: "",
       pls: "",
       dtr: "",
@@ -241,6 +247,7 @@ function atlasIds() {
   return {
     metrics:  pick("metrics"),
     shipping: pick("shipping"),
+    metricsFast: pick("metricsFast"),
     property: pick("property"),
     pls:      pick("pls"),
     christmasTree: { srf: pickCt("srf"), pr: pickCt("pr"), pmct: pickCt("pmct"), ws: pickCt("ws") },
@@ -1338,6 +1345,16 @@ async function atlasSavedMetrics() {
     records. Throws on failure. opts.quiet: leave the status line alone. */
 async function atlasPullMetricsRecords(opts) {
   const say = (m) => { if (!(opts && opts.quiet)) atlasSetStatus(m); };
+  // opts.fast: the fast Dashboard UDQ (recent / active records only) — always a
+  // plain full pull of that UDQ, never saved (the saved copy is the full UDQ's).
+  if (opts && opts.fast) {
+    const fid = atlasIds().metricsFast;
+    if (!fid) throw new Error("No fast Dashboard UDQ ID configured.");
+    say("Fetching the active shipments from ATLAS…");
+    const fast = (await atlasFetchUdqJson(fid)).filter((r) => r && String(r.GMTRNumber || "").trim());
+    if (!fast.length) throw new Error("ATLAS returned no usable records.");
+    return fast;
+  }
   const id = atlasIds().metrics;
   if (!id) throw new Error(`No ${ATLAS_UDQ_CONFIG.env.toUpperCase()} Metrics UDQ ID configured. Set it in Settings ▸ ATLAS data source, or in ATLAS_UDQ_CONFIG.`);
   const ch = ATLAS_UDQ_CONFIG.changes || {};
@@ -1375,6 +1392,7 @@ async function atlasLoadMetricsRecords(recs, label) {
 /** Pull the Metrics UDQ and load it. Throws on failure; returns the record count. */
 async function atlasLoadMetrics() {
   const recs = await atlasPullMetricsRecords();
+  if (typeof CopPull !== "undefined") { CopPull.partial = false; CopPull.full = recs; }   // the full UDQ is in
   await atlasLoadMetricsRecords(recs);
   return recs.length;
 }

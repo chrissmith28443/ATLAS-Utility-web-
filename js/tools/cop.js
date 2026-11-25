@@ -446,9 +446,13 @@ function copData() {
   if (!grid || AppState.udqType !== "metrics") return null;
   if (!CopUi._parsed || CopUi._parsed.grid !== grid) {
     CopUi._parsed = { grid, data: copParseGrid(grid) };
-    // A new UDQ starts unfiltered (view / scope / your name are kept).
-    Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", msg: "", focus: "" });
-    CopUi.expanded = new Set();
+    // A new UDQ starts unfiltered (view / scope / your name are kept) — except when
+    // the full Metrics UDQ replaces the fast one a moment later: filters stay put.
+    if (CopUi._keepFilters) CopUi._keepFilters = false;
+    else {
+      Object.assign(CopUi, { poc: "", atRisk: false, rddDays: 0, q: "", hit: "", msg: "", focus: "" });
+      CopUi.expanded = new Set();
+    }
   }
   return CopUi._parsed.data;
 }
@@ -3842,10 +3846,12 @@ function copRailButton() {
       </svg>
       <span><span class="t">Dashboard</span></span>
     </button>`);
-  // Every UDQ the Dashboard uses starts pulling at once: Metrics (copAutoFetch) + PR, PMCT, PLS (pmAutoPull).
+  // Every UDQ the Dashboard uses: the fast SRF UDQ first, then PR + PMCT, then PLS
+  // (pmAutoPull), then the full Metrics UDQ (2.9.32). With no fast UDQ set, the
+  // Metrics UDQ and PR / PMCT / PLS pull at once, as before.
   btn.addEventListener("click", async () => {
-    copHubSelect("cop"); copAutoFetch();
-    if (typeof pmAutoPull === "function") pmAutoPull();
+    copHubSelect("cop");
+    copAutoFetch(false, { between: typeof pmAutoPull === "function" ? () => pmAutoPull() : null });
   });
   return btn;
 }
@@ -3861,7 +3867,43 @@ function copRailButton() {
    (the Refresh button forces one); once ATLAS can send only what changed
    (atlasChangesOn), every click pulls. */
 const COP_AUTO_PULL_MIN = 10;
-const CopPull = { busy: false, at: 0, okAt: 0, err: "" };
+/* partial: what's loaded is only the fast UDQ (recent / active shipments) — the
+   full Metrics UDQ hasn't come in yet. full: the last full pull's records. */
+const CopPull = { busy: false, at: 0, okAt: 0, err: "", partial: false, full: null };
+/** Fast records over the last full pull's, matched by WMTR (fast = newer). */
+function copMergeRecs(full, fast) {
+  const key = (r) => String(r.GMTRNumber || "").trim();
+  const by = new Map(full.map((r) => [key(r), r]));
+  for (const r of fast) by.set(key(r), r);
+  return Array.from(by.values());
+}
+/** Metrics / PMR / Export-Controlled need closed shipments too: hold them until the full UDQ is in. */
+function copHistoryPending() {
+  return CopPull.partial && AppState.udqType === "metrics" && /^ATLAS API/i.test(AppState.fileName || "");
+}
+function copHistoryWaitCard() {
+  const busy = CopPull.busy;
+  const card = el(`<div class="copx"><style>${COPX_CSS}</style>${busy
+    ? `<section class="copx-card copx-wait" role="status" aria-live="polite">
+        <div class="copx-spin" aria-hidden="true"></div>
+        <h2>Loading the full shipment history…</h2>
+        <p class="copx-msg">This tab counts closed shipments too, so it opens once the full SRF report is in from ATLAS. Shipments is ready now.</p>
+      </section>`
+    : `<section class="copx-card copx-wait">
+        <h2>The full shipment history didn't load</h2>
+        <p class="copx-msg">${CopPull.err ? `${esc(CopPull.err)} ` : ""}This tab counts closed shipments too, so it needs the full SRF report. Shipments shows the active ones.</p>
+        <div class="copx-fbtns" style="justify-content:center"><button class="copx-btn green" type="button">Try again</button></div>
+      </section>`}</div>`);
+  const b = card.querySelector("button");
+  if (b) b.addEventListener("click", () => copAutoFetch(true));
+  return card;
+}
+/** Redraw whichever Dashboard tab is showing (after a background pull lands or fails). */
+function copRedrawHub() {
+  if (!copHubActive()) return;
+  if (AppState.activeTool && AppState.activeTool !== "metrics") renderWorkspace();
+  else { renderDashboard(); renderWorkspace(); }
+}
 function copClock(ms) {
   return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
@@ -3881,33 +3923,68 @@ async function copSwapInMetrics(recs, label) {
   } else return;
   renderRail(); renderDashboard(); renderWorkspace();
 }
-async function copAutoFetch(force) {
+/* 2.9.32: with a fast Dashboard UDQ set (atlasIds().metricsFast), the fast one is
+   pulled and shown first, then opts.between runs (Dashboard click: PR + PMCT, then
+   PLS), then the full Metrics UDQ replaces it. Without one, the full UDQ is pulled
+   with opts.between running alongside it, as before. */
+async function copAutoFetch(force, opts) {
+  const between = opts && opts.between;
   if (CopPull.busy || typeof atlasPullMetricsRecords !== "function") return;
   const minGap = atlasChangesOn() ? 0 : COP_AUTO_PULL_MIN;
-  if (!force && AppState.udqType === "metrics" && Date.now() - CopPull.at < minGap * 60000) return;
+  if (!force && !CopPull.partial && AppState.udqType === "metrics" && Date.now() - CopPull.at < minGap * 60000) {
+    if (between) await between();
+    return;
+  }
   CopPull.busy = true;
   CopPull.at = Date.now();
   CopPull.err = "";
   copRerender();                                     // "Getting the latest…" / "Refreshing…"
+  // Swap in only if the Metrics data (or nothing) is still what's loaded —
+  // never replace a shipment opened while the pull ran.
+  const canSwap = () => AppState.udqType === "metrics" || !AppState.grid;
+  let fastOk = false;
+  if (atlasIds().metricsFast) {
+    try {
+      const fast = await atlasPullMetricsRecords({ fast: true });
+      fastOk = true;
+      if (canSwap()) {
+        // Over the last full pull (if any) so the older shipments stay on screen.
+        const recs = CopPull.full ? copMergeRecs(CopPull.full, fast) : fast;
+        CopPull.partial = !CopPull.full;
+        CopPull.okAt = Date.now();
+        await copSwapInMetrics(recs);
+        atlasSetStatus(`Active shipments up to date with ATLAS as of ${copClock(CopPull.okAt)} — getting the rest of the shipment history…`);
+        copRerender();
+        copHubRefreshTabs();
+      }
+    } catch (e) {
+      console.error(e);                              // fall back to the full UDQ
+    }
+  }
+  const side = between ? (fastOk ? await between() : between()) : null;
   let recs;
   try {
     recs = await atlasPullMetricsRecords();
   } catch (e) {
     console.error(e);
     CopPull.err = String(e.message || e);
-    if (AppState.udqType === "metrics" && /^ATLAS API/i.test(AppState.fileName || ""))
+    if (fastOk && CopPull.partial)
+      atlasSetStatus(`Couldn't get the full shipment history from ATLAS — ${CopPull.err} Shipments shows the active ones.`, true);
+    else if (AppState.udqType === "metrics" && /^ATLAS API/i.test(AppState.fileName || ""))
       atlasSetStatus(`Couldn't refresh from ATLAS — ${CopPull.err} Still showing the earlier pull.`, true);
     else atlasSetStatus("");
     CopPull.busy = false;
-    copRerender();
+    if (fastOk) copRedrawHub(); else copRerender();
     copHubRefreshTabs();                             // not connected → the drop box appears
+    await side;
     return;                                          // no ATLAS → don't try the Christmas Tree either
   }
-  // Swap in only if the Metrics data (or nothing) is still what's loaded —
-  // never replace a shipment opened while the pull ran.
   CopPull.busy = false;
-  if (AppState.udqType === "metrics" || !AppState.grid) {
+  CopPull.full = recs;
+  if (canSwap()) {
+    CopPull.partial = false;
     CopPull.okAt = Date.now();
+    if (fastOk) CopUi._keepFilters = true;           // same shipments plus the older ones
     await copSwapInMetrics(recs);
     atlasSetStatus(`Up to date with ATLAS as of ${copClock(CopPull.okAt)} — ${recs.length} records.`);
     copRerender();
@@ -3918,6 +3995,7 @@ async function copAutoFetch(force) {
   if (typeof loadFromAtlasXmasTree === "function") {
     try { await loadFromAtlasXmasTree({ quiet: true, services: ["SRF"], srfRecords: recs }); } catch (e) { console.error(e); }
   }
+  await side;
 }
 function copHubTabs() {
   const hasMetrics = AppState.udqType === "metrics";

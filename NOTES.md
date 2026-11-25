@@ -931,10 +931,23 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Tested: full UDQ -> Dashboard, details open with no Create documents link, Dashboard button OK, a single
   fetched shipment loads as SRF. Don't bring this back unless asked.
 
-## LATER — "active only" Dashboard pull (parked 2026-11-24)
-- User wants the Dashboard fetch to pull only active requests (Status not Cancelled / Completed / Ready To
-  Invoice / Invoiced) to speed it up, like ?requestNumber= does for one shipment. Must be filtered by ATLAS:
-  (1) an active-only copy of the Metrics UDQ with a Status filter (user can build UDQs) -> point the Dashboard
-  fetch at its ID, or (2) ask Benson for an API option (e.g. ?activeOnly=true). Closed tab, Closed audit,
-  Metrics and PMR need closed records -> pull the full UDQ only when one of those is opened. User: "We'll worry
-  about the active only filter later."
+## LATER — "active only" Dashboard pull (parked 2026-11-24) — DONE as 2.9.32 (fast + full UDQ)
+- User wanted the Dashboard fetch to pull only active requests to speed it up. Done in 2.9.32 with a second,
+  filtered copy of the Metrics UDQ that the user built in ATLAS (see below).
+
+## v2.9.32 (2026-11-24) — fast Dashboard UDQ first, full history after
+- Trimming unused UDQ columns (Cost List, ~100 fields) did NOT speed the report up (file 1.98 -> 1.39 MB, same
+  time): the slow part is ATLAS's server-side query, not size. What helps is fewer records.
+- User built a copy of the SRF Metrics UDQ filtered by Created Date: ID fc32d169-1701-4202-a601-183d43a68c8c
+  (QA) = ATLAS_UDQ_CONFIG.ids.qa.metricsFast (+ Settings field "Fast Dashboard UDQ"; prod blank). Today the
+  filter is Jul 2025 (oldest active, 10036); user will move it to Jan 2026 once 10036 clears, and later switch
+  it to a Status filter (active only) when ATLAS allows. Same ID, so no Utility change needed for that.
+- Dashboard click (cop.js copAutoFetch with opts.between = pmAutoPull): fast SRF -> PR + PMCT -> PLS -> full
+  SRF (user's order). Full replaces fast, keeping filters (CopUi._keepFilters). Later clicks/Refresh: fast is
+  merged over the last full pull (CopPull.full, by GMTRNumber) so older shipments stay on screen. Blank
+  metricsFast = old behaviour (full + PR/PMCT/PLS at once). pmAutoPull now runs PR/PMCT then PLS (PmPull.on).
+- Metrics / PMR / Export-Controlled show "Loading the full shipment history…" while only the fast one is in
+  (copHistoryPending); "didn't load" + Try again if the full one fails. Christmas Tree SRF slot uses the full.
+- Single-shipment Fetch still uses the full UDQ (shipping id) — unchanged.
+- Tested locally with stubbed ATLAS responses (real fast + full JSON samples): order, hand-off, refresh merge,
+  full-fails and fast-fails paths. Not tested inside ATLAS yet.

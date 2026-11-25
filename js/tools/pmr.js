@@ -1083,6 +1083,8 @@ const PmrUi = { result: null, ignoreOpen: false, win: null };   // win = reporti
 
 function renderPmrWorkspace(container) {
   PmrUi.result = null;
+  // Only the fast (active-shipments) UDQ is in so far — wait for the full one (2.9.32).
+  if (typeof copHistoryPending === "function" && copHistoryPending()) { container.appendChild(copHistoryWaitCard()); return; }
 
   const panel = el(`
     <div class="panel">

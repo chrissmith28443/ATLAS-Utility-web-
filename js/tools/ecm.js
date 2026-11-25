@@ -350,6 +350,8 @@ const EcmUi = { result: null, win: null };   // win = reporting window { sel, st
 
 function renderEcmWorkspace(container) {
   EcmUi.result = null;
+  // Only the fast (active-shipments) UDQ is in so far — wait for the full one (2.9.32).
+  if (typeof copHistoryPending === "function" && copHistoryPending()) { container.appendChild(copHistoryWaitCard()); return; }
 
   const panel = el(`
     <div class="panel">

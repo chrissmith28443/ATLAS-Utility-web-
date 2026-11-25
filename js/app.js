@@ -585,6 +585,8 @@ function renderDashboardInner() {
     dash.classList.remove("hidden");
     dash.classList.remove("dash-collapsed"); // metrics view IS the dashboard — never collapse
     if (typeof copHubTabs === "function") dash.appendChild(copHubTabs()); // it's the COP's "Metrics" tab
+    // Only the fast (active-shipments) UDQ is in so far — wait for the full one (2.9.32).
+    if (typeof copHistoryPending === "function" && copHistoryPending()) { dash.appendChild(copHistoryWaitCard()); return; }
     if (typeof validationBanner === "function") {
       const vb = validationBanner();
       if (vb) dash.appendChild(vb);

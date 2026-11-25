@@ -13,6 +13,15 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.32",
+    title: "Dashboard opens faster: active shipments first, full history after",
+    notes: [
+      "Clicking Dashboard now pulls a smaller SRF report first (filtered in ATLAS to recent shipments), so the Shipments tab opens quickly. Then it pulls PR and PMCT, then PLS, and last the full SRF report, which quietly fills in the older shipments without resetting your filters.",
+      "Metrics, PMR and Export-Controlled count closed shipments too, so until the full report is in they show \"Loading the full shipment history…\" and then open on their own.",
+      "The smaller report's ID is under Settings ▸ ATLAS data source ▸ Fast Dashboard UDQ. Leave it blank there to use the built-in one.",
+    ],
+  },
+  {
     version: "2.9.31",
     title: "\"Open a shipment\" removed from the Dashboard",
     notes: [

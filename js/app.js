@@ -38,10 +38,9 @@ const TOOLS = [
   // Metrics: Overview (contract rollup) · WMTR (SRF · PR · WS · PMCT · Export-Controlled) · PLS · PMR (2.9.35).
   { id: "mwmtr",    group: "COP", hub: true, hubUnder: "metrics", hubSelf: "SRF", label: "WMTR", needs: "metrics",  ready: true  },
   { id: "mwpr",     group: "COP", hub: true, hubUnder: "mwmtr",   label: "PR",                needs: "metrics",  ready: true  },
-  { id: "mwws",     group: "COP", hub: true, hubUnder: "mwmtr",   label: "WS",                needs: "metrics",  ready: true  },
-  { id: "mwpmct",   group: "COP", hub: true, hubUnder: "mwmtr",   label: "PMCT",              needs: "metrics",  ready: true  },
   { id: "ecm",      group: "COP", hub: true, hubUnder: "mwmtr",   label: "Export-Controlled", needs: "metrics",  ready: true  },
-  { id: "mpls",     group: "COP", hub: true, hubUnder: "metrics", label: "PLS",               needs: "metrics",  ready: true  },
+  { id: "mpls",     group: "COP", hub: true, hubUnder: "metrics", hubSelf: "PLS", label: "PLS", needs: "metrics",  ready: true  },
+  { id: "mlang",    group: "COP", hub: true, hubUnder: "mpls",    label: "IR / DTR",          needs: "metrics",  ready: true  },
   { id: "pmr",      group: "COP", hub: true, hubUnder: "metrics", label: "PMR",               needs: "metrics",  ready: true  },
   // hubHidden: tab hidden for now (the code stays; reachable again by removing the flag).
   { id: "xmastree", group: "COP", hub: true, hubHidden: true,     label: "Christmas Tree",    needs: "none",     ready: true  },

@@ -6,7 +6,7 @@
    ========================================================================= */
 // Renamed for the security fix: activate deletes every older cache, which also
 // removes any ATLAS API responses an earlier version had stored.
-const CACHE = "atlas-cache-v2.9.37-wmtr-tabs";
+const CACHE = "atlas-cache-v2.9.38-pls-metrics";
 const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
 const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
@@ -14,14 +14,14 @@ const APP_SHELL = [
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/atlas-logo.png?v=62",
   "css/app.css?v=109",
   "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
-  "js/app.js?v=129",
+  "js/app.js?v=130",
   "js/assets.js?v=64",
-  "js/about.js?v=225",
+  "js/about.js?v=226",
   "js/a11y.js?v=61",
   "js/backup.js?v=71",
-  "js/constants.js?v=216",
+  "js/constants.js?v=217",
   "js/dangerous_goods.js?v=69",
-  "js/metrics_dashboard.js?v=96",
+  "js/metrics_dashboard.js?v=97",
   "js/pwa.js?v=63",
   "js/audit.js?v=62",
   "js/formcache.js?v=65",
@@ -70,8 +70,8 @@ const APP_SHELL = [
   "js/tools/validate.js?v=71",
   "js/tools/xmastree.js?v=50",
   "js/tools/record_audit.js?v=4",
-  "js/tools/cop.js?v=58",
-  "js/tools/pmdash.js?v=20",
+  "js/tools/cop.js?v=59",
+  "js/tools/pmdash.js?v=21",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",
   "js/udq.js?v=72",

@@ -3821,7 +3821,7 @@ function copPrint(rows, isActive) {
    Metrics (the Metrics dashboard), PMR, Export-Controlled and the Christmas
    Tree are tabs inside it. Tab ids are the TOOLS ids (app.js, hub: true).
    ------------------------------------------------------------------------- */
-const COP_HUB_TOOLS = ["cop", "proc", "prop", "pls", "pmr", "ecm", "mwmtr", "mwpr", "mwws", "mwpmct", "mpls", "xmastree"];     // workspace tools ("metrics" = the dashboard)
+const COP_HUB_TOOLS = ["cop", "proc", "prop", "pls", "pmr", "ecm", "mwmtr", "mwpr", "mpls", "mlang", "xmastree"];     // workspace tools ("metrics" = the dashboard)
 function copIsHubTool(id) { return COP_HUB_TOOLS.indexOf(id) !== -1; }
 /** True while any COP tab is on screen (the Metrics tab = no tool on a Metrics UDQ). */
 function copHubActive() {
@@ -3832,8 +3832,8 @@ function copHubSelect(id) {
   else { AppState.activeTool = id; AppState.dashCollapsed = true; }
   renderRail(); renderDashboard(); renderWorkspace();
   // Procurement / Property tabs pull the PR + PMCT UDQs as soon as they open (pmdash.js).
-  // Metrics › WMTR › PR / WS / PMCT read the same UDQs (2.9.37).
-  if (typeof pmIsTool === "function" && (pmIsTool(id) || ["mwpr", "mwws", "mwpmct"].indexOf(id) !== -1)) pmAutoPull();
+  // Metrics › WMTR › PR and Metrics › PLS read the same UDQs (2.9.38).
+  if (typeof pmIsTool === "function" && (pmIsTool(id) || ["metrics", "mwpr", "mpls"].indexOf(id) !== -1)) pmAutoPull();
   requestAnimationFrame(() => {
     const nav = document.querySelector(".cop-hub");
     if (nav) nav.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4057,7 +4057,7 @@ function copHubTabs() {
    then always clickable), and not while a pull is still running. Settings ›
    General › "Dashboard UDQ drop box" switches it off altogether.
    ------------------------------------------------------------------------- */
-const COP_HUB_UDQ = { cop: "Metrics", metrics: "Metrics", pmr: "Metrics", ecm: "Metrics", mwmtr: "Metrics", mwpr: "Metrics", mwws: "Metrics", mwpmct: "Metrics", mpls: "Metrics", proc: "PR", prop: "PMCT", pls: "PLS" };
+const COP_HUB_UDQ = { cop: "Metrics", metrics: "Metrics", pmr: "Metrics", ecm: "Metrics", mwmtr: "Metrics", mwpr: "Metrics", mpls: "Metrics", mlang: "IR/DTR", proc: "PR", prop: "PMCT", pls: "PLS" };
 const CopDrop = { status: "", err: false, busy: false };
 /** A pull from ATLAS has worked this session = the Utility is running connected to ATLAS. */
 function copAtlasConnected() { return typeof AtlasLive !== "undefined" && !!AtlasLive.ok; }
@@ -4077,6 +4077,7 @@ function copHubHas(id) {
   const u = COP_HUB_UDQ[id];
   if (u === "PR" || u === "PMCT") return !!(typeof XTree !== "undefined" && XTree.slots[u]);
   if (u === "PLS") return !!(typeof PmPls !== "undefined" && PmPls.slot);
+  if (u === "IR/DTR") return !!(typeof MxLang !== "undefined" && (MxLang.ir || MxLang.dtr));
   if (id === "cop") return true;                       // Shipments explains itself when nothing's loaded
   return AppState.udqType === "metrics";
 }
@@ -4086,10 +4087,10 @@ function copHubRefreshTabs() {
 }
 function copHubDropBox() {
   const chip = (u, on) => `<span class="cop-drop-chip ${on ? "on" : ""}">${on ? "&#10003; " : ""}${esc(u)}</span>`;
-  const has = { Metrics: AppState.udqType === "metrics", PR: copHubHas("proc"), PMCT: copHubHas("prop"), WS: !!(typeof XTree !== "undefined" && XTree.slots.WS), PLS: copHubHas("pls") };
+  const has = { Metrics: AppState.udqType === "metrics", PR: copHubHas("proc"), PMCT: copHubHas("prop"), PLS: copHubHas("pls"), "IR/DTR": copHubHas("mlang") };
   const box = el(`<div class="cop-drop">
     <div class="dropzone compact" tabindex="0" role="button" aria-label="Drop UDQ exports for the Dashboard"
-      title="Metrics, PR, PMCT and PLS UDQ exports (.xlsx) — one or several at once, or click to browse. Each lights up its own tab.">
+      title="Metrics, PR, PMCT, PLS, IR and DTR UDQ exports (.xlsx) — one or several at once, or click to browse. Each lights up its own tab.">
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;color:var(--steel)">
         <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
       <div style="flex:1;min-width:0"><div class="dz-title">${CopDrop.busy ? "Reading…" : "Drop UDQs here"}</div></div>
@@ -4114,10 +4115,12 @@ async function copHubIngest(fileList) {
   const prevTab = AppState.activeTool || (AppState.udqType === "metrics" ? "metrics" : "cop");
   CopDrop.busy = true; CopDrop.status = ""; CopDrop.err = false;
   copHubRefreshTabs();
-  const svcFiles = [], mains = [];
+  const svcFiles = [], mains = [], langs = [];
   for (const f of list) {
     let grid = null;
     try { grid = workbookToGrid(await f.arrayBuffer()); } catch (e) { mains.push({ f, t: "" }); continue; }
+    const lang = typeof mxlangTake === "function" ? mxlangTake(grid, f.name) : "";
+    if (lang) { langs.push(lang.toUpperCase()); continue; }          // IR / DTR → Metrics › PLS › IR / DTR
     const svc = typeof pmIsPlsGrid === "function" && pmIsPlsGrid(grid) ? "PLS"
       : typeof xtClassifyService === "function" ? xtClassifyService(grid) : null;
     if (svc && svc !== "SRF") svcFiles.push({ f, svc });        // a Metrics UDQ reads as SRF — it goes to the main loader
@@ -4135,13 +4138,14 @@ async function copHubIngest(fileList) {
       else bad.push(m.f.name);
     } else other.push(m.f.name);
   }
-  const tabName = { PR: "Procurement", PMCT: "Property", PLS: "PLS", WS: "Metrics › WMTR › WS" };
+  const tabName = { PR: "Procurement", PMCT: "Property", PLS: "PLS", WS: "Christmas Tree" };
   for (const { f, svc } of svcFiles) {
     const slot = svc === "PLS" ? PmPls.slot : XTree.slots[svc];
     if (!slot || slot.fileName !== f.name) { bad.push(f.name); continue; }
     const n = svc === "PLS" ? pmBlocks(slot.grid, /^PLS-/i).length : slot.records.length;
     got.add(svc); parts.push(`${svc} → ${tabName[svc]} (${n})`);
   }
+  if (langs.length) { got.add("IR/DTR"); parts.push(`${langs.join(", ")} → IR / DTR metrics`); }
   CopDrop.busy = false;
   const errMsg = bad.length ? ` Couldn't load ${bad.join(", ")}` +
     (XTree.statusErr && XTree.status ? ` — ${XTree.status}` : PmPls.err && PmPls.status ? ` — ${PmPls.status}` : ".") : "";
@@ -4151,7 +4155,7 @@ async function copHubIngest(fileList) {
   if (!copHubActive()) return;                         // a shipment UDQ was opened instead — loadFile already showed it
 
   // Open the right tab: stay where you are if this drop fed it; otherwise the first tab that just got data.
-  const order = ["cop", "proc", "prop", "pls"];
+  const order = ["cop", "proc", "prop", "pls", "mlang"];
   const target = got.has(COP_HUB_UDQ[prevTab]) ? prevTab : order.find((id) => got.has(COP_HUB_UDQ[id])) || prevTab;
   copHubSelect(target);
 }

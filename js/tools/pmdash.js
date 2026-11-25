@@ -551,7 +551,7 @@ const PM_PLS_JSON_COLS = [   // [JSON field, PLS UDQ export column]
   ["CTFundingProgram", "CT Funding Program"], ["TotalCost", "Total Cost in USD"], ["CTRequestorName", "CT Requestor Name"],
   ["CTProjectManagerName", "CT Project Manager Name"], ["TTIPOCName", "TTI POC Name"], ["TTIAlternatePOCName", "TTI Alternate POC Name"],
   ["DateSubmitted", "Date Submitted"], ["TypeOfTravel", "Type Of Travel"], ["ContractCLINId", "Contract CLIN"],
-  ["PurposeOrRequestSummary", "Purpose of Travel/Request Summary"],
+  ["PurposeOrRequestSummary", "Purpose of Travel/Request Summary"], ["GeneralComments", "General Comments"],
 ];
 const PM_PLS_JSON_SVCS = [   // [JSON list, export section title] — vendor services (one row per line item)
   ["LodgingList", "Lodging List"], ["GroundTransportationList", "Ground Transportation List"], ["TicketsList", "TTI-procured Ticket"],
@@ -606,10 +606,10 @@ async function pmPullPlsRest() {
   if (!PmPls.fullPending || PmPull.busy) return;
   PmPls.fullPending = false;
   PmPull.busy = true; PmPull.on = "pls";
-  if (pmIsTool(AppState.activeTool)) renderWorkspace();
+  if (pmShowsPm()) pmRedraw();
   await pmPullPls(false);
   PmPull.busy = false; PmPull.on = "";
-  if (pmIsTool(AppState.activeTool)) renderWorkspace();
+  if (pmShowsPm()) pmRedraw();
   else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();
 }
 
@@ -623,8 +623,11 @@ function pmPulling(udq) { return PmPull.busy && (!PmPull.on || (PmPull.on === "p
 function pmFresh(slot) { return slot && slot.at && Date.now() - slot.at < PM_AUTO_PULL_MIN * 60000; }
 /* opts.laterFull (Dashboard click): after a fast PLS pull, leave the full PLS UDQ for the
    caller to run last (pmPullPlsRest); otherwise it's pulled straight after the fast one. */
-/** Is a tab that reads the PR / PMCT / WS UDQs on screen? (Procurement, Property, PLS, Metrics › WMTR › PR / WS / PMCT) */
-function pmShowsPm() { return pmIsTool(AppState.activeTool) || ["mwpr", "mwws", "mwpmct"].indexOf(AppState.activeTool) !== -1; }
+/** Is a tab that reads the PR / PMCT / WS UDQs on screen? (Procurement, Property, PLS, Metrics › WMTR › PR, Metrics › PLS) */
+function pmShowsPm() { return pmIsTool(AppState.activeTool) || ["mwpr", "mpls"].indexOf(AppState.activeTool) !== -1 || pmShowsOverview(); }
+/** Metrics › Overview (no tool, Metrics UDQ) — it lives in the dashboard, so it redraws there. */
+function pmShowsOverview() { return !AppState.activeTool && AppState.udqType === "metrics" && typeof copHubActive === "function" && copHubActive(); }
+function pmRedraw() { if (pmShowsOverview()) renderDashboard(); else renderWorkspace(); }
 async function pmAutoPull(force, opts) {
   if (PmPull.busy || typeof loadFromAtlasXmasTree !== "function") return;
   const pr = XTree.slots.PR, pm = XTree.slots.PMCT, pl = PmPls.slot;
@@ -635,16 +638,15 @@ async function pmAutoPull(force, opts) {
   // One after the other (2.9.32): PR + PMCT first, then PLS — so the Procurement and
   // Property tabs fill in without waiting on PLS. PmPull.on = which one is running.
   PmPull.on = needPm ? "pm" : "pls";
-  if (pmShowsPm()) renderWorkspace();
+  if (pmShowsPm()) pmRedraw();
   if (needPm) {
-    // WS rides along for Metrics › WMTR › WS (2.9.37).
-    await loadFromAtlasXmasTree({ services: ["PR", "PMCT", "WS"], quiet: true })
-      .catch((e) => { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT / WS UDQs from ATLAS — ${e.message || e}`, true); });
+    await loadFromAtlasXmasTree({ services: ["PR", "PMCT"], quiet: true })
+      .catch((e) => { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT UDQs from ATLAS — ${e.message || e}`, true); });
   }
   if (needPls) {
     PmPull.on = "pls";
     if (needPm) {
-      if (pmShowsPm()) renderWorkspace();
+      if (pmShowsPm()) pmRedraw();
       else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();
     }
     // Fast PLS UDQ first (when set), then the full one — now, or last on a Dashboard click.
@@ -652,12 +654,12 @@ async function pmAutoPull(force, opts) {
     if (!fastOk) await pmPullPls(false);
     else if (opts && opts.laterFull) PmPls.fullPending = true;
     else {
-      if (pmShowsPm()) renderWorkspace();
+      if (pmShowsPm()) pmRedraw();
       await pmPullPls(false);
     }
   }
   PmPull.busy = false; PmPull.on = "";
-  if (pmShowsPm()) renderWorkspace();
+  if (pmShowsPm()) pmRedraw();
   else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();   // light up the tabs that now have data
 }
 /* Green refresh button (Procurement, Property and PLS): pulls the PR, PMCT and PLS UDQs from ATLAS again. */

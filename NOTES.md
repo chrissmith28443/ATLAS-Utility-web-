@@ -1026,3 +1026,31 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Export-Controlled: copx look, tiles (shipments, lines, value, top 4 authorizations), 6-column table; download/copy
   unchanged (12 columns). EAR99 now excluded from the list (_ecmAuthIsControlled).
 - NEXT: PMR tab (look back at the previous half for the PowerPoint), then PLS, then Overview.
+
+## v2.9.38 (2026-11-25) — PLS + IR / DTR metrics, Contract overview; WS / PMCT tabs removed
+- User: WS and PMCT sub-tabs "not needed for metrics" — removed (TOOLS, routing, code). WS no longer pulled.
+  Order agreed: PLS, then Overview, then PMR.
+- Estimate clock (mxEstCycles, shared PLS / IR / DTR): starts at each TTI Estimate Preparation log entry, stops at the
+  next Fulfillment Review or DTRA Estimate Review; a return to Estimate Prep before it went out restarts it. Due =
+  xtWorkday(start, N, holidays). Verified: reproduces every FY26 deck miss (PLS 20178, 20197, 20207, 20322; IR 40012).
+- Simple vs Complex (user quoted PWS 5.4.2.5): Simple = ONLY lodging, ground transportation, equipment line items
+  (any Type Of Travel — "Delegation" alone is far too rare); anything else, or no line items, = Complex.
+- PLS (mxlCompute, Metrics › PLS): S7 3 bd / S8 5 bd per PLS with an estimate sent in the window. C4 = Total Cost vs
+  newest approved estimate cost, scored at first Ready To Invoice/Invoiced in window (no approved cost -> fix list);
+  invoice amounts aren't in ATLAS, so tag [MISS: C4]. M10 AAR: needs AAR if cost >= $75K or Onsite Support line item;
+  due End + 20 bd; pass unless [MISS: AAR] (no AAR date in ATLAS). M5 hotline: footnote only. Partial (fast) PLS
+  pull shows a wait card; pmPullPlsRest now redraws via pmRedraw.
+- IR / DTR (mxgCompute, Metrics › PLS › IR / DTR, id mlang): S5 5 bd (IR + DTR), S4 = DTR Completed Date <= Due
+  Date/Time. Data only from dropped exports (MxLang slot via mxlangTake in copHubIngest, or the tab's own file
+  picker — works inside ATLAS where the drop box is hidden). ATLAS pull NOT built: needs an IR / DTR JSON sample.
+- [RELIEF: CODE] reason in General Comments = pass (mxsParseRelief), PLS / IR / DTR only.
+- PLS JSON pull now maps GeneralComments -> "General Comments" (field name assumed from the PR JSON — unverified).
+- Overview (renderOverview / mxoDraw, id metrics): tiles per service (SRF, PR, PMCT, PLS, IR, DTR; count + Total Cost),
+  every metric from the four scorecards (row opens its tab), by program, top-10 destinations. Period dates per deck
+  rule (SRF/PR delivery, PMCT completion, PLS/IR Start, DTR Completed); Drafts + plain Cancelled excluded. Compared
+  with the period before (same point in it while the period is running). Opening Overview runs pmAutoPull; redraws
+  via renderDashboard (pmShowsOverview / pmRedraw).
+- FY26 check vs deck: S7 11/11 Q1 exact; S4 and S5 within a few; C4 / M10 counts lower than the deck (deck C4 includes
+  IR/DTR and invoices). Extra S7 miss PLS-26-1-P-PL-20294 (rec'd 5 Aug, due 10 Aug, sent 11 Aug) — asked user.
+- NEXT: PMR tab (look back at the previous half for the PowerPoint). Later: IR / DTR ATLAS pull (JSON sample),
+  languages (Interpretation / Translation lists), financials by month / CLIN.

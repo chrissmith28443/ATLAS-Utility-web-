@@ -116,9 +116,9 @@ Ordered by how many PMR slides each would automate.
 Later, for Overview: **CLIN** on cost lines (Services / ODC / Travel) and
 **Invoice number / date** (Financials slides 102–112).
 
-## PLS, IR, DTR (next section)
+## PLS, IR, DTR
 
-From the deck, to be mapped to UDQ fields when we start the PLS tab.
+In Utility since 2.9.38 (Metrics › PLS and PLS › IR / DTR): S7, S8, C4, M10 (AAR, by tag), S4, S5. M5 hotline isn't in ATLAS. Summary data (participants, languages, cancellations) is still to do.
 
 - **PLS summary data:** by program, destination, service category (slide 12), participants per quarter, status, and cancelled requests with reasons.
 - **PLS metrics:**
@@ -132,7 +132,9 @@ From the deck, to be mapped to UDQ fields when we start the PLS tab.
   - S4 — translations delivered by the requested date.
   - S5 — estimate within 5 business days.
 
-## Overview (last)
+## Overview
+
+In Utility since 2.9.38: requests and cost by service, every metric, by program, by destination. Language and financials are still to do.
 
 - Requests and spending by service and by program, for this half and the last (slides 4–6).
 - Requests by destination × program (slide 7).

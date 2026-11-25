@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.38",
+    title: "PLS and IR / DTR metrics; Contract overview",
+    notes: [
+      "Metrics › PLS: scorecard for S7 (Simple estimate in 3 business days), S8 (Complex in 5), C4 (cost within 5% of the approved estimate) and M10 (AAR within 20 business days). Simple = only lodging, ground transportation and equipment line items (PWS 5.4.2.5).",
+      "Metrics › PLS › IR / DTR: S4 (translations on time) and S5 (estimate in 5 business days). Drop the IR and DTR UDQ exports to fill it.",
+      "Metrics › Overview: requests and cost per service, every metric on one scorecard (click a row to open its tab), and requests by program and by destination, compared with the period before.",
+      "Granted relief: type [RELIEF: S7] reason in a PLS, IR or DTR's General Comments and that miss counts as a pass.",
+      "WS and PMCT sub-tabs removed from Metrics › WMTR.",
+    ],
+  },
+  {
     version: "2.9.37",
     title: "WMTR metrics: PR, WS, PMCT tabs; pick any period",
     notes: [

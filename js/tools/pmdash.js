@@ -273,6 +273,11 @@ function pmBase(grid, H, rr, rEnd, svc) {
   };
 }
 
+/* S3 — PR estimate due N business days after DTRA Compliance Review approval: the COR
+   changed it from 3 to 10 on 10 Sep 2026, so approvals from that day get 10. */
+const PM_PR_EST_RULE_ISO = "2026-09-10";
+function pmPrEstDays(base) { return base && xtIso(base) >= PM_PR_EST_RULE_ISO ? 10 : 3; }
+
 function pmParsePr(grid) {
   const H = buildHeaderMap(grid, 1);
   const out = [];
@@ -301,11 +306,11 @@ function pmParsePr(grid) {
       // Delivered = the PR's Delivery Date field only (a PR can have many PODs, one per PO — those aren't used).
       delivDate: xtParseDate(b.S("Delivery Date")) || null,
     });
-    // Estimate due = 3 business days after compliance approval (Christmas Tree PR rule);
+    // Estimate due = 10 business days after compliance approval (S3; 3 before 10 Sep 2026 — pmPrEstDays);
     // re-estimates count from when the request came back to TTI.
     if (/^tti estimate preparation$/i.test(r.status)) {
       const base = [r.complianceApproved, r.statusSince].filter(Boolean).sort((x, y) => y - x)[0];
-      r.estDue = base ? xtWorkday(base, 3, true) : null;
+      r.estDue = base ? xtWorkday(base, pmPrEstDays(base), true) : null;
     }
     // PO due = 1 business day (weekends + holidays skipped) after the estimate is approved. Applies for as long
     // as the PR sits in Sourcing — a PR with several POs stays here until all are issued.
@@ -618,6 +623,8 @@ function pmPulling(udq) { return PmPull.busy && (!PmPull.on || (PmPull.on === "p
 function pmFresh(slot) { return slot && slot.at && Date.now() - slot.at < PM_AUTO_PULL_MIN * 60000; }
 /* opts.laterFull (Dashboard click): after a fast PLS pull, leave the full PLS UDQ for the
    caller to run last (pmPullPlsRest); otherwise it's pulled straight after the fast one. */
+/** Is a tab that reads the PR / PMCT / WS UDQs on screen? (Procurement, Property, PLS, Metrics › WMTR › PR / WS / PMCT) */
+function pmShowsPm() { return pmIsTool(AppState.activeTool) || ["mwpr", "mwws", "mwpmct"].indexOf(AppState.activeTool) !== -1; }
 async function pmAutoPull(force, opts) {
   if (PmPull.busy || typeof loadFromAtlasXmasTree !== "function") return;
   const pr = XTree.slots.PR, pm = XTree.slots.PMCT, pl = PmPls.slot;
@@ -628,15 +635,16 @@ async function pmAutoPull(force, opts) {
   // One after the other (2.9.32): PR + PMCT first, then PLS — so the Procurement and
   // Property tabs fill in without waiting on PLS. PmPull.on = which one is running.
   PmPull.on = needPm ? "pm" : "pls";
-  if (pmIsTool(AppState.activeTool)) renderWorkspace();
+  if (pmShowsPm()) renderWorkspace();
   if (needPm) {
-    await loadFromAtlasXmasTree({ services: ["PR", "PMCT"], quiet: true })
-      .catch((e) => { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT UDQs from ATLAS — ${e.message || e}`, true); });
+    // WS rides along for Metrics › WMTR › WS (2.9.37).
+    await loadFromAtlasXmasTree({ services: ["PR", "PMCT", "WS"], quiet: true })
+      .catch((e) => { console.error(e); xtSetStatus(`Couldn't pull the PR / PMCT / WS UDQs from ATLAS — ${e.message || e}`, true); });
   }
   if (needPls) {
     PmPull.on = "pls";
     if (needPm) {
-      if (pmIsTool(AppState.activeTool)) renderWorkspace();
+      if (pmShowsPm()) renderWorkspace();
       else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();
     }
     // Fast PLS UDQ first (when set), then the full one — now, or last on a Dashboard click.
@@ -644,12 +652,12 @@ async function pmAutoPull(force, opts) {
     if (!fastOk) await pmPullPls(false);
     else if (opts && opts.laterFull) PmPls.fullPending = true;
     else {
-      if (pmIsTool(AppState.activeTool)) renderWorkspace();
+      if (pmShowsPm()) renderWorkspace();
       await pmPullPls(false);
     }
   }
   PmPull.busy = false; PmPull.on = "";
-  if (pmIsTool(AppState.activeTool)) renderWorkspace();
+  if (pmShowsPm()) renderWorkspace();
   else if (typeof copHubRefreshTabs === "function" && copHubActive()) copHubRefreshTabs();   // light up the tabs that now have data
 }
 /* Green refresh button (Procurement, Property and PLS): pulls the PR, PMCT and PLS UDQs from ATLAS again. */

@@ -3832,7 +3832,8 @@ function copHubSelect(id) {
   else { AppState.activeTool = id; AppState.dashCollapsed = true; }
   renderRail(); renderDashboard(); renderWorkspace();
   // Procurement / Property tabs pull the PR + PMCT UDQs as soon as they open (pmdash.js).
-  if (typeof pmIsTool === "function" && pmIsTool(id)) pmAutoPull();
+  // Metrics › WMTR › PR / WS / PMCT read the same UDQs (2.9.37).
+  if (typeof pmIsTool === "function" && (pmIsTool(id) || ["mwpr", "mwws", "mwpmct"].indexOf(id) !== -1)) pmAutoPull();
   requestAnimationFrame(() => {
     const nav = document.querySelector(".cop-hub");
     if (nav) nav.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4085,7 +4086,7 @@ function copHubRefreshTabs() {
 }
 function copHubDropBox() {
   const chip = (u, on) => `<span class="cop-drop-chip ${on ? "on" : ""}">${on ? "&#10003; " : ""}${esc(u)}</span>`;
-  const has = { Metrics: AppState.udqType === "metrics", PR: copHubHas("proc"), PMCT: copHubHas("prop"), PLS: copHubHas("pls") };
+  const has = { Metrics: AppState.udqType === "metrics", PR: copHubHas("proc"), PMCT: copHubHas("prop"), WS: !!(typeof XTree !== "undefined" && XTree.slots.WS), PLS: copHubHas("pls") };
   const box = el(`<div class="cop-drop">
     <div class="dropzone compact" tabindex="0" role="button" aria-label="Drop UDQ exports for the Dashboard"
       title="Metrics, PR, PMCT and PLS UDQ exports (.xlsx) — one or several at once, or click to browse. Each lights up its own tab.">
@@ -4134,7 +4135,7 @@ async function copHubIngest(fileList) {
       else bad.push(m.f.name);
     } else other.push(m.f.name);
   }
-  const tabName = { PR: "Procurement", PMCT: "Property", PLS: "PLS", WS: "Christmas Tree" };
+  const tabName = { PR: "Procurement", PMCT: "Property", PLS: "PLS", WS: "Metrics › WMTR › WS" };
   for (const { f, svc } of svcFiles) {
     const slot = svc === "PLS" ? PmPls.slot : XTree.slots[svc];
     if (!slot || slot.fileName !== f.name) { bad.push(f.name); continue; }

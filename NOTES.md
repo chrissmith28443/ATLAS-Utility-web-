@@ -1007,3 +1007,22 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Data note: many current-half S6 / R6 misses are blank RFQ Sent Date / ITN on shipments handled before those
   fields existed (Nov 2026); entering the dates clears them.
 - NEXT: PR / WS / PMCT tabs (S3 needs the 10-day rule), then PMR tab (previous half, look-back).
+
+## v2.9.37 (2026-11-25) — WMTR › PR / WS / PMCT, period chips back, Export-Controlled restyle
+- User: keep the focus on the current half, but people must be able to look back — the fiscal year / half / quarter
+  chips (mxDrawWindowPicker) are back on every WMTR tab, each with its own window (MxSrf / MxPr / MxWs / MxPm .st).
+  Watch lists + "in progress" tiles only show when the window includes today (mxsIsLive).
+- Shared scorecard: mxsScorecard(box, cfg) draws SRF and PR. S[code] = { pass, total, missed[], watch[], fix[] };
+  fix = finished but can't be scored (record gap) — shown as "N to fix", not counted.
+- PR (mxpCompute, reads pmData() + XTree.slots.PR): denominator = PRs with Delivery Date (or completion date) in the
+  window. S2 = first "PR – PO Issued" Activity date ≤ 1 bd after newest DTRA Estimate Review (Approved); no PO entry
+  -> fix list. S3 = first estimate stamp ≤ pmPrEstDays(first Compliance approval) bd (10 from 2026-09-10, else 3).
+  C5 = xtCostOver on the Christmas Tree row. C3 = [MISS: LOCAL] in the PR's General Comments.
+  pmPrEstDays (pmdash.js) now also drives the Procurement tab's estimate due date and the Christmas Tree PR rule.
+- WS: no scorable PMR metric; shows completed WS + cost by program; O1 noted as not tracked (needs receipt-entered
+  timestamp). WS UDQ is now pulled with PR + PMCT inside ATLAS (pmAutoPull), and has a chip in the drop box.
+- PMCT: closed in window (Date Completed) with value; out for signature / upcoming (live only); fix list = closed in
+  window or open TOPs with fix flags.
+- Export-Controlled: copx look, tiles (shipments, lines, value, top 4 authorizations), 6-column table; download/copy
+  unchanged (12 columns). EAR99 now excluded from the list (_ecmAuthIsControlled).
+- NEXT: PMR tab (look back at the previous half for the PowerPoint), then PLS, then Overview.

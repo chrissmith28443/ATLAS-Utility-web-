@@ -108,6 +108,7 @@ function _ecmAuthIsControlled(v) {
   if (!s) return false;
   if (/\bN\s*[/_\- ]?\s*A\b/.test(s)) return false; // N/A, N A, N-A, …
   if (/\bNLR\b/.test(s)) return false;
+  if (/\bEAR\s*-?\s*99\b/.test(s)) return false;     // EAR99 isn't export-controlled (2.9.37)
   return true;
 }
 
@@ -353,37 +354,29 @@ function renderEcmWorkspace(container) {
   // Only the fast (active-shipments) UDQ is in so far — wait for the full one (2.9.32).
   if (typeof copHistoryPending === "function" && copHistoryPending()) { container.appendChild(copHistoryWaitCard()); return; }
 
-  const panel = el(`
-    <div class="panel">
-      <header><h2>Export-Controlled Materials</h2><span class="count" id="ecmBadge">Metrics UDQ</span></header>
-      <div class="body">
-        <div class="note">
-          Scans each WMTR's Inventory List and lists every line item whose
-          <strong>BIS/DDTC Authorization or Exception</strong> is populated with something other than blank,
-          <span class="mono">N/A</span>, or <span class="mono">NLR</span> — i.e. items that are export-controlled.
-          WMTRs are filtered by Delivery Date for the selected fiscal period; choose <strong>Show All</strong> to
-          scan every WMTR in the system regardless of date. The generated workbook matches the desktop template
-          (12 columns, one row per controlled line item).
-        </div>
-
-        <div class="mx-pick" id="ecmPick" title="WMTRs are filtered by Delivery Date. All time scans every WMTR in the UDQ, ignoring dates."></div>
-
-        <div class="btnrow">
-          <button class="btn primary" id="ecmGen" disabled>Generate list (.xlsx)</button>
-          <button class="btn ghost" id="ecmCopy" disabled>Copy</button>
-          <span class="statusline" id="ecmStatus">Scanning…</span>
-        </div>
-
-        <div id="ecmSummary" class="statusline"></div>
-        <div class="scrollwrap" id="ecmTableWrap" style="display:none; max-height:480px; margin-top:10px;">
-          <table class="data" id="ecmTable">
-            <thead><tr>${ECM_TEMPLATE_HEADERS.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+  // 2.9.37: same ATLAS look as the other Metrics tabs (mxsShell / COPX_CSS).
+  const panel = mxsShell(container);
+  panel.innerHTML = `
+    <div class="copx-card">
+      <div class="copx-hd">
+        <h2>Export-controlled items</h2>
+        <span class="n" id="ecmSummary"></span>
+        <span class="acts">
+          ${mxsHelp("What's listed", "Every inventory line whose <b>BIS/DDTC Authorization or Exception</b> is filled in with anything but N/A, NLR or EAR99, on WMTRs delivered in the period (by Delivery Date). All time scans every WMTR.<br><span class=\"ex\">The download matches the desktop template: 12 columns, one row per controlled line.</span>")}
+          <button class="copx-btn sm ghost" id="ecmCopy" type="button" disabled title="Copy all 12 columns, ready to paste into a spreadsheet">Copy</button>
+          <button class="copx-btn sm blue" id="ecmGen" type="button" disabled>Download .xlsx</button>
+        </span>
       </div>
-    </div>`);
-  container.appendChild(panel);
+      <div class="mx-pick mxs-pick" id="ecmPick"></div>
+      <div class="copx-kpis" id="ecmKpis"></div>
+      <div class="statusline" id="ecmStatus" role="status"></div>
+      <div class="copx-tbl" id="ecmTableWrap" style="display:none">
+        <table id="ecmTable">
+          <thead><tr>${ECM_VIEW_COLS.map((c) => `<th${c.num ? ' class="num"' : ""}>${esc(c.h)}</th>`).join("")}</tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>`;
 
   // Reporting window: the same chips as the Metrics and PMR tabs. Every pick re-runs the scan.
   const win = EcmUi.win || (EcmUi.win = Object.assign({ _warn: "" }, mxCurrentHalfDefault()));
@@ -401,18 +394,24 @@ function runEcmScan() {
 
   const w = EcmUi.win || {};
   const start = w.start || null, end = w.end || null;     // null / null = All time
-  const win = start && end;
-  const windowText = win ? `${w.label && !/→/.test(w.label) ? w.label + " · " : ""}${start} to ${end}` : "All WMTRs (no date filter)";
+  const kpis = document.getElementById("ecmKpis");
 
   try {
     const result = ecmBuildResult(AppState.grid, start, end);
     EcmUi.result = result;
 
-    summary.textContent =
-      `${windowText} · WMTRs containing controlled items: ${result.wmtr_total} · ` +
-      `Controlled line items: ${result.item_total}`;
-    status.textContent = result.item_total
-      ? "Ready to generate." : "No export-controlled items in this selection.";
+    summary.textContent = mxsPeriodText(w);
+    // Tiles: shipments, lines, value, then the lines per authorization (ITAR, 600 Series, GOV…).
+    const value = result.export_rows.reduce((s, r) => s + (_ecmNum(r["Value(USD)"]) || 0) * 1, 0);
+    const byAuth = {};
+    for (const r of result.export_rows) { const k = norm(r["BIS/DDTC Authorization or Exception"]).toUpperCase(); byAuth[k] = (byAuth[k] || 0) + 1; }
+    const auths = Object.entries(byAuth).sort((a, b) => b[1] - a[1]);
+    const tile = (tone, n, l, t) => `<button type="button" class="copx-kpi ${tone} ${n ? "" : "zero"}" disabled ${t ? `title="${esc(t)}"` : ""}><span class="n">${esc(String(n))}</span><span class="l">${esc(l)}</span></button>`;
+    kpis.innerHTML = tile("b", result.wmtr_total, result.wmtr_total === 1 ? "shipment" : "shipments") +
+      tile("b", result.item_total, result.item_total === 1 ? "controlled line" : "controlled lines") +
+      (value ? tile("b", typeof pmMoney === "function" ? pmMoney(value) : "$" + Math.round(value), "value", "Sum of Value(USD) on the controlled lines") : "") +
+      auths.slice(0, 4).map(([k, n]) => tile("t", n, k, "Controlled lines with this authorization")).join("");
+    status.textContent = result.item_total ? "" : "No export-controlled items in this period.";
 
     document.getElementById("ecmGen").disabled = result.item_total === 0;
     document.getElementById("ecmCopy").disabled = result.item_total === 0;
@@ -424,6 +423,7 @@ function runEcmScan() {
     document.getElementById("ecmCopy").disabled = true;
     document.getElementById("ecmTableWrap").style.display = "none";
     summary.textContent = "";
+    kpis.innerHTML = "";
     status.textContent = `Export-Controlled Materials error: ${e.message}`;
     status.classList.add("err");
   }
@@ -435,15 +435,21 @@ function _ecmCellDisplay(h, v) {
   return _ecmClean(v);
 }
 
+/* On screen: the six columns people read; the download and Copy keep all 12. */
+const ECM_VIEW_COLS = [
+  { h: "WMTR", get: (r) => `<span class="w" title="${esc(r["WMTR Number"] + " · " + r["Request Title"])}">${esc(r["WMTR #"] || r["WMTR Number"])}</span>` },
+  { h: "Delivered", get: (r) => `<span class="nw">${esc(r["Delivery Date"])}</span>` },
+  { h: "Item", get: (r) => `${esc(r["Description"])}${r["Model/Catalog Number"] ? `<small class="ecm-sub">${esc(r["Model/Catalog Number"])}</small>` : ""}` },
+  { h: "Qty", num: true, get: (r) => esc(_ecmCellDisplay("Quantity", r["Quantity"])) },
+  { h: "Value", num: true, get: (r) => esc(_ecmCellDisplay("Value(USD)", r["Value(USD)"])) },
+  { h: "Authorization", get: (r) => `<span class="copx-pill t">${esc(r["BIS/DDTC Authorization or Exception"])}</span>` },
+];
 function renderEcmTable(result) {
   const wrap = document.getElementById("ecmTableWrap");
   const tbody = wrap.querySelector("tbody");
-  if (!result.export_rows.length) {
-    tbody.innerHTML = `<tr><td colspan="${ECM_TEMPLATE_HEADERS.length}" style="color:var(--muted)">No export-controlled items.</td></tr>`;
-  } else {
-    tbody.innerHTML = result.export_rows.map((row) =>
-      `<tr>${ECM_TEMPLATE_HEADERS.map((h) => `<td>${esc(_ecmCellDisplay(h, row[h]))}</td>`).join("")}</tr>`).join("");
-  }
+  if (!result.export_rows.length) { wrap.style.display = "none"; return; }
+  tbody.innerHTML = result.export_rows.map((row) =>
+    `<tr>${ECM_VIEW_COLS.map((c) => `<td${c.num ? ' class="num nw"' : ""}>${c.get(row)}</td>`).join("")}</tr>`).join("");
   wrap.style.display = "";
 }
 

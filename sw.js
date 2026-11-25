@@ -6,7 +6,7 @@
    ========================================================================= */
 // Renamed for the security fix: activate deletes every older cache, which also
 // removes any ATLAS API responses an earlier version had stored.
-const CACHE = "atlas-cache-v2.9.36-srf-scorecard";
+const CACHE = "atlas-cache-v2.9.37-wmtr-tabs";
 const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
 const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
@@ -16,12 +16,12 @@ const APP_SHELL = [
   "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
   "js/app.js?v=129",
   "js/assets.js?v=64",
-  "js/about.js?v=224",
+  "js/about.js?v=225",
   "js/a11y.js?v=61",
   "js/backup.js?v=71",
-  "js/constants.js?v=215",
+  "js/constants.js?v=216",
   "js/dangerous_goods.js?v=69",
-  "js/metrics_dashboard.js?v=95",
+  "js/metrics_dashboard.js?v=96",
   "js/pwa.js?v=63",
   "js/audit.js?v=62",
   "js/formcache.js?v=65",
@@ -35,7 +35,7 @@ const APP_SHELL = [
   "js/tools/deltek_template.js?v=2",
   "js/tools/dd1149.js?v=61",
   "js/tools/dd1149_template.js?v=61",
-  "js/tools/ecm.js?v=66",
+  "js/tools/ecm.js?v=67",
   "js/tools/ecm_template.js?v=61",
   "js/tools/ipc.js?v=63",
   "js/tools/ipc_template.js?v=63",
@@ -68,10 +68,10 @@ const APP_SHELL = [
   "js/tools/topdocs.js?v=61",
   "js/tools/topdocs_template.js?v=61",
   "js/tools/validate.js?v=71",
-  "js/tools/xmastree.js?v=49",
+  "js/tools/xmastree.js?v=50",
   "js/tools/record_audit.js?v=4",
-  "js/tools/cop.js?v=57",
-  "js/tools/pmdash.js?v=19",
+  "js/tools/cop.js?v=58",
+  "js/tools/pmdash.js?v=20",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",
   "js/udq.js?v=72",

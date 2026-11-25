@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.37",
+    title: "WMTR metrics: PR, WS, PMCT tabs; pick any period",
+    notes: [
+      "SRF and every WMTR tab have the fiscal year / half / quarter chips again. They open on the current half; pick an older period to look back (the Watch list shows only for a period that includes today).",
+      "PR: scorecard for S2 (PO within 1 business day), S3 (estimate within 10 business days, 3 before 10 Sep 2026) and C5 (cost within 10%). C3 local sourcing is tagged in the PR's General Comments: [MISS: LOCAL] reason. PRs with no “PO Issued” entry are listed to fix instead of counted as misses.",
+      "WS: completed requests and cost by program for the period. PMCT: TOPs closed in the period (with value), out for signature, upcoming, and records to fix.",
+      "Export-Controlled has the new look: tiles by authorization and a slimmer table (the download still has all 12 columns). EAR99 is never listed.",
+      "The Procurement tab and the Christmas Tree now use the 10-business-day estimate rule too.",
+    ],
+  },
+  {
     version: "2.9.36",
     title: "New SRF metrics view: catch misses before they count",
     notes: [

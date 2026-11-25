@@ -661,9 +661,9 @@ function xtBuildRow(rec) {
     estInitDue = xtWorkday(base, 1, false);
   }
 
-  // Estimate Due (PR only) = WORKDAY(ComplianceReview, 3, holidays)
+  // Estimate Due (PR only) = WORKDAY(ComplianceReview, 10, holidays) — 3 for approvals before 10 Sep 2026 (pmPrEstDays)
   const estimateDuePr = (rec.service === "PR" && complianceReview)
-    ? xtWorkday(complianceReview, 3, true) : null;
+    ? xtWorkday(complianceReview, typeof pmPrEstDays === "function" ? pmPrEstDays(complianceReview) : 3, true) : null;
 
   const estimateSubmitted = oldest(XT_WFL.estimateReview);
 
@@ -1113,10 +1113,10 @@ const XT_ROLLUP_METRICS = [
     elig: () => true, pass: (r) => !norm(r.manual_metric),
     failReason: (r) => norm(r.manual_metric) || "Manually flagged" },
   { key: "pr_estimate", svc: "PR", src: "row",
-    label: "PR Cost Estimate Submitted \u22643 Business Days", green: 1.00, yellow: 0.95,
+    label: "PR Cost Estimate Submitted \u226410 Business Days", green: 1.00, yellow: 0.95,
     elig: (r) => r.pr_est_helper === "On Time" || r.pr_est_helper === "Late",
     pass: (r) => r.pr_est_helper === "On Time",
-    failReason: () => "Estimate submitted after 3-business-day due date" },
+    failReason: () => "Estimate submitted after its due date (10 business days; 3 before 10 Sep 2026)" },
   { key: "cost_pr", svc: "PR", src: "row",
     label: "PR Cost Estimate Accuracy (\u226410%)", green: 0.95, yellow: 0.90,
     elig: (r) => typeof r.cost_variance === "number", pass: (r) => !xtCostOver(r),

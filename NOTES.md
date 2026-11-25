@@ -1073,3 +1073,22 @@ Arrived Warehouse or the warehouse actual date is filled.
   tab. Overview scorecard rows do the same. Rows carry data-code (codes are unique across services).
 - Pull inside ATLAS: opening PMR runs pmAutoPull too ("pmr" in copHubSelect + pmShowsPm).
 - NEXT ideas: IR / DTR ATLAS pull (needs JSON sample); languages; financials by month / CLIN.
+
+## v2.9.40 (2026-11-25) — Dashboard opens on a management Summary
+- User request: "an initial dashboard view for management. When dashboard button is first clicked, this is the tab it
+  should go to … high-level summary of both PLS and WMTR. Current and forward looking mostly, but can be used to monitor
+  proper closeout of recently completed requests … a few graphs … all services under each".
+- New hub tab "summary" (TOOLS first, label Summary, needs none). copRailButton now opens it (was "cop"). Added to
+  COP_HUB_TOOLS, copHubSelect's pmAutoPull list, pmShowsPm, copRerender (so the fast-UDQ redraw reaches it),
+  copHubHas (always on), copHubIngest (a drop while on Summary stays on Summary). app.js routes it to renderMgmtSummary.
+- metrics_dashboard.js "Dashboard › Summary": mxuWmtr / mxuPls build open items (svc, step, due, late, attn) and
+  close-out lists; mxuCard draws KPI tiles (Open / Need attention / Past RDD or Overdue / To close out), a step bar per
+  service (WMTR uses the PR step colours, PLS the PLS ones; delivered SRF/PR, ended trips and translated DTRs leave the
+  bars for Close-out), a "Coming up" column chart (Overdue + 6 weeks, stacked by current step, click = list) and the
+  close-out lines; mxuMetricsCard = this half's mxsTiles (skipped while SRF history / full PLS is still loading).
+- Due dates: SRF / PR = RDD; PLS / IR = Start Date (late = started but not approved); DTR = Due Date.
+- Close-out lines: SRF Delivered - Pending POD; SRF closed in last 30 days with red audit checks; PR delivered not
+  Completed; signed TOP back not Completed; TOP out > 30 days; trip ended still In Progress; AAR coming due (needs AAR,
+  20 business days after End Date); PLS Completed not yet Ready To Invoice; DTR translated not closed.
+- On the 23-Nov sample nearly every SRF shows "needs attention" because the daily-update check fails on stale data;
+  live pulls should be far fewer. Revisit if management finds it noisy (could count red non-daily checks only).

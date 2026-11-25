@@ -1642,6 +1642,283 @@ function mxrDraw(box) {
   });
 }
 
+/* ---------------- Dashboard › Summary (2.9.40) ----------------
+   The management landing tab (Dashboard opens here): every open WMTR and PLS request by
+   where it is now, what falls due in the coming weeks, what recently finished and still
+   needs closing out, and this half's metrics at a glance. Reads the same UDQs as the
+   other tabs; nothing of its own. */
+const MxSum = { st: null, wk: { wmtr: "", pls: "" } };
+const MXU_WEEKS = 6;                       // "Coming up" columns: this week + 5
+const MXU_RECENT = 30;                     // close-out audit looks back this many days
+const MXU_TAB = { SRF: "cop", PR: "proc", PMCT: "prop", PLS: "pls", IR: "mlang", DTR: "mlang" };
+const MXU_TAB_NAME = { cop: "Shipments", proc: "Procurement", prop: "Property", pls: "PLS", mlang: "Metrics › PLS › IR / DTR" };
+/** One step legend per card: WMTR uses the PR step colours, PLS the PLS ones (pmdash.js, validated for colour-blind separation). */
+function mxuSteps(fam) {
+  const L = fam === "pls" ? PM_PLS_LANES : PM_PR_LANES, c = (id) => L.find((l) => l.id === id).color;
+  return fam === "pls"
+    ? [{ id: "review", label: "DTRA review", color: c("review") }, { id: "estimate", label: "TTI estimate", color: c("estimate") },
+       { id: "approval", label: "Estimate with DTRA", color: c("approval") }, { id: "booked", label: "Approved / in progress", color: c("booked") }]
+    : [{ id: "review", label: "Review", color: c("review") }, { id: "estimate", label: "Estimate", color: c("estimate") },
+       { id: "prep", label: "Sourcing / prep", color: c("sourcing") }, { id: "exec", label: "Underway", color: c("exec") }];
+}
+const mxuAttn = (flags) => { const f = (flags || []).filter((x) => !x.fix); return f.some((x) => x.lvl === "red") ? "r" : f.length ? "a" : ""; };
+const mxuAttnText = (flags) => (flags || []).filter((x) => !x.fix).map((x) => x.text).join("; ");
+const mxuDue = (d, today) => (d ? { due: d, late: pmDays(today, d) < 0 } : { due: null, late: false });
+
+/** WMTR: SRF, PR, PMCT. Returns { svcs: [{ k, items, missing }], close: [{ label, items, tab }], notes, busy }. */
+function mxuWmtr(today) {
+  const xt = typeof XTree !== "undefined" ? XTree.slots : {};
+  const busy = (typeof CopPull !== "undefined" && CopPull.busy) || (typeof PmPull !== "undefined" && PmPull.busy);
+  const out = { svcs: [], close: [], notes: [], busy };
+  const since = new Date(today); since.setDate(since.getDate() - MXU_RECENT);
+  let built = null;
+  if (AppState.udqType === "metrics" && AppState.grid) {
+    if (!MxSrf._b || MxSrf._b.grid !== AppState.grid) MxSrf._b = { grid: AppState.grid, all: copBuildAll() };
+    built = MxSrf._b.all;
+  }
+  if (built) {
+    const items = [];
+    for (const r of built.active) {
+      if (/^delivered/i.test(r.status)) continue;                      // delivered = close-out, below
+      const step = r.step === "estimate" ? "estimate" : r.step === "exec" ? (r.phase === "pre" ? "prep" : "exec") : "review";
+      const bad = r.checks.filter((c) => c.state === "fail" || c.state === "warn").map((c) => c.label);
+      items.push(Object.assign({ svc: "SRF", id: r.wmtr, title: r.title, poc: r.poc, step, status: r.status,
+        attn: r.counts.red ? "r" : r.counts.amber ? "a" : "", why: bad.join("; ") }, mxuDue(r.rddDays != null ? r.rdd : null, today)));
+    }
+    out.svcs.push({ k: "SRF", items });
+    const dd = (r) => { try { return xtParseDate(r.rec.f["delivery date"]); } catch (e) { return null; } };
+    const row = (r, note) => ({ id: r.wmtr, title: r.title, poc: r.poc, note });
+    out.close.push({ label: "SRF delivered, POD not in yet", tab: "cop",
+      items: built.active.filter((r) => /^delivered - pending pod/i.test(r.status)).map((r) => row(r, dd(r) ? `Delivered ${mxsDmy(dd(r))}` : "")) });
+    out.close.push({ label: `SRF closed in the last ${MXU_RECENT} days with audit gaps`, tab: "cop",
+      items: built.closed.filter((r) => !/^cancel/i.test(r.status) && r.delivered && r.delivered >= since && r.counts.red)
+        .map((r) => row(r, r.checks.filter((c) => c.state === "fail").map((c) => c.label).join("; "))) });
+    if (copHistoryPending()) out.notes.push("Closed shipments are still loading, so the SRF close-out may grow.");
+  } else out.svcs.push({ k: "SRF", items: [], missing: "Metrics" });
+  const D = xt.PR || xt.PMCT ? pmData() : null;
+  if (xt.PR) {
+    const items = [];
+    for (const p of D.prs) {
+      if (p.closed || p.lane === "draft" || p.delivDate) continue;
+      const step = { review: "review", estimate: "estimate", sourcing: "prep", exec: "exec" }[p.lane] || "review";
+      items.push(Object.assign({ svc: "PR", id: p.wmtr, title: p.title, poc: p.poc, step, status: p.status, attn: mxuAttn(p.flags), why: mxuAttnText(p.flags) }, mxuDue(p.rdd, today)));
+    }
+    out.svcs.push({ k: "PR", items });
+    out.close.push({ label: "PR delivered, not Completed", tab: "proc",
+      items: D.prs.filter((p) => p.delivDate && !p.closed && !/^cancel/i.test(p.status)).map((p) => ({ id: p.wmtr, title: p.title, poc: p.poc, note: `Delivered ${mxsDmy(p.delivDate)}` })) });
+  } else out.svcs.push({ k: "PR", items: [], missing: "PR" });
+  if (xt.PMCT) {
+    const items = [];
+    for (const t of D.tops) {
+      if (t.closed || t.lane === "draft") continue;
+      items.push({ svc: "PMCT", id: t.wmtr, title: t.title, poc: t.poc, step: t.lane === "delivered" ? "exec" : "prep",
+        status: t.lane === "delivered" ? "TOP out for signature" : "TOP being prepared", attn: mxuAttn(t.flags), why: mxuAttnText(t.flags), due: null, late: false });
+    }
+    out.svcs.push({ k: "PMCT", items, names: { prep: "TOP being prepared", exec: "Out for signature" } });
+    out.close.push({ label: "Signed TOP back, PMCT not Completed", tab: "prop",
+      items: D.tops.filter((t) => !t.closed && t.sigBack).map((t) => ({ id: t.wmtr, title: t.title, poc: t.poc, note: `Signed TOP back ${mxsDmy(t.sigBack)}` })) });
+    out.close.push({ label: "TOP out for signature over 30 days", tab: "prop",
+      items: D.tops.filter((t) => !t.closed && t.bucket === "a31").map((t) => ({ id: t.wmtr, title: t.title, poc: t.poc, note: `Out ${t.age} days` })) });
+  } else out.svcs.push({ k: "PMCT", items: [], missing: "PMCT" });
+  return out;
+}
+
+/** PLS: PLS trips, IR events, DTR translations. Trips and events are due on their Start Date
+    (late = started but not yet approved); DTRs on their Due Date. */
+function mxuPls(today) {
+  const busy = typeof PmPull !== "undefined" && PmPull.busy;
+  const out = { svcs: [], close: [], notes: [], busy };
+  const plsDue = (start, lane) => !start ? { due: null, late: false }
+    : pmDays(today, start) >= 0 ? { due: start, late: false } : lane !== "booked" ? { due: start, late: true } : { due: null, late: false };
+  const slot = typeof PmPls !== "undefined" ? PmPls.slot : null;
+  if (slot) {
+    const D = pmData(), items = [];
+    for (const p of D.pls) {
+      if (p.closed || p.lane === "draft" || p.flags.some((f) => f.key === "ended")) continue;
+      items.push(Object.assign({ svc: "PLS", id: p.wmtr, title: p.title + (p.dest ? ` · ${p.dest}` : ""), poc: p.poc, step: p.lane, status: p.status,
+        attn: mxuAttn(p.flags), why: mxuAttnText(p.flags) }, plsDue(p.start, p.lane)));
+    }
+    out.svcs.push({ k: "PLS", items });
+    const row = (p, note) => ({ id: p.wmtr, title: p.title, poc: p.poc, note });
+    out.close.push({ label: "Trip ended, still In Progress", tab: "pls",
+      items: D.pls.filter((p) => p.flags.some((f) => f.key === "ended")).map((p) => row(p, `Ended ${mxsDmy(p.end)}`)) });
+    out.close.push({ label: "AAR due (20 business days after the trip)", tab: "pls",
+      items: D.pls.filter((p) => !/^cancel/i.test(p.status) && p.lane !== "draft" && p.end && pmDays(p.end, today) >= 0 && mxlNeedsAar(p))
+        .map((p) => ({ p, due: xtWorkday(p.end, 20, true) })).filter((x) => pmDays(today, x.due) >= 0)
+        .sort((a, b) => a.due - b.due).map((x) => row(x.p, `AAR due ${mxsDmy(x.due)}`)) });
+    out.close.push({ label: "Completed, not yet Ready To Invoice", tab: "pls",
+      items: D.pls.filter((p) => /^completed$/i.test(p.status)).map((p) => row(p, p.end ? `Ended ${mxsDmy(p.end)}` : "")) });
+    if (slot.partial) out.notes.push("Finished trips are still loading, so the PLS close-out may grow.");
+  } else out.svcs.push({ k: "PLS", items: [], missing: "PLS" });
+  const lang = typeof MxLang !== "undefined" && (MxLang.ir || MxLang.dtr) ? mxlangRecords() : [];
+  for (const t of ["ir", "dtr"]) {
+    const K = t.toUpperCase();
+    if (!MxLang[t]) { out.svcs.push({ k: K, items: [], missing: K }); continue; }
+    const items = [];
+    for (const r of lang) {
+      if (r.type !== t || r.closed || r.lane === "draft") continue;
+      if (t === "dtr" && r.done) continue;                              // translated = close-out, below
+      const d = t === "ir" ? plsDue(r.start, r.lane) : mxuDue(r.due, today);
+      items.push(Object.assign({ svc: K, id: r.wmtr, title: r.title, poc: r.poc, step: r.lane, status: r.status,
+        attn: t === "dtr" && d.late ? "r" : "", why: t === "dtr" && d.late ? `Translation overdue (due ${mxsDmy(r.due)})` : "" }, d));
+    }
+    out.svcs.push({ k: K, items });
+  }
+  if (MxLang.dtr) out.close.push({ label: "DTR translated, not closed", tab: "mlang",
+    items: lang.filter((r) => r.type === "dtr" && r.done && !r.closed && !/^cancel/i.test(r.status)).map((r) => ({ id: r.wmtr, title: r.title, poc: r.poc, note: `Completed ${mxsDmy(r.done)}` })) });
+  return out;
+}
+
+function renderMgmtSummary(host) { mxuDraw(mxsShell(host)); }
+function mxuDraw(box) {
+  const today = pmToday();
+  let W, P;
+  try { W = mxuWmtr(today); P = mxuPls(today); }
+  catch (e) {
+    console.error(e);
+    box.innerHTML = `<div class="copx-card"><div class="statusline err">Couldn't build the summary: ${esc(e.message || String(e))}</div></div>`;
+    return;
+  }
+  const when = today.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  box.innerHTML = `
+    <div class="copx-card mxu-head">
+      <div class="copx-hd">
+        <h2>Operations summary</h2><span class="n">${esc(when)}</span>
+        <span class="acts">${mxsHelp("How this works",
+          `<b>Where open requests are</b>: every open request (Drafts left out) by its step now. Hover a segment for the count; click a row to open that service's tab.<br>
+           <b>Coming up</b>: what falls due each week. SRF and PR by RDD, PLS trips and IR events by Start Date, DTRs by Due Date. <b>Overdue</b> = RDD or due date passed, or a trip or event started before it was approved. Colours show the step each request is in now. Click a column for the list.<br>
+           <b>Close-out</b>: finished work that still needs closing properly. Click a line for the requests.<br>
+           <b>Metrics</b>: this half's scorecard; click a tile for its requests.<br>
+           <span class="ex">Delivered SRFs and PRs, ended trips and translated DTRs move from the charts to Close-out.</span>`, "mxs-how")}</span>
+      </div>
+    </div>
+    <div class="mxu-cols">${mxuCard("wmtr", "WMTR", W, today)}${mxuCard("pls", "PLS", P, today)}</div>
+    ${mxuMetricsCard()}`;
+  box.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); copHubSelect(b.dataset.go); }));
+  box.querySelectorAll(".mxu-col").forEach((b) => b.addEventListener("click", () => {
+    const fam = b.dataset.fam;
+    MxSum.wk[fam] = MxSum.wk[fam] === b.dataset.wk ? "" : b.dataset.wk;
+    mxuDraw(box);
+  }));
+  mxsWireTiles(box, MxSum.st);
+}
+
+function mxuCard(fam, title, F, today) {
+  const steps = mxuSteps(fam);
+  const have = F.svcs.filter((s) => !s.missing);
+  if (!have.length) {
+    return `<div class="copx-card mxu-card"><div class="copx-hd"><h2>${title}</h2></div>${F.busy
+      ? `<div class="mxu-wait" role="status"><div class="copx-spin" aria-hidden="true"></div>Getting the latest from ATLAS…</div>`
+      : `<div class="mxs-empty">No ${title} data loaded yet. Drop the ${F.svcs.map((s) => s.missing).join(", ")} UDQ exports in the box above.</div>`}</div>`;
+  }
+  const all = [].concat(...have.map((s) => s.items));
+  const attn = all.filter((i) => i.attn).length, late = all.filter((i) => i.late).length;
+  const toClose = F.close.reduce((a, c) => a + c.items.length, 0);
+  const tile = (tone, n, label, tip) => `<div class="copx-kpi ${tone} ${n ? "" : "zero"}" title="${esc(tip)}"><span class="n">${n}</span><span class="l">${esc(label)}</span></div>`;
+  const tiles = fam === "pls"
+    ? tile("b", all.length, "Open", "Open PLS trips, IR events and DTR translations (Drafts left out)") +
+      tile("a", attn, "Need attention", "Red-flagged, overdue, or something to act on") +
+      tile("r", late, "Overdue", "Started before approval, or a DTR past its due date") +
+      tile("p", toClose, "To close out", "Finished work still to close properly — see Close-out")
+    : tile("b", all.length, "Open", "Open SRFs, PRs and PMCTs (Drafts and delivered left out)") +
+      tile("a", attn, "Need attention", "Something missed, overdue or to act on") +
+      tile("r", late, "Past RDD", "Not delivered and the RDD has passed") +
+      tile("p", toClose, "To close out", "Finished work still to close properly — see Close-out");
+
+  // Where open requests are: one bar per service, segments by step, lengths comparable within the card.
+  const max = Math.max(1, ...have.map((s) => s.items.length));
+  const bars = F.svcs.map((s) => {
+    const tab = MXU_TAB[s.k];
+    if (s.missing) return `<div class="mxu-bar off"><span class="mxu-lbl">${s.k}</span><span class="mxu-n">–</span><span class="mxu-none">${esc(s.missing)} UDQ not loaded</span><span></span></div>`;
+    const n = s.items.length, reds = s.items.filter((i) => i.attn === "r").length, a = s.items.filter((i) => i.attn).length;
+    const segs = steps.map((st) => ({ st, n: s.items.filter((i) => i.step === st.id).length })).filter((x) => x.n);
+    const nm = (st) => (s.names && s.names[st.id]) || st.label;
+    return `<button type="button" class="mxu-bar" data-go="${tab}" title="Open ${esc(MXU_TAB_NAME[tab])}">
+      <span class="mxu-lbl">${s.k}</span><span class="mxu-n">${n}</span>
+      ${n ? `<span class="mxu-track"><span class="mxu-fill" style="width:${(n / max) * 100}%">${segs.map((x) =>
+        `<i style="flex:${x.n};background:${x.st.color}" title="${esc(`${s.k} · ${nm(x.st)}: ${x.n}`)}"></i>`).join("")}</span></span>` : `<span class="mxu-none">None open</span>`}
+      <span class="mxu-att">${a ? `<span class="copx-pill ${reds ? "r" : "a"}">${a} need${a === 1 ? "s" : ""} attention</span>` : ""}</span></button>`;
+  }).join("");
+  const legend = `<div class="mxu-leg">${steps.map((st) => `<span><i style="background:${st.color}"></i>${esc(st.label)}</span>`).join("")}</div>`;
+
+  // Coming up: overdue + the next weeks, stacked by step.
+  const mon = new Date(today); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+  const cols = [{ k: "late", label: "Overdue", items: all.filter((i) => i.late) }];
+  for (let w = 0; w < MXU_WEEKS; w++) {
+    const s = new Date(mon); s.setDate(s.getDate() + 7 * w);
+    const e = new Date(s); e.setDate(e.getDate() + 7);
+    cols.push({ k: "w" + w, label: w === 0 ? "This week" : s.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      items: all.filter((i) => !i.late && i.due && i.due >= s && i.due < e) });
+  }
+  const endW = new Date(mon); endW.setDate(endW.getDate() + 7 * MXU_WEEKS);
+  const later = all.filter((i) => !i.late && i.due && i.due >= endW).length;
+  const cmax = Math.max(1, ...cols.map((c) => c.items.length)), H = 96;
+  const pick = MxSum.wk[fam];
+  const colHtml = cols.map((c) => {
+    const n = c.items.length;
+    const segs = steps.map((st) => ({ st, n: c.items.filter((i) => i.step === st.id).length })).filter((x) => x.n);
+    const svc = have.map((s) => [s.k, c.items.filter((i) => i.svc === s.k).length]).filter((x) => x[1]).map((x) => `${x[0]} ${x[1]}`).join(" · ");
+    return `<button type="button" class="mxu-col ${c.k === "late" ? "late" : ""} ${pick === c.k ? "on" : ""}" data-fam="${fam}" data-wk="${c.k}" ${n ? "" : "disabled"}
+      aria-pressed="${pick === c.k}" title="${esc(`${c.label}: ${n}${svc ? " — " + svc : ""}${n ? ". Click for the list." : ""}`)}">
+      <span class="mxu-cn">${n}</span>
+      <span class="mxu-stack" style="height:${n ? Math.max(4, Math.round((n / cmax) * H)) : 0}px">${segs.map((x) => `<i style="flex:${x.n};background:${x.st.color}"></i>`).join("")}</span>
+      <span class="mxu-cl">${esc(c.label)}</span></button>`;
+  }).join("");
+  const sel = cols.find((c) => c.k === pick && c.items.length);
+  const dueWord = (i) => (i.svc === "PLS" || i.svc === "IR" ? "Starts" : i.svc === "DTR" ? "Due" : "RDD");
+  const selList = sel ? `<div class="mxs-list mxu-sel"><h4>${esc(sel.label)} <span>${sel.items.length}</span></h4><table>${sel.items.slice().sort((a, b) => a.due - b.due).map((i) => `<tr>
+      <td class="id"><a href="#" data-go="${MXU_TAB[i.svc]}" title="Open ${esc(MXU_TAB_NAME[MXU_TAB[i.svc]])}">${esc(mxsIdShort(i.id))}</a></td>
+      <td>${esc(i.title)}<span class="ecm-sub">${esc(i.status)}${i.why ? " · " + esc(i.why) : ""}</span></td>
+      <td class="dt">${esc(dueWord(i))} ${esc(mxsDmy(i.due))}</td><td class="poc">${esc(i.poc === "Unassigned" ? "" : i.poc)}</td></tr>`).join("")}</table></div>` : "";
+
+  // Close-out.
+  const close = F.close.map((c) => {
+    const n = c.items.length;
+    if (!n) return `<div class="mxu-cr ok"><span class="copx-dot"></span><span>${esc(c.label)}</span><b>0</b><span></span></div>`;
+    return `<details class="mxu-cr"><summary><span class="copx-dot amber"></span><span>${esc(c.label)}</span><b>${n}</b><span class="mxs-chev" aria-hidden="true">›</span></summary>
+      <div class="mxs-list"><table>${c.items.map((x) => `<tr><td class="id"><a href="#" data-go="${c.tab}" title="Open ${esc(MXU_TAB_NAME[c.tab])}">${esc(mxsIdShort(x.id))}</a></td>
+        <td>${esc(x.title)}${x.note ? `<span class="ecm-sub">${esc(x.note)}</span>` : ""}</td><td class="poc">${esc(x.poc === "Unassigned" ? "" : x.poc || "")}</td></tr>`).join("")}</table></div></details>`;
+  }).join("");
+  const notes = F.notes.concat(F.busy ? ["Still pulling from ATLAS…"] : []);
+
+  return `<div class="copx-card mxu-card">
+    <div class="copx-hd"><h2>${title}</h2><span class="n">${F.svcs.map((s) => s.k).join(" · ")}</span></div>
+    <div class="copx-kpis mxu-kpis">${tiles}</div>
+    <h3 class="mxu-h">Where open requests are</h3>
+    <div class="mxu-bars">${bars}</div>${legend}
+    <h3 class="mxu-h">Coming up <span>${fam === "pls" ? "trip / event start, DTR due date" : "RDD"}</span></h3>
+    <div class="mxu-cols-chart" role="group" aria-label="${title} coming up by week">${colHtml}</div>
+    ${later ? `<div class="mxu-later">${later} more due after ${esc(mxsDmy(new Date(endW.getTime() - 864e5)))}</div>` : ""}
+    ${selList}
+    <h3 class="mxu-h">Close-out</h3>
+    <div class="mxu-close">${close}</div>
+    ${notes.length ? `<div class="mxs-foot"><span>${notes.map(esc).join(" ")}</span></div>` : ""}
+  </div>`;
+}
+
+/** This half's metrics as tiles (same as Metrics › Overview); a tile opens its metric. */
+function mxuMetricsCard() {
+  const st = mxsWin(MxSum), have = typeof mxoHave === "function" ? mxoHave() : {};
+  const srfOk = have.SRF && !copHistoryPending();
+  const groups = [
+    { t: "WMTR › SRF", tab: "mwmtr", on: srfOk, defs: MXS_METRICS, run: () => mxsCompute(st.start, st.end).S },
+    { t: "WMTR › PR", tab: "mwpr", on: have.PR, defs: MXP_METRICS, run: () => mxpCompute(st.start, st.end).S },
+    { t: "PLS", tab: "mpls", on: have.PLS, defs: MXL_METRICS, run: () => mxlCompute(st.start, st.end).S },
+    { t: "PLS › IR / DTR", tab: "mlang", on: have.IR || have.DTR, defs: MXG_METRICS, run: () => mxgCompute(st.start, st.end).S },
+  ];
+  let onT = 0, nSc = 0;
+  for (const g of groups) {
+    g.S = null;
+    if (!g.on) continue;
+    try { g.S = g.run(); } catch (e) { console.error(e); continue; }
+    for (const d of g.defs) { const s = g.S[d.code]; if (s && s.total) { nSc++; if (mxMetricStatus(s.pass, s.total, d) === "good") onT++; } }
+  }
+  if (!groups.some((g) => g.S)) return "";
+  return `<div class="copx-card"><div class="copx-hd"><h2>Metrics</h2><span class="n">${esc(mxsPeriodText(st))} · ${onT} of ${nSc} on target</span>
+      ${AppState.udqType === "metrics" ? `<span class="acts"><button type="button" class="copx-btn sm ghost" data-go="metrics">Open Metrics</button></span>` : ""}</div>
+    ${mxsTiles(groups, mxsIsLive(st))}</div>`;
+}
+
 const MXS_CSS = `
 .mxs-in{display:flex;flex-direction:column;gap:14px}
 .mxs .copx-hd .acts{display:flex;align-items:center;gap:8px}
@@ -1722,6 +1999,59 @@ const MXS_CSS = `
 .mxr-fix{margin-top:10px;font-size:12px}
 .mxr-fix>summary{cursor:pointer;color:var(--ax-amber);font-weight:600}
 .mxr-msg{display:block;min-height:16px;margin-top:6px;font-size:12px;color:var(--ax-muted)}
+.mxu-head{padding-top:14px;padding-bottom:14px}
+.mxu-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:14px;align-items:start}
+.mxu-card{display:flex;flex-direction:column;min-width:0}
+.mxu-kpis{margin-top:10px}
+.mxu-kpis .copx-kpi{cursor:default;flex:1 1 auto}
+.mxu-kpis .copx-kpi .l{white-space:nowrap}
+.mxu-h{margin:18px 0 8px;font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.045em;color:var(--ax-muted)}
+.mxu-h span{font-weight:500;text-transform:none;letter-spacing:0;margin-left:6px}
+.mxu-bars{display:flex;flex-direction:column;gap:2px}
+.mxu-bar{display:grid;grid-template-columns:44px 30px 1fr auto;align-items:center;gap:8px;padding:5px 6px;border:0;border-radius:6px;background:transparent;color:var(--ax-ink);font:inherit;text-align:left;cursor:pointer}
+.mxu-bar:hover,.mxu-bar:focus-visible{background:var(--ax-acc2);outline:0}
+.mxu-bar.off{cursor:default;color:var(--ax-muted)}
+.mxu-lbl{font-weight:650;font-size:12px}
+.mxu-n{font-weight:650;text-align:right}
+.mxu-track{display:block;height:16px}
+.mxu-fill{display:flex;gap:2px;height:100%;min-width:6px}
+.mxu-fill i{display:block;min-width:3px;border-radius:2px}
+.mxu-fill i:first-child{border-radius:4px 2px 2px 4px}
+.mxu-fill i:last-child{border-radius:2px 4px 4px 2px}
+.mxu-fill i:only-child{border-radius:4px}
+.mxu-none{font-size:12px;color:var(--ax-muted)}
+.mxu-att .copx-pill{margin:0;white-space:nowrap}
+.mxu-leg{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0 0 6px;font-size:11.5px;color:var(--ax-muted)}
+.mxu-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.mxu-cols-chart{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;border-bottom:1px solid var(--ax-line)}
+.mxu-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;min-width:0;padding:4px 2px 0;border:0;border-radius:6px 6px 0 0;background:transparent;color:var(--ax-ink);font:inherit;cursor:pointer}
+.mxu-col:hover:not(:disabled),.mxu-col.on{background:var(--ax-acc2)}
+.mxu-col.on{box-shadow:inset 0 -3px 0 var(--ax-blue)}
+.mxu-col:disabled{cursor:default}
+.mxu-cn{font-size:12px;font-weight:650}
+.mxu-col:disabled .mxu-cn{color:var(--ax-muted);font-weight:500}
+.mxu-col.late:not(:disabled) .mxu-cn{color:var(--ax-red)}
+.mxu-stack{display:flex;flex-direction:column-reverse;gap:2px;width:min(30px,70%)}
+.mxu-stack i{display:block;flex-basis:0;min-height:2px;border-radius:2px}
+.mxu-stack i:last-child{border-radius:4px 4px 2px 2px}
+.mxu-cl{font-size:10.5px;color:var(--ax-muted);white-space:nowrap;padding-bottom:5px}
+.mxu-col.late .mxu-cl{font-weight:650;color:var(--ax-ink2)}
+.mxu-later{margin-top:6px;font-size:11.5px;color:var(--ax-muted);text-align:right}
+.mxu-sel{margin-top:4px}
+.mxu-sel td a,.mxu-close td a{color:var(--ax-link);text-decoration:none}
+.mxu-sel td a:hover,.mxu-close td a:hover{text-decoration:underline}
+.mxu-close{border:1px solid var(--ax-line);border-radius:10px}
+.mxu-cr>summary,.mxu-cr.ok{display:grid;grid-template-columns:14px 1fr auto 14px;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--ax-line2);font-size:12.5px}
+.mxu-close>:first-child>summary,.mxu-close>.mxu-cr.ok:first-child{border-top:0}
+.mxu-cr>summary{cursor:pointer;list-style:none}
+.mxu-cr>summary::-webkit-details-marker{display:none}
+.mxu-cr>summary:hover{background:var(--ax-acc2)}
+.mxu-cr[open] .mxs-chev{transform:rotate(90deg)}
+.mxu-cr.ok{color:var(--ax-muted)}
+.mxu-cr .copx-dot{margin:0}
+.mxu-cr>.mxs-list{padding:0 12px 10px 36px}
+.mxu-wait{display:flex;align-items:center;gap:12px;padding:18px 4px;color:var(--ax-muted)}
+.mxu-wait .copx-spin{width:22px;height:22px;margin:0}
 @media (max-width:760px){.mxs-row>summary,.mxs-row.flat,.mxs-th{grid-template-columns:14px 1fr auto;}.mxs-row .mxs-miss,.mxs-row .mxs-watch,.mxs-chev,.mxs-th span:nth-child(n+4){display:none}}
 `;
 

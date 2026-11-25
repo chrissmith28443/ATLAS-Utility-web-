@@ -27,6 +27,8 @@ const TOOLS = [
   // tools are reached through the tab bar inside it (copHubTabs), not the rail.
   // A Metrics UDQ opens on the COP (loadFile). "metrics" = the Metrics
   // dashboard, which shows when no tool is active on a Metrics UDQ.
+  // Summary = the management landing tab: the Dashboard button opens here (2.9.40).
+  { id: "summary",  group: "COP", hub: true,     label: "Summary",             needs: "none",     ready: true  },
   { id: "cop",      group: "COP", hub: true,     label: "Shipments",           needs: "none",     ready: true  },
   { id: "proc",     group: "COP", hub: true,     label: "Procurement",         needs: "none",     ready: true  },
   { id: "prop",     group: "COP", hub: true,     label: "Property (TOP)",      needs: "none",     ready: true  },
@@ -1022,6 +1024,7 @@ function renderWorkspace() {
   else if (AppState.activeTool === "invpr") renderInvPrWorkspace(ws);
   else if (AppState.activeTool === "propo") renderProPoWorkspace(ws);
   else if (AppState.activeTool === "pmr") renderPmrLookback(ws);
+  else if (AppState.activeTool === "summary") renderMgmtSummary(ws);
   else if (AppState.activeTool === "cop") renderCopWorkspace(ws);
   else if (AppState.activeTool === "proc") renderProcWorkspace(ws);
   else if (AppState.activeTool === "prop") renderPropWorkspace(ws);

@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.40",
+    title: "Dashboard opens on a management Summary",
+    notes: [
+      "New Summary tab, first in the Dashboard and where the Dashboard button now opens: WMTR (SRF, PR, PMCT) and PLS (PLS, IR, DTR) side by side.",
+      "Where open requests are: one bar per service, split by the step each request is in now. Click a bar to open that service's tab.",
+      "Coming up: what falls due each week for the next six weeks, plus Overdue. SRF and PR by RDD, PLS trips and IR events by Start Date, DTRs by Due Date. Click a column for the list.",
+      "Close-out: finished work still to close properly, e.g. SRFs waiting on a POD or closed with audit gaps, PRs delivered but not Completed, signed TOPs not closed, trips ended but still In Progress, AARs coming due, and Completed trips not yet Ready To Invoice.",
+      "This half's metric tiles sit underneath; a tile opens that metric's requests.",
+    ],
+  },
+  {
     version: "2.9.39",
     title: "PMR look-back tab; metric tiles everywhere",
     notes: [

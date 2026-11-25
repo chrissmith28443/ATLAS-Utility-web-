@@ -12,7 +12,7 @@ overriding it.
 ATLAS Utility is a Progressive Web App (PWA) that supports TTI's ATLAS
 material-transit and inventory management platform.
 
-- **Current Utility version:** 2.9.39
+- **Current Utility version:** 2.9.40
 - **Language:** vanilla JavaScript (no framework, no build step)
 - **Size:** ~30,000 lines of app JS across ~54 JS files
 - **Deployment:** Cloudflare (see CLOUDFLARE_SETUP.md)
@@ -47,7 +47,7 @@ language, not just in code.
 
 ATLAS uses **two independent version histories**:
 
-1. **The Utility's own version** — semantic version, currently **2.9.39**.
+1. **The Utility's own version** — semantic version, currently **2.9.40**.
    This tracks *this PWA*.
 2. **The ATLAS platform release history** — MAJOR.MINOR.FIX, tracked separately
    in the platform's `releases.json` (not in this repo).
@@ -170,7 +170,7 @@ This repo is **Git-connected to Cloudflare Pages** — deploys are automatic:
   JS with no build step.
 - Don't edit anything in `js/vendor/` (third-party code).
 - Don't reformat or restructure files I didn't ask you to change.
-- Don't conflate the Utility version (2.9.39) with the platform `releases.json`
+- Don't conflate the Utility version (2.9.40) with the platform `releases.json`
   version.
 - Don't add dependencies without flagging it first.
 

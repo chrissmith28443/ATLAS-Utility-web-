@@ -3510,7 +3510,7 @@ function copWireUpdates(root, byW) {
   }
 }
 
-function copRerender() { if (AppState.activeTool === "cop") renderWorkspace(); }
+function copRerender() { if (AppState.activeTool === "cop" || AppState.activeTool === "summary") renderWorkspace(); }
 
 function copWire(root, built, rows, isActive) {
   const $ = (s) => root.querySelector(s);
@@ -3821,7 +3821,7 @@ function copPrint(rows, isActive) {
    Metrics (the Metrics dashboard), PMR, Export-Controlled and the Christmas
    Tree are tabs inside it. Tab ids are the TOOLS ids (app.js, hub: true).
    ------------------------------------------------------------------------- */
-const COP_HUB_TOOLS = ["cop", "proc", "prop", "pls", "pmr", "ecm", "mwmtr", "mwpr", "mpls", "mlang", "xmastree"];     // workspace tools ("metrics" = the dashboard)
+const COP_HUB_TOOLS = ["summary", "cop", "proc", "prop", "pls", "pmr", "ecm", "mwmtr", "mwpr", "mpls", "mlang", "xmastree"];     // workspace tools ("metrics" = the dashboard)
 function copIsHubTool(id) { return COP_HUB_TOOLS.indexOf(id) !== -1; }
 /** True while any COP tab is on screen (the Metrics tab = no tool on a Metrics UDQ). */
 function copHubActive() {
@@ -3833,7 +3833,7 @@ function copHubSelect(id) {
   renderRail(); renderDashboard(); renderWorkspace();
   // Procurement / Property tabs pull the PR + PMCT UDQs as soon as they open (pmdash.js).
   // Metrics › WMTR › PR and Metrics › PLS read the same UDQs (2.9.38).
-  if (typeof pmIsTool === "function" && (pmIsTool(id) || ["metrics", "mwpr", "mpls", "pmr"].indexOf(id) !== -1)) pmAutoPull();
+  if (typeof pmIsTool === "function" && (pmIsTool(id) || ["summary", "metrics", "mwpr", "mpls", "pmr"].indexOf(id) !== -1)) pmAutoPull();
   requestAnimationFrame(() => {
     const nav = document.querySelector(".cop-hub");
     if (nav) nav.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -3850,8 +3850,9 @@ function copRailButton() {
   // Every UDQ the Dashboard uses: the fast SRF UDQ first, then PR + PMCT, then PLS
   // (pmAutoPull), then the full Metrics UDQ (2.9.32). With no fast UDQ set, the
   // Metrics UDQ and PR / PMCT / PLS pull at once, as before.
+  // Opens on Summary, the management view (2.9.40).
   btn.addEventListener("click", async () => {
-    copHubSelect("cop");
+    copHubSelect("summary");
     // 2.9.33: the PLS step pulls the fast PLS UDQ; the full PLS UDQ comes last (after: pmPullPlsRest).
     copAutoFetch(false, {
       between: typeof pmAutoPull === "function" ? () => pmAutoPull(false, { laterFull: true }) : null,
@@ -4078,7 +4079,7 @@ function copHubHas(id) {
   if (u === "PR" || u === "PMCT") return !!(typeof XTree !== "undefined" && XTree.slots[u]);
   if (u === "PLS") return !!(typeof PmPls !== "undefined" && PmPls.slot);
   if (u === "IR/DTR") return !!(typeof MxLang !== "undefined" && (MxLang.ir || MxLang.dtr));
-  if (id === "cop") return true;                       // Shipments explains itself when nothing's loaded
+  if (id === "cop" || id === "summary") return true;   // Shipments / Summary explain themselves when nothing's loaded
   return AppState.udqType === "metrics";
 }
 /** Redraw just the tab bar + drop box (after a background pull or a drop), wherever it's showing. */
@@ -4156,7 +4157,7 @@ async function copHubIngest(fileList) {
 
   // Open the right tab: stay where you are if this drop fed it; otherwise the first tab that just got data.
   const order = ["cop", "proc", "prop", "pls", "mlang"];
-  const target = got.has(COP_HUB_UDQ[prevTab]) ? prevTab : order.find((id) => got.has(COP_HUB_UDQ[id])) || prevTab;
+  const target = prevTab === "summary" || got.has(COP_HUB_UDQ[prevTab]) ? prevTab : order.find((id) => got.has(COP_HUB_UDQ[id])) || prevTab;
   copHubSelect(target);
 }
 

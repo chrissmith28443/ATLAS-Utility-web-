@@ -1114,3 +1114,8 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Overview: one .mxo-svc card per service (SRF, PR, PLS, IR / DTR); By destination toggle MxOv.allDest.
 - PLS Red Flag removed from pmPlsFlags (not attention); still shown in the PLS detail panel.
 - Summary tab now shows 17 rings in its metric card, taller than the old tiles; trim if it feels heavy.
+## v2.9.43 (2026-11-26) — Metric gauges, clearer service sections
+- mxtRing now draws a half-ring gauge (112x66 SVG arc, score + "n of N" in the bowl); user picked it over full rings.
+- mxsTiles: a group with a title gets .mxt-g.boxed (.wmtr blue / .pls teal tint) and mxtHead: family pill
+  (WMTR / PLS), bold service name, "x of y on target". Used on Summary and PMR. Overview cards (.mxo-svc) carry the
+  same pill and a coloured top edge. Scorecard tabs pass t:"" so they stay unboxed.

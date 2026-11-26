@@ -6,7 +6,7 @@
    ========================================================================= */
 // Renamed for the security fix: activate deletes every older cache, which also
 // removes any ATLAS API responses an earlier version had stored.
-const CACHE = "atlas-cache-v2.9.42-metric-rings";
+const CACHE = "atlas-cache-v2.9.43-metric-gauges";
 const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
 const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
@@ -16,12 +16,12 @@ const APP_SHELL = [
   "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
   "js/app.js?v=132",
   "js/assets.js?v=64",
-  "js/about.js?v=230",
+  "js/about.js?v=231",
   "js/a11y.js?v=61",
   "js/backup.js?v=71",
-  "js/constants.js?v=221",
+  "js/constants.js?v=222",
   "js/dangerous_goods.js?v=69",
-  "js/metrics_dashboard.js?v=101",
+  "js/metrics_dashboard.js?v=102",
   "js/pwa.js?v=63",
   "js/audit.js?v=62",
   "js/formcache.js?v=65",

@@ -778,19 +778,31 @@ const MXS_TAB_STATE = { mwmtr: () => MxSrf, mwpr: () => MxPr, mpls: () => MxPls,
 /** groups = [{ t, tab, defs, S }]; tab = where a click goes (blank = this view). */
 /* 2.9.42: each tile is a ring that fills to the score (green / amber / red by the metric's
    thresholds), the metric's name under it, the code small in the corner. */
-const MXT_R = 27, MXT_C = 2 * Math.PI * MXT_R;
-function mxtRing(frac, label) {
-  const len = Math.max(0, Math.min(1, frac || 0)) * MXT_C;
-  return `<svg class="mxt-ring" viewBox="0 0 68 68" width="68" height="68" aria-hidden="true">
-    <circle class="tr" cx="34" cy="34" r="${MXT_R}"/>
-    ${len ? `<circle class="fg" cx="34" cy="34" r="${MXT_R}" stroke-dasharray="${len.toFixed(1)} ${MXT_C.toFixed(1)}" transform="rotate(-90 34 34)"/>` : ""}
-    <text x="34" y="38.5" text-anchor="middle">${esc(label)}</text></svg>`;
+/* 2.9.43: a half-ring gauge (speedometer arc) — the score and the count sit in the bowl. */
+const MXT_R = 50, MXT_L = Math.PI * MXT_R;
+function mxtRing(frac, label, sub) {
+  const len = Math.max(0, Math.min(1, frac || 0)) * MXT_L;
+  const arc = `M 6 58 A ${MXT_R} ${MXT_R} 0 0 1 106 58`;
+  return `<svg class="mxt-ring" viewBox="0 0 112 66" width="112" height="66" aria-hidden="true">
+    <path class="tr" d="${arc}"/>
+    ${len ? `<path class="fg" d="${arc}" stroke-dasharray="${len.toFixed(1)} ${MXT_L.toFixed(1)}"/>` : ""}
+    <text class="pc" x="56" y="47" text-anchor="middle">${esc(label)}</text>
+    ${sub ? `<text class="sb" x="56" y="62" text-anchor="middle">${esc(sub)}</text>` : ""}</svg>`;
+}
+/** A section header that says which service the gauges belong to: family pill (WMTR / PLS), the service, how many on target. */
+function mxtHead(t, defs, S) {
+  const parts = String(t).split(/\s*›\s*/), name = parts[parts.length - 1];
+  const fam = /^(PLS|IR|DTR)/i.test(name) || /^PLS/i.test(parts[0]) ? "PLS" : "WMTR";
+  const scored = S ? defs.filter((d) => S[d.code] && S[d.code].total) : [];
+  const on = scored.filter((d) => mxMetricStatus(S[d.code].pass, S[d.code].total, d) === "good").length;
+  return `<div class="mxt-h"><span class="mxt-fam ${fam === "PLS" ? "pls" : "wmtr"}">${fam}</span><b>${esc(name)}</b>
+    <span class="mxt-on">${!S ? "not loaded" : scored.length ? `${on} of ${scored.length} on target` : "nothing scored yet"}</span></div>`;
 }
 function mxsTiles(groups, live) {
   const cls = { good: "g", warn: "a", issue: "r", none: "n" };
-  return `<div class="mxt">${groups.map((g) => `<div class="mxt-g">${g.t ? `<span class="mxt-h">${esc(g.t)}</span>` : ""}<div class="mxt-row">${g.defs.map((d) => {
+  return `<div class="mxt">${groups.map((g) => `<div class="mxt-g ${g.t ? "boxed " + (/(^|›\s*)(PLS|IR)/.test(g.t) ? "pls" : "wmtr") : ""}">${g.t ? mxtHead(g.t, g.defs, g.S) : ""}<div class="mxt-row">${g.defs.map((d) => {
     const s = g.S && g.S[d.code];
-    if (!s) return `<button type="button" class="mxt-tile n" disabled title="${esc(g.t)} UDQ not loaded"><span class="cd">${esc(d.code)}</span>${mxtRing(0, "–")}<span class="nm">${esc(d.name)}</span><span class="of">not loaded</span></button>`;
+    if (!s) return `<button type="button" class="mxt-tile n" disabled title="${esc(g.t)} UDQ not loaded"><span class="cd">${esc(d.code)}</span>${mxtRing(0, "–", "not loaded")}<span class="nm">${esc(d.name)}</span></button>`;
     const stt = !s.total ? "none" : mxMetricStatus(s.pass, s.total, d);
     const p = s.total ? Math.floor((s.pass / s.total) * 1000) / 10 + "%" : "N/A";
     const w = live ? (s.watch || []) : [], reds = w.filter((x) => x.sev === "r").length;
@@ -799,7 +811,7 @@ function mxsTiles(groups, live) {
       `${s.missed.length ? ` · ${s.missed.length} missed` : ""}${(s.fix || []).length ? ` · ${s.fix.length} to fix` : ""}${w.length ? ` · ${w.length} on watch` : ""}. Click to see every request counted.`;
     return `<button type="button" class="mxt-tile ${cls[stt]}" data-code="${esc(d.code)}" data-tab="${esc(g.tab || "")}" title="${esc(tip)}">
       <span class="cd">${esc(d.code)}</span>${issues ? `<i class="${reds || s.missed.length ? "r" : "a"}">${issues}</i>` : ""}
-      ${mxtRing(s.total ? s.pass / s.total : 0, p)}<span class="nm">${esc(d.name)}</span><span class="of">${s.total ? `${s.pass} of ${s.total}` : "none yet"}</span></button>`;
+      ${mxtRing(s.total ? s.pass / s.total : 0, p, s.total ? `${s.pass} of ${s.total}` : "none yet")}<span class="nm">${esc(d.name)}</span></button>`;
   }).join("")}</div></div>`).join("")}</div>`;
 }
 /** Every request a metric counted, misses first, in a fold of its own (2.9.42). q = quarter label, when per quarter. */
@@ -1455,10 +1467,11 @@ function mxoDraw(box) {
 
   // Scorecard (2.9.42): one card per service, stacked, its metrics as rings; a ring opens its tab.
   const scCards = groups.map((g) => {
-    if (!g.on) return `<div class="copx-card mxo-svc"><div class="copx-hd"><h2>${esc(g.t)}</h2><span class="n">${esc(g.udq)} UDQ not loaded</span></div></div>`;
+    const famPill = `<span class="mxt-fam ${/^(PLS|IR)/.test(g.t) ? "pls" : "wmtr"}">${/^(PLS|IR)/.test(g.t) ? "PLS" : "WMTR"}</span> `;
+    if (!g.on) return `<div class="copx-card mxo-svc"><div class="copx-hd"><h2>${famPill}${esc(g.t)}</h2><span class="n">${esc(g.udq)} UDQ not loaded</span></div></div>`;
     const scored = g.defs.filter((d) => g.S[d.code].total);
     const onT = scored.filter((d) => mxMetricStatus(g.S[d.code].pass, g.S[d.code].total, d) === "good").length;
-    return `<div class="copx-card mxo-svc"><div class="copx-hd"><h2>${esc(g.t)}</h2><span class="n">${scored.length ? `${onT} of ${scored.length} on target` : "Nothing scored yet"}</span>
+    return `<div class="copx-card mxo-svc ${/^(PLS|IR)/.test(g.t) ? "pls" : "wmtr"}"><div class="copx-hd"><h2>${famPill}${esc(g.t)}</h2><span class="n">${scored.length ? `${onT} of ${scored.length} on target` : "Nothing scored yet"}</span>
         <span class="acts"><button type="button" class="copx-btn sm ghost" data-go="${g.tab}">Open ${esc(g.t)}</button></span></div>
       ${mxsTiles([{ t: "", tab: g.tab, defs: g.defs, S: g.S }], live)}</div>`;
   }).join("");
@@ -2056,16 +2069,23 @@ const MXS_CSS = `
 .mxs-row.mxo-grp{background:var(--ax-soft);padding-top:7px;padding-bottom:7px}
 .mxo-grp .mxs-nm{font-size:11.5px;font-weight:650;text-transform:uppercase;letter-spacing:.045em;color:var(--ax-muted)}
 .mxo-grp .of{font-size:11.5px;color:var(--ax-muted)}
-.mxt{display:flex;flex-wrap:wrap;gap:10px 22px;margin:2px 0 14px}
-.mxt-g{display:flex;flex-direction:column;gap:5px;min-width:0}
-.mxt-h{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--ax-muted)}
+.mxt{display:flex;flex-direction:column;gap:12px;margin:2px 0 14px}
+.mxt-g{display:flex;flex-direction:column;gap:8px;min-width:0}
+.mxt-g.boxed{border:1px solid var(--ax-line);border-radius:12px;padding:10px 12px 12px;background:color-mix(in srgb,var(--ax-blue) 4%,var(--ax-card))}
+.mxt-g.boxed.pls{background:color-mix(in srgb,var(--ax-teal) 6%,var(--ax-card))}
+.mxt-h{display:flex;align-items:center;gap:8px}
+.mxt-h b{font-size:16px;font-weight:700;color:var(--ax-ink)}
+.mxt-on{margin-left:auto;font-size:12px;color:var(--ax-muted)}
+.mxt-fam{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:700;letter-spacing:.05em;color:#fff;background:var(--ax-blue);vertical-align:middle}
+.mxt-fam.pls{background:var(--ax-teal)}
 .mxt-row{display:flex;flex-wrap:wrap;gap:10px}
-.mxt-tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;width:132px;padding:12px 8px 10px;border:1px solid var(--ax-line);border-radius:12px;background:var(--ax-card);color:var(--ax-ink);font:inherit;text-align:center;cursor:pointer}
+.mxt-tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;width:140px;padding:16px 8px 10px;border:1px solid var(--ax-line);border-radius:12px;background:var(--ax-card);color:var(--ax-ink);font:inherit;text-align:center;cursor:pointer}
 .mxt-tile .cd{position:absolute;top:6px;left:9px;font-size:10px;font-weight:600;color:var(--ax-muted);letter-spacing:.02em}
-.mxt-ring{display:block;margin-bottom:4px}
-.mxt-ring .tr{fill:none;stroke:var(--ax-line2);stroke-width:6}
-.mxt-ring .fg{fill:none;stroke:var(--ax-neutral);stroke-width:6;stroke-linecap:round}
-.mxt-ring text{font-size:13.5px;font-weight:650;fill:var(--ax-ink)}
+.mxt-ring{display:block;margin:2px 0 2px}
+.mxt-ring .tr{fill:none;stroke:var(--ax-line2);stroke-width:11;stroke-linecap:round}
+.mxt-ring .fg{fill:none;stroke:var(--ax-neutral);stroke-width:11;stroke-linecap:round}
+.mxt-ring .pc{font-size:19px;font-weight:700;fill:var(--ax-ink)}
+.mxt-ring .sb{font-size:10.5px;fill:var(--ax-muted)}
 .mxt-tile.g .fg{stroke:var(--ax-green)}
 .mxt-tile.a .fg{stroke:var(--ax-amber)}
 .mxt-tile.r .fg{stroke:var(--ax-red)}
@@ -2095,6 +2115,9 @@ const MXS_CSS = `
 .mxs-all .mxs-list{margin-top:6px;max-height:420px;overflow:auto}
 .mxs-all-none{margin-top:8px;font-size:12px;color:var(--ax-muted)}
 .mxo-svc .mxt{margin-bottom:4px}
+.mxo-svc.wmtr{box-shadow:inset 0 4px 0 var(--ax-blue),var(--ax-shadow)}
+.mxo-svc.pls{box-shadow:inset 0 4px 0 var(--ax-teal),var(--ax-shadow)}
+.mxo-svc h2 .mxt-fam{margin-right:4px}
 .mxs-row.mxs-hit>summary,.mxs-row.flat.mxs-hit{background:var(--ax-blue-soft);box-shadow:inset 3px 0 0 var(--ax-blue)}
 .mxr-out .mxs-score{white-space:nowrap}
 .mxr-out .mxs-score .copx-dot{display:inline-block;margin-right:6px;vertical-align:middle}

@@ -13,6 +13,14 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.43",
+    title: "Metric gauges, clearer service sections",
+    notes: [
+      "Metric rings are now larger half-ring gauges, with the score and count in the bowl and the metric's name underneath.",
+      "Where several services share a card (Summary, PMR), each one sits in its own box with a bold name and a WMTR (blue) or PLS (teal) tag, plus how many of its metrics are on target. The Overview's service cards carry the same tag and colour.",
+    ],
+  },
+  {
     version: "2.9.42",
     title: "Metric rings, and every request behind each score",
     notes: [

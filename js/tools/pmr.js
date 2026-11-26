@@ -561,6 +561,7 @@ function pmrRun(grid, startIso, endIso) {
   const programWmtrs = {};
 
   const lateRows = [];
+  const scoredRows = [];          // every on-time-scored delivery: [wmtr, nltIso, deliveryIso, "pass"|"relief"|"miss"|"nonlt"] (2.9.42)
   const noNltRows = [];           // delivered, but NLT Completion Date missing in ATLAS
   const missingModeRows = [];     // delivered, but "Identify Shipment As" blank in ATLAS
   const unknownModeRows = [];     // delivered, but mode not one PMR recognizes (typo / new mode)
@@ -633,12 +634,13 @@ function pmrRun(grid, startIso, endIso) {
     } else {
       nltScoped += 1;
       const nlt = pmrToDate(b["NLT Completion Date"]);
-      if (nlt && deliveryIso <= pmrIso(nlt)) onTimeCount += 1;
+      if (nlt && deliveryIso <= pmrIso(nlt)) { onTimeCount += 1; scoredRows.push([wmtr, pmrIso(nlt), deliveryIso, "pass"]); }
       if (nlt && deliveryIso > pmrIso(nlt)) {
         // [RELIEF: RDD] in Shipping Team Notes: still counted, scored as on time.
-        if (typeof xtRelievedBy === "function" && xtRelievedBy(grid, wmtr, "delivery")) onTimeCount += 1;
-        else lateRows.push([wmtr, pmrIso(nlt), deliveryIso, pmrDayDiff(nlt, delivery)]);
+        if (typeof xtRelievedBy === "function" && xtRelievedBy(grid, wmtr, "delivery")) { onTimeCount += 1; scoredRows.push([wmtr, pmrIso(nlt), deliveryIso, "relief"]); }
+        else { lateRows.push([wmtr, pmrIso(nlt), deliveryIso, pmrDayDiff(nlt, delivery)]); scoredRows.push([wmtr, pmrIso(nlt), deliveryIso, "miss"]); }
       }
+      if (!nlt) scoredRows.push([wmtr, "", deliveryIso, "nonlt"]);
       if (!nlt) {
         // Delivered on/after the cutoff and in-window, but no usable NLT
         // Completion Date in ATLAS. Counted in the scored total; can't be
@@ -702,6 +704,7 @@ function pmrRun(grid, startIso, endIso) {
     cost_rows: costRows,
     value_rows: valueRows,
     late_rows: lateRows,
+    scored_rows: scoredRows,
     total_delivered: totalDelivered,
     delivered_wmtrs: deliveredWmtrs,
     nlt_scoped: nltScoped,

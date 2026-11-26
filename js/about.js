@@ -13,6 +13,17 @@
 
 const ATLAS_CHANGELOG = [
   {
+    version: "2.9.42",
+    title: "Metric rings, and every request behind each score",
+    notes: [
+      "Metric tiles are now rings that fill to the score (green, amber or red), with the metric's name under them and its code small in the corner.",
+      "Metrics tabs: click a ring to open that metric. What missed or is at risk comes first, then \"All counted\": every request the score includes, passed or missed, with the dates or amounts behind it. Copy pastes it into Excel to check the math.",
+      "PMR: every metric row opens to its exceptions and the full counted list, by quarter. New All / WMTR / PLS switch shows just one side. The Summary data reports are now clear buttons.",
+      "Metrics › Overview: one scorecard card per service (SRF, PR, PLS, IR / DTR), stacked. By destination can show every country, not only the top 10.",
+      "PLS: Red Flag no longer counts as needing attention (it's DTRA's note to TTI). It still shows in the PLS's details.",
+    ],
+  },
+  {
     version: "2.9.41",
     title: "Pick the tab the Dashboard opens on",
     notes: [

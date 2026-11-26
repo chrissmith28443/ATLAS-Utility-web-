@@ -6,7 +6,7 @@
    ========================================================================= */
 // Renamed for the security fix: activate deletes every older cache, which also
 // removes any ATLAS API responses an earlier version had stored.
-const CACHE = "atlas-cache-v2.9.41-dash-start-tab";
+const CACHE = "atlas-cache-v2.9.42-metric-rings";
 const SCOPE_PATH = new URL(self.registration.scope).pathname;   // e.g. "/_acf/"
 const RUNTIME_HOSTS = ["cdn.sheetjs.com", "cdnjs.cloudflare.com", "cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"];
 const APP_SHELL = [
@@ -16,12 +16,12 @@ const APP_SHELL = [
   "js/vendor/xlsx.full.min.js", "js/vendor/jszip.min.js", "js/vendor/pdf-lib.min.js", "js/vendor/pptxgen.min.js",
   "js/app.js?v=132",
   "js/assets.js?v=64",
-  "js/about.js?v=229",
+  "js/about.js?v=230",
   "js/a11y.js?v=61",
   "js/backup.js?v=71",
-  "js/constants.js?v=220",
+  "js/constants.js?v=221",
   "js/dangerous_goods.js?v=69",
-  "js/metrics_dashboard.js?v=99",
+  "js/metrics_dashboard.js?v=101",
   "js/pwa.js?v=63",
   "js/audit.js?v=62",
   "js/formcache.js?v=65",
@@ -53,7 +53,7 @@ const APP_SHELL = [
   "js/tools/awb.js?v=1",
   "js/offline.js?v=4",
   "js/holiday.js?v=2",
-  "js/tools/pmr.js?v=88",
+  "js/tools/pmr.js?v=89",
   "js/tools/pmr_template.js?v=61",
   "js/tools/po.js?v=66",
   "js/tools/propo.js?v=64",
@@ -71,7 +71,7 @@ const APP_SHELL = [
   "js/tools/xmastree.js?v=50",
   "js/tools/record_audit.js?v=4",
   "js/tools/cop.js?v=62",
-  "js/tools/pmdash.js?v=23",
+  "js/tools/pmdash.js?v=24",
   "js/tools/invconv.js?v=4",
   "js/tools/invgen.js?v=3",
   "js/udq.js?v=72",

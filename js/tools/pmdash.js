@@ -459,7 +459,7 @@ function pmParsePls(grid) {
 }
 function pmPlsFlags(r, today) {
   const f = [];
-  if (r.redFlag) f.push({ lvl: "red", key: "flag", text: `Red flag${r.redFlagNote ? ": " + r.redFlagNote : ""}` });
+  // Red Flag on a PLS is DTRA's note to TTI, not something to act on: shown in the detail only (2.9.42).
   if (r.closed || r.lane === "draft") return f;
   if (r.lane === "booked" && r.end && pmDays(r.end, today) > 0) f.push({ lvl: "amber", key: "ended", text: `Trip ended ${pmFmt(r.end)} — still In Progress` });
   if (!r.start || !r.end) f.push({ lvl: "amber", key: "nodates", fix: true, text: "No Start / End Date" });
@@ -720,7 +720,7 @@ const PM_INFO = {
   plsDtra: `<b>Estimate with DTRA</b><br>PLS in <b>DTRA Estimate Review</b> or <b>Fulfillment Review</b> — TTI's estimate is waiting on approval.<br>Below = days the oldest one has waited (since it entered that status).`,
   plsTrips: `<b>Trips in the next 30 / 60 / 90 days</b><br>Open PLS whose <b>Start Date</b> is today or within the window picked in <b>Trips in next</b> (30 days unless changed).<br>Below = travelers: one per <b>Participants List</b> row (or that row's <b>Number of Participants</b> when it's more than 1).`,
   plsNow: `<b>Traveling now</b><br>Open PLS where today is between the <b>Start Date</b> and <b>End Date</b>.`,
-  plsAttn: `<b>Need attention</b><br>PLS with at least one pill in the Attention column: red flag, trip ended but still In Progress, or record fixes (no Start / End Date, approved with no Total Cost, no TTI POC).`,
+  plsAttn: `<b>Need attention</b><br>PLS with at least one pill in the Attention column: trip ended but still In Progress, or record fixes (no Start / End Date, approved with no Total Cost, no TTI POC).`,
   plsTimeline: `<b>Trips — next 30 / 60 / 90 days</b> (the <b>Trips in next</b> pick)<br>One bar per open PLS from its <b>Start Date</b> to <b>End Date</b>, coloured by step. Trips already underway show from the left edge. The red line is today.`,
   plsActions: `<b>Trip ended, still In Progress</b><br>Open PLS in <b>In Progress</b> whose <b>End Date</b> has passed — the PLS should move to Completed.`,
   plsTable: `<b>Columns</b><br><b>Travelers</b> = Participants List rows (or a row's Number of Participants when more than 1).<br><b>In status</b> = days since the newest Workflow Log entry matching the current status.<br><b>Record fixes</b> = data the TTI POC needs to correct in ATLAS.`,

@@ -1099,3 +1099,18 @@ Arrived Warehouse or the warehouse actual date is filled.
 - Metrics needs the Metrics UDQ: until it's loaded the button shows Shipments ("Getting the latest…") and sets
   CopPull.wantMetrics; copSwapInMetrics switches to Metrics once the pull lands. Any tab clicked meanwhile
   (copHubSelect) clears the flag, so the user's own choice wins.
+## v2.9.42 (2026-11-26) — Metric rings, every request behind each score
+- mxsTiles draws rings (mxtRing SVG; status colour from mxMetricStatus; code small top-left, issue badge top-right).
+  Used on every Metrics tab, PMR, Overview and the Summary tab's metric card.
+- Every compute (mxsCompute / mxpCompute / mxlCompute / mxgCompute, mxEstScore) now fills S[code].counted via
+  mxCnt(s, id, iso, text, res) with res pass / relief / miss; counted.length === total for every metric (checked on
+  the Nov samples). Helpers gained additive fields: pmrRun.scored_rows ("nonlt" = no NLT date, counts against S1),
+  mxRowMetricDetail(...).passes, mxDocsDetail(...).passes.
+- Scorecard tabs (mxsScorecard): no row table; one .mxs-pane per metric opened from its ring (one at a time, ring
+  marked .on): head, Watch, Missed, Can't score, then mxsCounted (fold "All N counted", misses first, Copy = TSV).
+- PMR: each row opens to Exceptions + counted list from the WHOLE period (matches the Half/FY column; a request
+  scored in two quarters appears once), labelled by quarter. MxPmr.fam = all / wmtr / pls hides the other family
+  (treated as not loaded, so outcomes, tiles and Summary data all follow). Summary data picker = .mxr-rep buttons.
+- Overview: one .mxo-svc card per service (SRF, PR, PLS, IR / DTR); By destination toggle MxOv.allDest.
+- PLS Red Flag removed from pmPlsFlags (not attention); still shown in the PLS detail panel.
+- Summary tab now shows 17 rings in its metric card, taller than the old tiles; trim if it feels heavy.
